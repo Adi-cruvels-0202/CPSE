@@ -16,8 +16,18 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
+  // Direct Postgres connection, used only by the migration runner
+  // (`npm run db:migrate`). Supabase dashboard -> Project Settings -> Database
+  // -> Connection string. The API itself never opens a raw connection; it goes
+  // through supabase-js. Optional, so the server boots without it.
+  DATABASE_URL: z.string().url().optional(),
+
   // Comma-separated list of origins allowed to call the API.
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+
+  // Where Supabase sends the customer after they click the password-reset link.
+  // Must also be listed in the Supabase dashboard's redirect allowlist.
+  PASSWORD_RESET_REDIRECT_URL: z.string().url().default('http://localhost:5173/reset-password'),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 

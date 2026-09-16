@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { healthRouter } from './modules/health/health.routes.js';
+import { authRouter } from './modules/auth/auth.routes.js';
+import { profileRouter } from './modules/profile/profile.routes.js';
 
 /**
  * All v1 routes are mounted here. Each module owns its own router;
@@ -8,10 +10,10 @@ import { healthRouter } from './modules/health/health.routes.js';
 export const apiRouter = Router();
 
 apiRouter.use(healthRouter);
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/me', profileRouter);
 
 // Mounted as phases land:
-// apiRouter.use('/auth', authRouter);          Phase 2
-// apiRouter.use('/me', profileRouter);         Phase 2
 // apiRouter.use('/stores', storeRouter);       Phase 3
 // apiRouter.use('/cart', cartRouter);          Phase 5
 // apiRouter.use('/addresses', addressRouter);  Phase 6

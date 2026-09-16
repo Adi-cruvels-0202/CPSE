@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Customer Portal & Shopping Experience — backend API",
+  "description": "Customer Portal & Shopping Experience \u2014 backend API",
   "engines": {
     "node": ">=20"
   },
@@ -12,7 +12,10 @@
     "start": "node src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "db:migrate": "node scripts/migrate.js",
+    "db:print": "node scripts/print-migrations.js",
+    "db:seed": "node scripts/seed.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -22,6 +25,7 @@
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
+    "pg": "^8.23.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

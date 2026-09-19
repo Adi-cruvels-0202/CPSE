@@ -18,23 +18,24 @@ Get the Supabase values from your project dashboard → **Project Settings → A
 | `SUPABASE_ANON_KEY` | `anon` `public` key |
 | `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — **server-side only, never ship to the frontend** |
 | `PASSWORD_RESET_REDIRECT_URL` | Where the reset email sends the customer. Must also be listed under **Authentication → URL Configuration → Redirect URLs**. |
-| `DATABASE_URL` | **Project Settings → Database → Connection string** (Session pooler). Optional — only the migration runner uses it. |
 
 ## Database
 
 Migrations are numbered SQL files in `migrations/`, applied in filename order. Each one is
-idempotent on its own and is recorded in `public.schema_migrations`, so re-running is a no-op.
+idempotent (`if not exists`, `or replace`), so re-running a file is a no-op.
+
+Apply them in the **Supabase SQL editor** — the backend holds no direct Postgres connection and
+never applies schema itself. Paste a file's contents and run it, or concatenate them all:
 
 ```bash
-npm run db:migrate            # apply everything pending
-npm run db:migrate -- --dry   # list what would run, change nothing
-npm run db:seed               # dummy stores, catalogue and one test customer's khata
+cat migrations/*.sql > schema.sql   # then paste into the SQL editor
 ```
 
-No `DATABASE_URL` to hand? Print the whole schema and paste it into the Supabase SQL editor:
+Because there is no migration ledger, keep track of the highest file you have applied; the
+numbering is the running order.
 
 ```bash
-npm run db:print > schema.sql
+npm run db:seed   # dummy stores, catalogue and one test customer's khata
 ```
 
 `db:seed` needs only the service-role key. It creates the login
@@ -56,17 +57,12 @@ npm test        # run the test suite
 npm run test:watch
 npm run test:coverage
 
-npm run db:migrate   # see Database below
-npm run db:seed
-npm run db:print
+npm run db:seed   # see Database above
 ```
 
-The suite runs offline with placeholder credentials. The live schema tests in `tests/db/`
-skip themselves unless `DATABASE_URL` is set:
-
-```bash
-npm run db:migrate && npm test    # with DATABASE_URL in .env, runs those too
-```
+The whole suite runs offline against placeholder Supabase credentials and a mock Supabase
+client — no database needed. Schema rules (every FK indexed, `updated_at` triggers, RLS on
+every table) are checked by parsing `migrations/*.sql` in `tests/schema.test.js`.
 
 ## Endpoints
 
@@ -81,9 +77,57 @@ npm run db:migrate && npm test    # with DATABASE_URL in .env, runs those too
 | `POST` | `/api/v1/auth/reset-password` | — | Takes the `accessToken` from the emailed link. |
 | `GET` | `/api/v1/me` | Bearer | Current profile. |
 | `PATCH` | `/api/v1/me` | Bearer | `fullName`, `phone`, `avatarUrl`. Sending `email` or `id` is a 422, not a silent no-op. |
+| `GET` | `/api/v1/stores/:slug` | Optional | Public store page. `isSaved` is `null` when anonymous, a boolean when signed in. |
+| `GET` | `/api/v1/stores/:slug/categories` | Optional | Active categories, in sort order. |
+| `GET` | `/api/v1/stores/:slug/products` | Optional | `?categoryId=&page=&limit=&availableOnly=`. Paginated; sold-out items are returned with `isPurchasable: false`. |
+| `GET` | `/api/v1/stores/:slug/products/:productId` | Optional | Full detail with images and variants. A product id from another store is a 404. |
+| `GET` | `/api/v1/stores/:slug/search` | Optional | `?q=&categoryId=&page=&limit=`. Store-scoped, name + description, minimum 2 characters. |
+| `GET` | `/api/v1/cart` | Bearer | `?storeId=`. Live totals, repriced from the catalogue on every read. |
+| `POST` | `/api/v1/cart/items` | Bearer | `{ storeId, productId, variantId?, quantity }`. Same product + different variant is a separate line. |
+| `PATCH` | `/api/v1/cart/items/:itemId` | Bearer | `{ quantity }`. Capped by stock and by 999. |
+| `DELETE` | `/api/v1/cart/items/:itemId` | Bearer | Removes one line. |
+| `DELETE` | `/api/v1/cart` | Bearer | `?storeId=`. Empties the cart, keeps the cart row. |
+| `POST` | `/api/v1/cart/validate` | Bearer | `{ storeId, items?: [{ itemId, unitPricePaise }] }`. Per-item availability and price-drift issues. |
+| `GET` | `/api/v1/addresses` | Bearer | Default first, then newest. |
+| `POST` | `/api/v1/addresses` | Bearer | 201. The first address saved becomes the default. |
+| `GET`/`PATCH`/`DELETE` | `/api/v1/addresses/:id` | Bearer | Another customer's address is a 404. |
+| `POST` | `/api/v1/addresses/:id/default` | Bearer | Moves the default; at most one per customer. |
+| `POST` | `/api/v1/checkout/quote` | Bearer | `{ storeId, fulfilmentMode, addressId?, customerNote? }`. Full priced summary plus `blockers`, `warnings` and `canPlaceOrder`. Changes nothing. |
+| `GET` | `/api/v1/payments/methods` | — | What the platform can take. |
+| `POST` | `/api/v1/orders` | Bearer | `{ storeId, fulfilmentMode, addressId?, paymentMethod, expectedTotalPaise? }`. Send `Idempotency-Key`; a replay returns the original order with **200**. |
+| `GET` | `/api/v1/orders` | Bearer | `?status=&storeId=&page=&limit=`. Newest first. |
+| `GET` | `/api/v1/orders/:id` | Bearer | Items, totals, payment, fulfilment and the status timeline. |
+| `POST` | `/api/v1/orders/:id/cancel` | Bearer | Only from `pending_payment`, `placed` or `accepted`; otherwise 409. |
+| `GET` | `/api/v1/orders/:id/receipt` | Bearer | Receipt payload, derived from the order's own snapshot. |
+| `POST` | `/api/v1/orders/:id/reorder` | Bearer | Rebuilds the cart and reports what could not be added. |
+| `POST` | `/api/v1/payments/:orderId/initiate` | Bearer | Returns the provider payload for the client. |
+| `POST` | `/api/v1/payments/:orderId/verify` | Bearer | Client-side confirmation; the provider's answer decides, not the client's. |
+| `POST` | `/api/v1/payments/webhook` | Signature | `X-CPSE-Signature`: HMAC-SHA256 of the raw body with `PAYMENT_WEBHOOK_SECRET`. Idempotent. |
+| `POST` | `/api/v1/orders/:id/test-advance` | Bearer | ⚠️ **Test-only.** Stands in for the merchant dashboard. Mounted only when `ENABLE_TEST_ENDPOINTS=true`; the app refuses to boot in production with it on. |
 
 Every `/auth/*` route sits behind the tighter `authLimiter` (`AUTH_RATE_LIMIT_MAX`) as well as
 the global limiter.
+
+Store routes are **public** — a shared link or QR code must open with no token (spec: public store
+pages). They take an optional bearer token only to personalise, and an unknown slug, an inactive
+store, or a category belonging to another store all return **404**.
+
+### Ordering and payments
+
+An order is never marked paid on a client's say-so. A **cash** order is `placed` immediately; an
+**online** order is created as `pending_payment` and only becomes `placed` when the provider
+confirms it, through the signed webhook or the verify endpoint.
+
+Order creation is one Postgres function (`create_order`, migration 0020): the order, its items,
+the first history entry, the payment intent, the stock decrement and the cart checkout all commit
+together or not at all. If anything fails, the customer's cart is exactly as they left it.
+
+Prices come from one place — `src/lib/pricing.js`. The cart, the checkout quote and the order all
+call it, so the number a customer sees is the number they are charged. Catalogue prices are
+tax-inclusive, so `taxPaise` is always 0 (the field exists because the column does).
+
+The merchant side owns stores, products, inventory and order status transitions. That contract is
+written down in [`docs/MERCHANT_INTEGRATION.md`](docs/MERCHANT_INTEGRATION.md).
 
 Authenticate with the Supabase access token:
 
@@ -119,16 +163,16 @@ a 403 would confirm the resource exists.
 ```
 src/
   config/      env loading and validation (nothing else reads process.env)
-  lib/         supabase clients, logger, errors, response helpers
+  lib/         supabase clients, logger, errors, response helpers, opening-hours resolver
   middleware/  request context, validation, rate limiting, error handler
   modules/     one folder per domain: routes + controller + service
   routes.js    the full URL map
   app.js       express assembly
   server.js    listen + graceful shutdown
-migrations/  numbered SQL, applied in order — 0001 enums ... 0018 RLS policies
-scripts/     migrate.js, print-migrations.js, seed.js, seed-data.js
-tests/
-  db/        live tests, skipped unless DATABASE_URL is set
+migrations/  numbered SQL, applied in order — 0001 enums ... 0020 create_order()
+scripts/     seed.js, seed-data.js
+docs/        MERCHANT_INTEGRATION.md — the customer/merchant API contract
+tests/       the suite, plus helpers/ (mock Supabase client, migration parser)
 ```
 
 See `../PROJECT_CHECKLIST.md` and `../PROJECT_CONTEXT.md` for the roadmap and current state.

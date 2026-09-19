@@ -7,7 +7,24 @@
  * checks are all expressible from the DDL text, and the migrations are written
  * in one consistent style.
  */
-import { readMigrations } from '../../scripts/migrate.js';
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const MIGRATIONS_DIR = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'migrations',
+);
+
+/** Every migration, in filename order — which is also apply order. */
+async function readMigrations(dir = MIGRATIONS_DIR) {
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort();
+  return Promise.all(
+    files.map(async (name) => ({ name, sql: await readFile(path.join(dir, name), 'utf8') })),
+  );
+}
 
 const migrationsPromise = readMigrations();
 

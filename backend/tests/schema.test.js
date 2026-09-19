@@ -46,7 +46,21 @@ describe('migration files', () => {
     // Enums and the shared trigger functions must precede every table.
     expect(names[0]).toMatch(/^0001_/);
     expect(names[1]).toMatch(/^0002_/);
-    expect(names.at(-1)).toMatch(/_rls\.sql$/);
+  });
+
+  it('applies the RLS policies after every table has been created', async () => {
+    const all = await migrations;
+    const rlsIndex = all.findIndex((m) => m.name.endsWith('_rls.sql'));
+    expect(rlsIndex).toBeGreaterThan(-1);
+
+    // A table created in a later migration would have no policy, so the RLS
+    // file must stay after the last `create table`.
+    const lastTableIndex = all.reduce(
+      (last, migration, index) =>
+        /create table if not exists/i.test(migration.sql) ? index : last,
+      -1,
+    );
+    expect(rlsIndex).toBeGreaterThan(lastTableIndex);
   });
 
   it('creates every table the checklist requires', async () => {
@@ -292,5 +306,60 @@ describe('money and integrity constraints', () => {
     const sql = await allSql();
     expect(sql).toMatch(/create trigger khata_transactions_immutable\s+before update on public\.khata_transactions/i);
     expect(sql).toMatch(/create trigger khata_transactions_apply\s+after insert or delete on public\.khata_transactions/i);
+  });
+});
+
+/**
+ * Checklist 7.6. Structural checks over the order-creation function
+ * (migration 0020). What the function actually does is only observable
+ * against the real database; these guard the properties a reader should be
+ * able to rely on without running it.
+ */
+describe('create_order (checklist 7.4 – 7.9)', () => {
+  it('is defined once, and re-runnably', async () => {
+    const sql = await allSql();
+
+    expect(sql).toContain('create or replace function public.create_order');
+    expect(sql.match(/function public\.create_order/g)?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('writes the order, its items, the history entry and the payment intent', async () => {
+    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+
+    for (const table of [
+      'insert into public.orders',
+      'insert into public.order_items',
+      'insert into public.order_status_history',
+      'insert into public.payments',
+    ]) {
+      expect(body, `missing ${table}`).toContain(table);
+    }
+  });
+
+  it('returns the existing order for a replayed idempotency key (7.5)', async () => {
+    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+
+    expect(body).toMatch(/idempotency_key = v_idempotency_key/);
+    expect(body).toContain("'replayed', true");
+  });
+
+  it('decrements stock only while enough remains, and raises otherwise (7.6)', async () => {
+    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+
+    expect(body).toMatch(/stock is null or stock >= v_quantity/);
+    expect(body).toContain('ITEM_UNAVAILABLE');
+  });
+
+  it('clears the cart inside the same transaction (7.9)', async () => {
+    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+
+    expect(body).toMatch(/update public\.carts set checked_out_at/);
+    expect(body).toContain('delete from public.cart_items');
+  });
+
+  it('is not callable by anon or authenticated — only the service role', async () => {
+    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+
+    expect(body).toMatch(/revoke all on function public\.create_order\(jsonb\) from public, anon, authenticated/);
   });
 });

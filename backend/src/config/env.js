@@ -16,18 +16,26 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
-  // Direct Postgres connection, used only by the migration runner
-  // (`npm run db:migrate`). Supabase dashboard -> Project Settings -> Database
-  // -> Connection string. The API itself never opens a raw connection; it goes
-  // through supabase-js. Optional, so the server boots without it.
-  DATABASE_URL: z.string().url().optional(),
-
   // Comma-separated list of origins allowed to call the API.
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
 
   // Where Supabase sends the customer after they click the password-reset link.
   // Must also be listed in the Supabase dashboard's redirect allowlist.
   PASSWORD_RESET_REDIRECT_URL: z.string().url().default('http://localhost:5173/reset-password'),
+
+  // Payments (decision D7). The provider is swappable; `mock` is the only one
+  // implemented until a real gateway is chosen.
+  PAYMENT_PROVIDER: z.enum(['mock']).default('mock'),
+  // Signs and verifies payment webhooks. Must match what the gateway holds.
+  PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('dev-only-webhook-secret-change-me'),
+  PAYMENT_MOCK_CHECKOUT_URL: z.string().url().default('http://localhost:5173/mock-payment'),
+
+  // Exposes the test-only endpoint that advances an order's status the way a
+  // merchant dashboard would (checklist 8.8). MUST stay false in production.
+  ENABLE_TEST_ENDPOINTS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
@@ -49,6 +57,8 @@ function testDefaults(source) {
     SUPABASE_ANON_KEY: source.SUPABASE_ANON_KEY ?? 'test-anon-key',
     SUPABASE_SERVICE_ROLE_KEY: source.SUPABASE_SERVICE_ROLE_KEY ?? 'test-service-role-key',
     LOG_LEVEL: source.LOG_LEVEL ?? 'silent',
+    // The order lifecycle cannot be tested without a way to advance it.
+    ENABLE_TEST_ENDPOINTS: source.ENABLE_TEST_ENDPOINTS ?? 'true',
   };
 }
 
@@ -66,6 +76,12 @@ export function loadEnv(source = process.env) {
   }
 
   const value = parsed.data;
+
+  // A production deployment that leaves the test-only status endpoint on would
+  // let anyone march someone else's order to 'completed'.
+  if (value.NODE_ENV === 'production' && value.ENABLE_TEST_ENDPOINTS) {
+    throw new Error('ENABLE_TEST_ENDPOINTS must not be true in production.');
+  }
 
   return {
     ...value,

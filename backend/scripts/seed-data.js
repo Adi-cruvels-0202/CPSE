@@ -45,6 +45,7 @@ export const stores = [
       sat: [{ open: '08:00', close: '22:00' }],
       sun: [{ open: '09:00', close: '13:00' }],
     },
+    timezone: 'Asia/Kolkata',
     pickup_enabled: true,
     delivery_enabled: true,
     min_order_paise: rupees(199),
@@ -154,6 +155,7 @@ export const stores = [
       sat: [{ open: '07:00', close: '20:00' }],
       sun: [],
     },
+    timezone: 'Asia/Kolkata',
     // Pickup only — covers the "delivery not offered" branch in checkout.
     pickup_enabled: true,
     delivery_enabled: false,
@@ -236,7 +238,18 @@ export const stores = [
     postal_code: '141012',
     latitude: 30.884215,
     longitude: 75.846718,
-    opening_hours: { mon: [{ open: '09:00', close: '23:00' }] },
+    // Open late, past midnight — exercises the overnight branch of the
+    // open/closed resolver (src/lib/openingHours.js).
+    opening_hours: {
+      mon: [{ open: '09:00', close: '23:30' }],
+      tue: [{ open: '09:00', close: '23:30' }],
+      wed: [{ open: '09:00', close: '23:30' }],
+      thu: [{ open: '09:00', close: '23:30' }],
+      fri: [{ open: '22:00', close: '02:00' }],
+      sat: [{ open: '22:00', close: '02:00' }],
+      sun: [{ open: '10:00', close: '22:00' }],
+    },
+    timezone: 'Asia/Kolkata',
     pickup_enabled: true,
     delivery_enabled: true,
     min_order_paise: rupees(99),

@@ -43,7 +43,55 @@ describe('logger', () => {
     expect(output).not.toContain('ey.super.secret');
     expect(output).not.toContain('rt_live_123');
     expect(output).toContain('[redacted]');
-    expect(output).toContain('user@example.com');
+    // Checklist 10.4: an email address is personal data, not an identifier we
+    // need in an operational log. A customer id is how a log line names a person.
+    expect(output).not.toContain('user@example.com');
+  });
+
+  it('redacts personal data as well as credentials (10.4)', async () => {
+    const logger = await freshLogger('info');
+    const { lines, restore } = captureStdout();
+
+    logger.info('order placed', {
+      customerId: '9f8a1c2e-5b3d-4a7f-9c1e-2d4b6a8c0e12',
+      orderNumber: 'CPSE-260919-000001',
+      email: 'aditya@example.com',
+      phone: '+919876543210',
+      recipientName: 'Aditya Suresh',
+      deliveryAddress: { line1: '221B Model Town', postalCode: '141002' },
+      idempotencyKey: 'key-abc',
+      signature: 'deadbeef',
+    });
+    restore();
+
+    const output = lines.join('');
+    for (const secret of [
+      'aditya@example.com',
+      '+919876543210',
+      'Aditya Suresh',
+      '221B Model Town',
+      '141002',
+      'key-abc',
+      'deadbeef',
+    ]) {
+      expect(output, secret).not.toContain(secret);
+    }
+
+    // What is left is what an operator actually needs to trace the request.
+    expect(output).toContain('9f8a1c2e-5b3d-4a7f-9c1e-2d4b6a8c0e12');
+    expect(output).toContain('CPSE-260919-000001');
+  });
+
+  it('caps a value a caller controls, so one entry cannot bury the others', async () => {
+    const logger = await freshLogger('info');
+    const { lines, restore } = captureStdout();
+
+    logger.warn('suspicious input', { note: 'A'.repeat(5000) });
+    restore();
+
+    const output = lines.join('');
+    expect(output).toContain('[truncated 5000 chars]');
+    expect(output.length).toBeLessThan(1500);
   });
 
   it('suppresses messages below the configured level', async () => {

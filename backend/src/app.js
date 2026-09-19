@@ -34,18 +34,19 @@ export function createApp() {
   );
   app.use(compression());
 
-  // Payload cap — a shopping cart never needs more than this. The raw body is
-  // kept because a payment webhook's signature is over the exact bytes the
+  // Payload cap — a shopping cart never needs more than this (checklist 10.7),
+  // and it is configurable so a deployment can tighten it further. The raw body
+  // is kept because a payment webhook's signature is over the exact bytes the
   // gateway sent; re-serialising the parsed JSON would change them.
   app.use(
     express.json({
-      limit: '100kb',
+      limit: env.JSON_BODY_LIMIT,
       verify: (req, res, buffer) => {
         req.rawBody = buffer.toString('utf8');
       },
     }),
   );
-  app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+  app.use(express.urlencoded({ extended: true, limit: env.JSON_BODY_LIMIT }));
 
   app.use(requestContext);
   app.use(requestLogger);

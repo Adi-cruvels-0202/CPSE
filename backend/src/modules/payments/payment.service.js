@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { paymentProvider } from './provider.js';
 import { findOwnedOrder, transitionOrder, getOrder } from '../orders/order.service.js';
 import { orderStatusForPayment } from '../orders/order.state.js';
+import * as notifications from '../notifications/notification.service.js';
 
 /**
  * Payments — checklist 7.10 – 7.16.
@@ -183,6 +184,13 @@ async function applyOutcome(orderRow, payment, outcome, changedBy) {
   });
 
   const nextOrderStatus = orderStatusForPayment(orderRow.status, outcome.status);
+
+  // Checklist 9.3. The payment notification is emitted whether or not the order
+  // status moves: a failed payment leaves the order where it is, and that is
+  // precisely the case the customer has to be told about so they can retry.
+  await notifications.notifyPaymentOutcome(orderRow, outcome.status, {
+    failureReason: outcome.failureReason ?? null,
+  });
 
   if (nextOrderStatus) {
     await transitionOrder(orderRow, nextOrderStatus, {

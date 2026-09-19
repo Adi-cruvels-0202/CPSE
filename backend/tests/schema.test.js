@@ -363,3 +363,254 @@ describe('create_order (checklist 7.4 – 7.9)', () => {
     expect(body).toMatch(/revoke all on function public\.create_order\(jsonb\) from public, anon, authenticated/);
   });
 });
+
+/**
+ * Checklist 10.6 — no orphaned cart, checkout or order records.
+ *
+ * Two halves, and they are different problems. Orphans proper are prevented by
+ * the schema: every foreign key states what happens when its parent goes, so
+ * nothing is ever left pointing at a row that has been deleted. Records that are
+ * not orphaned but are *dead* — an unpaid order holding stock, a cart nobody
+ * came back to — are cleaned up by the functions in migration 0022.
+ */
+describe('no orphaned records (checklist 10.6)', () => {
+  it('gives every foreign key an explicit ON DELETE rule', async () => {
+    const fks = await foreignKeys();
+
+    const silent = [];
+    for (const [table, columns] of fks) {
+      for (const { column, onDelete } of columns) {
+        // Postgres defaults to NO ACTION, which fails the delete at runtime
+        // instead of saying what should happen. Every FK here states its rule.
+        if (!onDelete) silent.push(`${table}.${column}`);
+      }
+    }
+    expect(silent).toEqual([]);
+  });
+
+  it('cascades a customer’s dependent rows rather than stranding them', async () => {
+    const fks = await foreignKeys();
+    const ruleFor = (table, column) =>
+      (fks.get(table) ?? []).find((fk) => fk.column === column)?.onDelete;
+
+    // Everything that only exists because a customer does.
+    expect(ruleFor('addresses', 'customer_id')).toBe('cascade');
+    expect(ruleFor('carts', 'customer_id')).toBe('cascade');
+    expect(ruleFor('saved_stores', 'customer_id')).toBe('cascade');
+    expect(ruleFor('notifications', 'customer_id')).toBe('cascade');
+    expect(ruleFor('khata_accounts', 'customer_id')).toBe('cascade');
+
+    // Children of a cart, an order and a khata account go with their parent.
+    expect(ruleFor('cart_items', 'cart_id')).toBe('cascade');
+    expect(ruleFor('order_items', 'order_id')).toBe('cascade');
+    expect(ruleFor('order_status_history', 'order_id')).toBe('cascade');
+    expect(ruleFor('payments', 'order_id')).toBe('cascade');
+    expect(ruleFor('khata_transactions', 'account_id')).toBe('cascade');
+  });
+
+  it('refuses to delete a customer or store that still has orders', async () => {
+    const fks = await foreignKeys();
+    const orders = fks.get('orders') ?? [];
+
+    // An order is a financial record. Deleting the customer must not erase it,
+    // and it must not be left pointing at nothing either — so: restrict.
+    expect(orders.find((fk) => fk.column === 'customer_id')?.onDelete).toBe('restrict');
+    expect(orders.find((fk) => fk.column === 'store_id')?.onDelete).toBe('restrict');
+  });
+
+  it('keeps an order readable after the things it referenced are gone (D11)', async () => {
+    const fks = await foreignKeys();
+    const orderItems = fks.get('order_items') ?? [];
+
+    // The snapshot on the row is what history is built from, so the live
+    // reference may go null without taking the order with it.
+    expect(orderItems.find((fk) => fk.column === 'product_id')?.onDelete).toBe('set null');
+    expect(orderItems.find((fk) => fk.column === 'variant_id')?.onDelete).toBe('set null');
+    expect((fks.get('orders') ?? []).find((fk) => fk.column === 'address_id')?.onDelete).toBe(
+      'set null',
+    );
+  });
+
+  it('expires stale unpaid orders and gives their stock back', async () => {
+    const sql = await allSql();
+    const fn = /create or replace function public\.expire_stale_pending_orders[\s\S]*?\n\$\$;/i.exec(sql);
+
+    expect(fn, 'expire_stale_pending_orders is missing').toBeTruthy();
+    const body = fn[0];
+
+    // Only ever touches an order nobody has paid for.
+    expect(body).toMatch(/where o\.status = 'pending_payment'/i);
+    // Returns the stock it is cancelling.
+    expect(body).toMatch(/set stock = p\.stock \+ oi\.quantity/i);
+    expect(body).toMatch(/set stock = v\.stock \+ oi\.quantity/i);
+    // Records the transition like any other status change, so history stays whole.
+    expect(body).toMatch(/insert into public\.order_status_history/i);
+    // Two overlapping runs cannot both cancel the same order.
+    expect(body).toMatch(/for update skip locked/i);
+  });
+
+  it('purges abandoned carts but never a checked-out one', async () => {
+    const sql = await allSql();
+    const fn = /create or replace function public\.purge_abandoned_carts[\s\S]*?\n\$\$;/i.exec(sql);
+
+    expect(fn, 'purge_abandoned_carts is missing').toBeTruthy();
+    // A checked-out cart is the provenance of an order and is kept regardless
+    // of age.
+    expect(fn[0]).toMatch(/where checked_out_at is null/i);
+    expect(fn[0]).toMatch(/updated_at < now\(\) - p_older_than/i);
+  });
+
+  it('keeps both cleanup functions away from the customer’s own role', async () => {
+    const sql = await allSql();
+
+    for (const fn of ['expire_stale_pending_orders', 'purge_abandoned_carts']) {
+      expect(sql).toMatch(new RegExp(`revoke all on function public\\.${fn}\\(interval\\)\\s+from public`, 'i'));
+      expect(sql).toMatch(new RegExp(`grant execute on function public\\.${fn}\\(interval\\)\\s+to service_role`, 'i'));
+      // Not granted to authenticated: cancelling an order is an operator action.
+      expect(sql).not.toMatch(new RegExp(`grant execute on function public\\.${fn}\\(interval\\)[^;]*authenticated`, 'i'));
+    }
+  });
+});
+
+/**
+ * Checklist 9.7 / 9.8 — the statement aggregates. The balance itself is
+ * maintained by the trigger in 0017; this function only reads.
+ */
+describe('khata_statement (checklist 9.7, 9.8)', () => {
+  it('is defined, read-only, and re-runnable', async () => {
+    const sql = await allSql();
+    const fn = /create or replace function public\.khata_statement[\s\S]*?\n\$\$;/i.exec(sql);
+
+    expect(fn, 'khata_statement is missing').toBeTruthy();
+    const body = fn[0];
+
+    expect(body).toMatch(/language sql/i);
+    expect(body).toMatch(/\bstable\b/i);
+    // A read-only function must not contain a write.
+    expect(body).not.toMatch(/\b(insert|update|delete)\s+(into|from|public\.)/i);
+  });
+
+  it('opens at zero when the period has no lower bound', async () => {
+    const sql = await allSql();
+    const fn = /create or replace function public\.khata_statement[\s\S]*?\n\$\$;/i.exec(sql)[0];
+
+    // `p_from is null or occurred_at < p_from` would match the whole ledger and
+    // count it twice. The bound must be required for the opening balance.
+    expect(fn).toMatch(/and p_from is not null\s*\n\s*and occurred_at < p_from/i);
+  });
+
+  it('is scoped to one account', async () => {
+    const sql = await allSql();
+    const fn = /create or replace function public\.khata_statement[\s\S]*?\n\$\$;/i.exec(sql)[0];
+
+    const scoped = fn.match(/where account_id = p_account_id/gi) ?? [];
+    // Both CTEs — the opening balance and the in-period totals.
+    expect(scoped.length).toBe(2);
+  });
+});
+
+/**
+ * Every function PostgREST can expose as an RPC, and who may call it.
+ *
+ * This exists because of a real hole. 0021 and 0022 revoked their functions
+ * `from public`, which reads like it removes everyone's access — but Supabase's
+ * default privileges grant EXECUTE on a newly created function to `anon` and
+ * `authenticated`, and revoking the PUBLIC pseudo-role does not take a
+ * role-specific grant away. The result was three functions callable with the
+ * anon key, one of which cancels orders and one of which deletes carts.
+ *
+ * So the rule is asserted for every function rather than remembered per
+ * migration: if it is callable, it names `anon` and `authenticated` in a revoke.
+ */
+describe('function privileges (checklist 10.1)', () => {
+  /** Callable functions — trigger functions are invoked by triggers, not RPC. */
+  async function callableFunctions() {
+    const sql = await allSql();
+    const found = new Map();
+    const re = /create or replace function public\.(\w+)\s*\(([^)]*)\)([\s\S]*?)\n\$\$;/gi;
+
+    let match;
+    while ((match = re.exec(sql)) !== null) {
+      const [, name, args, body] = match;
+      // `returns trigger` is not reachable over HTTP.
+      if (/returns\s+trigger/i.test(body)) continue;
+      found.set(name, { args: args.trim(), body });
+    }
+    return found;
+  }
+
+  it('found the functions to check', async () => {
+    const functions = await callableFunctions();
+
+    expect([...functions.keys()].sort()).toEqual([
+      'create_order',
+      'expire_stale_pending_orders',
+      'generate_order_number',
+      'khata_statement',
+      'purge_abandoned_carts',
+    ]);
+  });
+
+  it('revokes every callable function from anon AND authenticated, not just public', async () => {
+    const sql = await allSql();
+    const functions = await callableFunctions();
+
+    const wrong = [];
+    for (const name of functions.keys()) {
+      // Collect every revoke naming this function, across all migrations.
+      const revokes = [
+        ...sql.matchAll(new RegExp(`revoke all on function public\\.${name}\\s*\\([^)]*\\)\\s*\\n?\\s*from ([^;]+);`, 'gi')),
+      ].map((match) => match[1].replace(/\s+/g, ' ').toLowerCase());
+
+      if (revokes.length === 0) {
+        wrong.push(`${name}: never revoked`);
+        continue;
+      }
+      // Supabase's default privileges mean these two must be named explicitly.
+      if (!revokes.some((list) => list.includes('anon'))) wrong.push(`${name}: anon not revoked`);
+      if (!revokes.some((list) => list.includes('authenticated'))) {
+        wrong.push(`${name}: authenticated not revoked`);
+      }
+    }
+
+    expect(wrong).toEqual([]);
+  });
+
+  it('grants every callable function to service_role only', async () => {
+    const sql = await allSql();
+    const functions = await callableFunctions();
+
+    for (const name of functions.keys()) {
+      const grants = [
+        ...sql.matchAll(new RegExp(`grant execute on function public\\.${name}\\s*\\([^)]*\\)\\s*\\n?\\s*to ([^;]+);`, 'gi')),
+      ].map((match) => match[1].replace(/\s+/g, ' ').toLowerCase());
+
+      for (const list of grants) {
+        expect(list, `${name} is granted to anon`).not.toContain('anon');
+        expect(list, `${name} is granted to authenticated`).not.toContain('authenticated');
+        expect(list, `${name} should be granted to service_role`).toContain('service_role');
+      }
+    }
+  });
+
+  it('pins search_path on every security definer function', async () => {
+    const functions = await callableFunctions();
+
+    for (const [name, { body }] of functions) {
+      if (!/security definer/i.test(body)) continue;
+      // Without this, a caller-controlled search_path can redirect the tables a
+      // definer-rights function touches.
+      expect(body, `${name} does not pin search_path`).toMatch(/set search_path\s*=\s*public/i);
+    }
+  });
+
+  it('keeps 0023 in place, since a database may have run the earlier 0021/0022', async () => {
+    const migrations = await import('./helpers/schema.js').then((m) => m.migrations);
+    const repair = (await migrations).find((file) => file.name.includes('revoke_function_grants'));
+
+    expect(repair, 'the grant repair migration is missing').toBeTruthy();
+    for (const name of ['khata_statement', 'expire_stale_pending_orders', 'purge_abandoned_carts']) {
+      expect(repair.sql).toContain(name);
+    }
+  });
+});

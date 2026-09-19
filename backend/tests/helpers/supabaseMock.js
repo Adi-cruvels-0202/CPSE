@@ -56,7 +56,12 @@ const KNOWN_TABLES = [
   'order_status_history',
   'payments',
   'notifications',
+  'khata_accounts',
+  'khata_transactions',
 ];
+
+/** A row as the wire would deliver it: a snapshot, not a live reference. */
+const copy = (row) => (row === null || row === undefined ? row : structuredClone(row));
 
 function rowsOf(table) {
   if (table === 'customers') return [...db.customers.values()];
@@ -205,6 +210,57 @@ export function seedProductVariant(overrides = {}) {
   });
 }
 
+export function seedNotification(overrides = {}) {
+  return insert('notifications', {
+    id: nextId('a'),
+    customer_id: CUSTOMER_ID,
+    type: 'order_status_changed',
+    title: 'Order CPSE-0001: accepted by the store',
+    body: 'The store has accepted your order.',
+    payload: {},
+    read_at: null,
+    created_at: '2026-09-18T10:00:00.000Z',
+    ...overrides,
+  });
+}
+
+export function seedKhataAccount(overrides = {}) {
+  return insert('khata_accounts', {
+    id: nextId('b'),
+    customer_id: CUSTOMER_ID,
+    store_id: STORE_ID,
+    balance_paise: 0,
+    created_at: '2026-09-01T10:00:00.000Z',
+    updated_at: '2026-09-01T10:00:00.000Z',
+    ...overrides,
+  });
+}
+
+/**
+ * Mirrors the real trigger (migration 0017): inserting a transaction moves the
+ * account balance. Without this the mock would let a test assert a balance the
+ * database would never produce.
+ */
+export function seedKhataTransaction(overrides = {}) {
+  const row = insert('khata_transactions', {
+    id: nextId('c'),
+    account_id: null,
+    type: 'debit',
+    amount_paise: 10000,
+    description: null,
+    order_id: null,
+    occurred_at: '2026-09-10T10:00:00.000Z',
+    created_at: '2026-09-10T10:00:00.000Z',
+    ...overrides,
+  });
+
+  const account = (db.tables.get('khata_accounts') ?? []).find((a) => a.id === row.account_id);
+  if (account) {
+    account.balance_paise += row.type === 'debit' ? row.amount_paise : -row.amount_paise;
+  }
+  return row;
+}
+
 export function seedSavedStore(overrides = {}) {
   return insert('saved_stores', {
     customer_id: CUSTOMER_ID,
@@ -313,23 +369,23 @@ function queryBuilder(table) {
         return created;
       });
 
-      if (single) return { data: written[0] ?? null, error: null, count: null };
-      return { data: state.returning ? written : null, error: null, count: null };
+      if (single) return { data: copy(written[0] ?? null), error: null, count: null };
+      return { data: state.returning ? written.map(copy) : null, error: null, count: null };
     }
 
     let rows = rowsOf(table).filter(matches);
 
     if (state.mode === 'update') {
       const updated = rows.map(applyPatch);
-      if (single) return { data: updated[0] ?? null, error: null, count: null };
-      return { data: state.returning ? updated : null, error: null, count: null };
+      if (single) return { data: copy(updated[0] ?? null), error: null, count: null };
+      return { data: state.returning ? updated.map(copy) : null, error: null, count: null };
     }
 
     if (state.mode === 'delete') {
       const survivors = rowsOf(table).filter((row) => !matches(row));
       db.tables.set(table, survivors);
-      if (single) return { data: rows[0] ?? null, error: null, count: null };
-      return { data: state.returning ? rows : null, error: null, count: rows.length };
+      if (single) return { data: copy(rows[0] ?? null), error: null, count: null };
+      return { data: state.returning ? rows.map(copy) : null, error: null, count: rows.length };
     }
 
     for (const { column, ascending } of [...state.order].reverse()) {
@@ -346,8 +402,12 @@ function queryBuilder(table) {
     const count = state.wantCount ? rows.length : null;
     if (state.range) rows = rows.slice(state.range.from, state.range.to + 1);
 
-    if (single) return { data: rows[0] ?? null, error: null, count };
-    return { data: rows, error: null, count };
+    // PostgREST answers with JSON, so a caller holds a snapshot and never a
+    // live reference into the table. Copying here is what makes a service that
+    // reads a row, writes it, and then re-reads its own stale variable behave
+    // the same in tests as in production.
+    if (single) return { data: copy(rows[0] ?? null), error: null, count };
+    return { data: rows.map(copy), error: null, count };
   }
 
   const filter = (op) => (column, value) => {
@@ -556,6 +616,49 @@ export function createOrderRpc({ payload }) {
   };
 }
 
+/**
+ * Stand-in for public.khata_statement (migration 0021): the opening balance
+ * before the period, the debit and credit totals inside it, and the closing
+ * balance. Implemented over the same rows the SQL would read, so a service that
+ * passes the wrong account id or forgets a bound fails here too.
+ */
+export function khataStatementRpc({ p_account_id, p_from = null, p_to = null }) {
+  const rows = (db.tables.get('khata_transactions') ?? []).filter(
+    (row) => row.account_id === p_account_id,
+  );
+
+  const delta = (row) => (row.type === 'debit' ? row.amount_paise : -row.amount_paise);
+
+  // No lower bound means nothing precedes the period, so it opens at zero.
+  const opening = p_from
+    ? rows.filter((row) => row.occurred_at < p_from).reduce((sum, row) => sum + delta(row), 0)
+    : 0;
+
+  const inPeriod = rows.filter(
+    (row) => (!p_from || row.occurred_at >= p_from) && (!p_to || row.occurred_at <= p_to),
+  );
+
+  const debit = inPeriod
+    .filter((row) => row.type === 'debit')
+    .reduce((sum, row) => sum + row.amount_paise, 0);
+  const credit = inPeriod
+    .filter((row) => row.type === 'credit')
+    .reduce((sum, row) => sum + row.amount_paise, 0);
+
+  return {
+    data: [
+      {
+        opening_paise: opening,
+        debit_paise: debit,
+        credit_paise: credit,
+        closing_paise: opening + debit - credit,
+        txn_count: inPeriod.length,
+      },
+    ],
+    error: null,
+  };
+}
+
 export function createSupabaseMock() {
   return {
     supabaseAdmin: {
@@ -572,8 +675,9 @@ export function createSupabaseMock() {
       // contract — idempotency replay, pre-flight validation, error mapping —
       // is what gets exercised.
       rpc: vi.fn(async (name, args) => {
-        if (name !== 'create_order') throw new Error(`No mock for RPC "${name}"`);
-        return createOrderRpc(args);
+        if (name === 'create_order') return createOrderRpc(args);
+        if (name === 'khata_statement') return khataStatementRpc(args);
+        throw new Error(`No mock for RPC "${name}"`);
       }),
     },
     supabaseAnon: {

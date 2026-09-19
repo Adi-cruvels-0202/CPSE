@@ -19,15 +19,17 @@ const {
   seedProduct,
   seedProductImage,
   seedProductVariant,
+  seedKhataAccount,
+  seedKhataTransaction,
 } = await import('./helpers/supabaseMock.js');
 const { env } = await import('../src/config/env.js');
 
 /**
  * The whole customer journey, end to end, in the order a customer walks it:
  *
- *   store link → store page → categories → product list → product detail →
- *   cart → address → checkout quote → order → payment → order history →
- *   order status → receipt → reorder
+ *   store link → store page → save the store → categories → product list →
+ *   product detail → cart → address → checkout quote → order → payment →
+ *   notifications → order history → order status → receipt → reorder → khata
  *
  * The per-module suites cover the edges. This one is the seam test: it fails
  * if any two steps stop fitting together, which is the failure the unit-level
@@ -235,6 +237,129 @@ describe('the customer journey', () => {
     // A paid order that is already on its way cannot be cancelled by the app.
     const cancelled = await api().post(url(`/orders/${orderId}/cancel`)).set(auth).send({});
     expect(cancelled.status).toBe(409);
+  });
+
+  it('walks the Phase 9 screens: save a store, read notifications, open the khata', async () => {
+    const product = seedProduct({ name: 'Basmati Rice', price_paise: 25000, stock: 20 });
+
+    // 1. A shared link, then the heart button — which needs a session.
+    const anonymous = await api().get(url('/stores/sharma-kirana'));
+    expect(anonymous.body.data.store.isSaved).toBeNull();
+
+    const refused = await api().post(url(`/stores/${STORE_ID}/save`));
+    expect(refused.status).toBe(401);
+
+    signIn();
+    const saved = await api().post(url(`/stores/${STORE_ID}/save`)).set(auth);
+    expect(saved.body.data.store.isSaved).toBe(true);
+
+    // Tapping it twice is not an error, and does not save it twice.
+    await api().post(url(`/stores/${STORE_ID}/save`)).set(auth);
+    const savedList = await api().get(url('/saved-stores')).set(auth);
+    expect(savedList.body.data.savedStores).toHaveLength(1);
+    // The list carries the slug, so the screen can link straight back.
+    expect(savedList.body.data.savedStores[0].store.slug).toBe('sharma-kirana');
+
+    // The store page now reflects it.
+    const personalised = await api().get(url('/stores/sharma-kirana')).set(auth);
+    expect(personalised.body.data.store.isSaved).toBe(true);
+
+    // 2. Nothing has happened yet, so there is nothing to read.
+    const quiet = await api().get(url('/notifications')).set(auth);
+    expect(quiet.body.data.notifications).toEqual([]);
+    expect(quiet.body.data.unreadCount).toBe(0);
+
+    // 3. Placing an order, then advancing it, writes the notifications.
+    await api()
+      .post(url('/cart/items'))
+      .set(auth)
+      .send({ storeId: STORE_ID, productId: product.id, quantity: 1 });
+    const placed = await api()
+      .post(url('/orders'))
+      .set(auth)
+      .send({ storeId: STORE_ID, fulfilmentMode: 'pickup', paymentMethod: 'cash' });
+    const orderId = placed.body.data.order.id;
+    const orderNumber = placed.body.data.order.orderNumber;
+
+    await api().post(url(`/orders/${orderId}/test-advance`)).set(auth).send({ status: 'accepted' });
+
+    const inbox = await api().get(url('/notifications')).set(auth);
+    expect(inbox.body.data.unreadCount).toBe(2);
+    expect(inbox.body.data.notifications.map((entry) => entry.type)).toEqual([
+      'order_status_changed',
+      'order_placed',
+    ]);
+    // Newest first, and each one can be opened straight to the order.
+    expect(inbox.body.data.notifications[0].payload.order_id).toBe(orderId);
+    expect(inbox.body.data.notifications[0].title).toContain(orderNumber);
+
+    // 4. The badge, then reading one, then reading the rest.
+    const badge = await api().get(url('/notifications/unread-count')).set(auth);
+    expect(badge.body.data.unreadCount).toBe(2);
+
+    const first = inbox.body.data.notifications[0].id;
+    const read = await api().post(url(`/notifications/${first}/read`)).set(auth);
+    expect(read.body.data.notification.isRead).toBe(true);
+    expect((await api().get(url('/notifications/unread-count')).set(auth)).body.data.unreadCount).toBe(1);
+
+    const readAll = await api().post(url('/notifications/read-all')).set(auth);
+    expect(readAll.body.data).toMatchObject({ updated: 1, unreadCount: 0 });
+
+    const unreadOnly = await api().get(url('/notifications?unreadOnly=true')).set(auth);
+    expect(unreadOnly.body.data.notifications).toEqual([]);
+
+    // 5. The khata the merchant side keeps: readable, and only readable.
+    const account = seedKhataAccount({ store_id: STORE_ID });
+    seedKhataTransaction({
+      account_id: account.id,
+      type: 'debit',
+      amount_paise: 50000,
+      description: 'August groceries',
+      occurred_at: '2026-08-20T10:00:00.000Z',
+    });
+    seedKhataTransaction({
+      account_id: account.id,
+      type: 'credit',
+      amount_paise: 20000,
+      description: 'Part payment',
+      occurred_at: '2026-09-10T10:00:00.000Z',
+    });
+
+    const khataList = await api().get(url('/khata')).set(auth);
+    expect(khataList.body.data.totalOutstandingPaise).toBe(30000);
+    expect(khataList.body.data.accounts[0].store.name).toBe('Sharma Kirana Store');
+
+    const detail = await api().get(url(`/khata/${account.id}`)).set(auth);
+    expect(detail.body.data.totals).toMatchObject({
+      openingPaise: 0,
+      debitPaise: 50000,
+      creditPaise: 20000,
+      outstandingPaise: 30000,
+    });
+    expect(detail.body.data.transactions).toHaveLength(2);
+
+    // September only: August's debit is what the period opens with.
+    const statement = await api()
+      .get(url(`/khata/${account.id}/statement?from=2026-09-01T00:00:00Z`))
+      .set(auth);
+    expect(statement.body.data.totals).toMatchObject({
+      openingPaise: 50000,
+      debitPaise: 0,
+      creditPaise: 20000,
+      closingPaise: 30000,
+      transactionCount: 1,
+    });
+
+    // 6. And there is no way to pay it off through this API (9.9).
+    const write = await api()
+      .post(url(`/khata/${account.id}/transactions`))
+      .set(auth)
+      .send({ type: 'credit', amountPaise: 30000 });
+    expect(write.status).toBe(404);
+
+    const unsaved = await api().delete(url(`/stores/${STORE_ID}/save`)).set(auth);
+    expect(unsaved.body.data.store.isSaved).toBe(false);
+    expect((await api().get(url('/saved-stores')).set(auth)).body.data.savedStores).toEqual([]);
   });
 
   it('keeps two stores’ carts and orders apart the whole way through', async () => {

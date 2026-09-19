@@ -14,7 +14,7 @@ import { resolveOpenState } from '../../lib/openingHours.js';
  * All of these are public (checklist 3.5) — no token required.
  */
 
-const STORE_COLUMNS = `
+export const STORE_COLUMNS = `
   id, slug, name, description, logo_url, cover_image_url, phone, email,
   address_line1, address_line2, city, state, postal_code, country,
   latitude, longitude, opening_hours, timezone,

@@ -43,6 +43,14 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  // Checklist 10.7. Writes that cost work (order creation, payment initiation)
+  // and webhook deliveries are metered separately from ordinary reads.
+  WRITE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(60),
+  WEBHOOK_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+
+  // Largest request body accepted. A cart line, an address or an order is a few
+  // hundred bytes; the cap is what stops a body being used as a memory bill.
+  JSON_BODY_LIMIT: z.string().trim().min(2).default('32kb'),
 });
 
 /**

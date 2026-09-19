@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { optionalAuth } from '../../middleware/requireAuth.js';
+import { optionalAuth, requireAuth } from '../../middleware/requireAuth.js';
 import * as controller from './store.controller.js';
+import * as savedStoreController from '../savedStores/savedStore.controller.js';
+import { savedStoreParams } from '../savedStores/savedStore.schemas.js';
+import { emptyBody } from '../../lib/schemas.js';
 import {
   storeSlugParams,
   productListQuery,
@@ -17,6 +20,25 @@ import {
 export const storeRouter = Router();
 
 storeRouter.use(optionalAuth);
+
+/**
+ * Checklist 9.1 — save / unsave. Keyed by the store's uuid, not its slug (see
+ * savedStore.schemas.js), and `requireAuth` on top of the router's optionalAuth
+ * because a favourite must have an owner. Declared before the slug routes so a
+ * uuid is never read as a slug — it would not match the slug pattern anyway.
+ */
+storeRouter.post(
+  '/:storeId/save',
+  requireAuth,
+  validate({ params: savedStoreParams, body: emptyBody }),
+  savedStoreController.saveStore,
+);
+storeRouter.delete(
+  '/:storeId/save',
+  requireAuth,
+  validate({ params: savedStoreParams, body: emptyBody }),
+  savedStoreController.unsaveStore,
+);
 
 storeRouter.get('/:slug', validate({ params: storeSlugParams }), controller.getStore);
 

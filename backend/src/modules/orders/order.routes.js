@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
+import { writeLimiter } from '../../middleware/rateLimit.js';
 import { env } from '../../config/env.js';
 import * as controller from './order.controller.js';
 import { advanceOrder } from './order.testing.controller.js';
+import { emptyBody } from '../../lib/schemas.js';
 import {
   createOrderSchema,
   orderListQuery,
@@ -17,7 +19,9 @@ export const orderRouter = Router();
 
 orderRouter.use(requireAuth);
 
-orderRouter.post('/', validate({ body: createOrderSchema }), controller.createOrder);
+// Checklist 10.7: order creation runs a transaction, decrements stock and can
+// open a payment intent. It is metered more tightly than a read.
+orderRouter.post('/', writeLimiter, validate({ body: createOrderSchema }), controller.createOrder);
 orderRouter.get('/', validate({ query: orderListQuery }), controller.listOrders);
 
 orderRouter.get('/:id', validate({ params: orderParams }), controller.getOrder);
@@ -28,7 +32,12 @@ orderRouter.post(
   validate({ params: orderParams, body: cancelOrderSchema }),
   controller.cancelOrder,
 );
-orderRouter.post('/:id/reorder', validate({ params: orderParams }), controller.reorder);
+orderRouter.post(
+  '/:id/reorder',
+  writeLimiter,
+  validate({ params: orderParams, body: emptyBody }),
+  controller.reorder,
+);
 
 // ⚠️ TEST-ONLY (checklist 8.8) — stands in for the merchant dashboard so the
 // order lifecycle can be exercised. Not mounted at all unless the flag is on.

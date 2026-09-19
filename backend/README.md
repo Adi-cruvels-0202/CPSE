@@ -19,6 +19,9 @@ Get the Supabase values from your project dashboard → **Project Settings → A
 | `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key — **server-side only, never ship to the frontend** |
 | `PASSWORD_RESET_REDIRECT_URL` | Where the reset email sends the customer. Must also be listed under **Authentication → URL Configuration → Redirect URLs**. |
 
+Everything else has a working default; `.env.example` documents the rate-limit buckets and the
+request body cap.
+
 ## Database
 
 Migrations are numbered SQL files in `migrations/`, applied in filename order. Each one is
@@ -57,7 +60,9 @@ npm test        # run the test suite
 npm run test:watch
 npm run test:coverage
 
-npm run db:seed   # see Database above
+npm run db:seed          # see Database above
+npm run db:maintenance   # expire stale unpaid orders, purge abandoned carts
+npm run db:maintenance -- --dry
 ```
 
 The whole suite runs offline against placeholder Supabase credentials and a mock Supabase
@@ -65,6 +70,10 @@ client — no database needed. Schema rules (every FK indexed, `updated_at` trig
 every table) are checked by parsing `migrations/*.sql` in `tests/schema.test.js`.
 
 ## Endpoints
+
+The full contract — request shapes, every error code, the invariants a frontend can rely on — is
+[`docs/API.md`](docs/API.md). It is checked against the router by `tests/apiDocs.test.js`, so an
+endpoint that is not documented there fails the suite. The table below is the index.
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
@@ -104,6 +113,15 @@ every table) are checked by parsing `migrations/*.sql` in `tests/schema.test.js`
 | `POST` | `/api/v1/payments/:orderId/verify` | Bearer | Client-side confirmation; the provider's answer decides, not the client's. |
 | `POST` | `/api/v1/payments/webhook` | Signature | `X-CPSE-Signature`: HMAC-SHA256 of the raw body with `PAYMENT_WEBHOOK_SECRET`. Idempotent. |
 | `POST` | `/api/v1/orders/:id/test-advance` | Bearer | ⚠️ **Test-only.** Stands in for the merchant dashboard. Mounted only when `ENABLE_TEST_ENDPOINTS=true`; the app refuses to boot in production with it on. |
+| `POST`/`DELETE` | `/api/v1/stores/:storeId/save` | Bearer | Favourite / unfavourite. Both idempotent. Keyed by uuid, not slug. |
+| `GET` | `/api/v1/saved-stores` | Bearer | Newest save first; each entry carries the slug, name, logo and open/closed state. |
+| `GET` | `/api/v1/notifications` | Bearer | `?unreadOnly=&page=&limit=`. Newest first, with `unreadCount`. |
+| `GET` | `/api/v1/notifications/unread-count` | Bearer | The badge on its own. |
+| `POST` | `/api/v1/notifications/:id/read` | Bearer | Idempotent — keeps the original `readAt`. |
+| `POST` | `/api/v1/notifications/read-all` | Bearer | `{ updated, unreadCount }`. |
+| `GET` | `/api/v1/khata` | Bearer | Accounts plus `totalOutstandingPaise`. |
+| `GET` | `/api/v1/khata/:accountId` | Bearer | Opening balance, what is outstanding, and the ledger. |
+| `GET` | `/api/v1/khata/:accountId/statement` | Bearer | `?from=&to=&page=&limit=`. Opening and closing balances for the period. |
 
 Every `/auth/*` route sits behind the tighter `authLimiter` (`AUTH_RATE_LIMIT_MAX`) as well as
 the global limiter.
@@ -125,6 +143,25 @@ together or not at all. If anything fails, the customer's cart is exactly as the
 Prices come from one place — `src/lib/pricing.js`. The cart, the checkout quote and the order all
 call it, so the number a customer sees is the number they are charged. Catalogue prices are
 tax-inclusive, so `taxPaise` is always 0 (the field exists because the column does).
+
+### Notifications and khata
+
+Notifications are in-app only: rows written by the API and polled by the client. They are emitted
+from `transitionOrder`, the single writer of `orders.status`, so every change is notified exactly
+once whoever caused it — and an emission that fails is logged, never thrown, because an order that
+has already moved must not be rolled back over a notification. Payloads carry deep-link ids only:
+no prices, no addresses, no phone numbers.
+
+The khata (store credit) is **read-only for customers**, in four independent places: no write verb
+on the router, no writer exported from the service, `select`-only RLS policies, and an immutability
+trigger on the ledger. Merchant-side khata administration is out of scope.
+
+### Housekeeping
+
+`npm run db:maintenance` cancels online orders that were never paid for and returns their stock,
+and deletes carts nobody has touched in 90 days. Both steps are idempotent, so it is safe as a cron
+job. The functions behind it are granted to `service_role` only — cancelling an order is an
+operator action, not something any request can trigger.
 
 The merchant side owns stores, products, inventory and order status transitions. That contract is
 written down in [`docs/MERCHANT_INTEGRATION.md`](docs/MERCHANT_INTEGRATION.md).
@@ -169,10 +206,11 @@ src/
   routes.js    the full URL map
   app.js       express assembly
   server.js    listen + graceful shutdown
-migrations/  numbered SQL, applied in order — 0001 enums ... 0020 create_order()
-scripts/     seed.js, seed-data.js
-docs/        MERCHANT_INTEGRATION.md — the customer/merchant API contract
-tests/       the suite, plus helpers/ (mock Supabase client, migration parser)
+migrations/  numbered SQL, applied in order — 0001 enums ... 0022 cleanup functions
+scripts/     seed.js, seed-data.js, maintenance.js
+docs/        API.md — the customer API contract
+             MERCHANT_INTEGRATION.md — the customer/merchant contract
+tests/       the suite, plus helpers/ (mock Supabase client, migration parser, router walker)
 ```
 
 See `../PROJECT_CHECKLIST.md` and `../PROJECT_CONTEXT.md` for the roadmap and current state.

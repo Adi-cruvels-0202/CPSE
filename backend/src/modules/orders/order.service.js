@@ -5,6 +5,7 @@ import { buildQuote, assertQuotePlaceable, addressSnapshot, storeSnapshot } from
 import { toPublicAddress } from '../addresses/address.service.js';
 import { addItem, getCart } from '../cart/cart.service.js';
 import { findActiveStoreById } from '../stores/store.service.js';
+import * as notifications from '../notifications/notification.service.js';
 import {
   STATUS_LABELS,
   canCustomerCancel,
@@ -125,8 +126,22 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
   // same number, no second charge and no second stock decrement.
   const result = Array.isArray(data) ? data[0] : data;
   const order = await getOrder(customerId, result.order_id);
+  const replayed = Boolean(result.replayed);
 
-  return { order, replayed: Boolean(result.replayed) };
+  // Checklist 9.3. Only the first attempt is news; a replay must not produce a
+  // second notification for one order. A cash order is already placed, so it is
+  // announced now; an online one waits for the payment to confirm, which the
+  // payment notification and the placed transition cover.
+  if (!replayed && !isOnline) {
+    await notifications.notifyOrderPlaced({
+      id: order.id,
+      order_number: order.orderNumber,
+      store_id: store.id,
+      customer_id: customerId,
+    });
+  }
+
+  return { order, replayed };
 }
 
 /**
@@ -398,12 +413,17 @@ export async function getOrder(customerId, orderId) {
  * by accident and the audit trail can never be skipped.
  */
 export async function transitionOrder(orderRow, toStatus, { changedBy, note = null, patch = {} }) {
-  if (!canTransition(orderRow.status, toStatus)) {
+  // Read once, up front. Everything below — the optimistic guard, the history
+  // row and the notification — must describe the state we validated against,
+  // not whatever `orderRow` holds after the update.
+  const fromStatus = orderRow.status;
+
+  if (!canTransition(fromStatus, toStatus)) {
     throw conflict(
-      `An order that is ${STATUS_LABELS[orderRow.status]?.toLowerCase() ?? orderRow.status} cannot become ${
+      `An order that is ${STATUS_LABELS[fromStatus]?.toLowerCase() ?? fromStatus} cannot become ${
         STATUS_LABELS[toStatus]?.toLowerCase() ?? toStatus
       }.`,
-      { from: orderRow.status, to: toStatus },
+      { from: fromStatus, to: toStatus },
     );
   }
 
@@ -419,7 +439,7 @@ export async function transitionOrder(orderRow, toStatus, { changedBy, note = nu
     .eq('id', orderRow.id)
     // Guards against two writers racing: the row must still be in the state we
     // validated against.
-    .eq('status', orderRow.status)
+    .eq('status', fromStatus)
     .select(ORDER_COLUMNS)
     .maybeSingle();
 
@@ -428,13 +448,30 @@ export async function transitionOrder(orderRow, toStatus, { changedBy, note = nu
 
   const { error: historyError } = await supabaseAdmin.from('order_status_history').insert({
     order_id: orderRow.id,
-    from_status: orderRow.status,
+    from_status: fromStatus,
     to_status: toStatus,
     changed_by: changedBy,
     note,
   });
 
   fail(historyError, 'Could not record the order history.');
+
+  // Checklist 9.3. This is the only writer of `orders.status`, so emitting here
+  // means every status change is notified exactly once, whoever caused it — the
+  // customer cancelling, a payment confirming, or the merchant advancing it.
+  // A failed notification is logged, never thrown: the order has already moved.
+  await notifications.notifyOrderStatus(
+    {
+      id: orderRow.id,
+      order_number: orderRow.order_number ?? data.order_number,
+      store_id: orderRow.store_id ?? data.store_id,
+      customer_id: orderRow.customer_id ?? data.customer_id,
+      status: fromStatus,
+    },
+    toStatus,
+    { note },
+  );
+
   return data;
 }
 

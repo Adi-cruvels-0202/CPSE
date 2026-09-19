@@ -66,8 +66,16 @@ export async function foreignKeys() {
   for (const [table, body] of blocks) {
     const columns = [];
     for (const line of body.split('\n')) {
-      const match = /^\s*(\w+)\s+[\w().]+.*references\s+(?:public|auth)\.(\w+)/i.exec(line);
-      if (match) columns.push({ column: match[1], references: match[2] });
+      const match = /^\s*(\w+)\s+[\w().]+.*references\s+(?:public|auth)\.(\w+)\s*\([^)]*\)\s*(on delete [a-z ]+)?/i.exec(line);
+      if (match) {
+        columns.push({
+          column: match[1],
+          references: match[2],
+          // Normalised, e.g. 'cascade' / 'set null' / 'restrict', or null when
+          // the migration did not say — which checklist 10.6 forbids.
+          onDelete: match[3] ? match[3].replace(/^on delete\s+/i, '').trim().toLowerCase() : null,
+        });
+      }
     }
     result.set(table, columns);
   }

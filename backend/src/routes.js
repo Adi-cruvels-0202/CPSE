@@ -8,6 +8,9 @@ import { addressRouter } from './modules/addresses/address.routes.js';
 import { checkoutRouter } from './modules/checkout/checkout.routes.js';
 import { orderRouter } from './modules/orders/order.routes.js';
 import { paymentRouter } from './modules/payments/payment.routes.js';
+import { savedStoreRouter } from './modules/savedStores/savedStore.routes.js';
+import { notificationRouter } from './modules/notifications/notification.routes.js';
+import { khataRouter } from './modules/khata/khata.routes.js';
 
 /**
  * All v1 routes are mounted here. Each module owns its own router;
@@ -24,3 +27,6 @@ apiRouter.use('/addresses', addressRouter);
 apiRouter.use('/checkout', checkoutRouter);
 apiRouter.use('/orders', orderRouter);
 apiRouter.use('/payments', paymentRouter);
+apiRouter.use('/saved-stores', savedStoreRouter);
+apiRouter.use('/notifications', notificationRouter);
+apiRouter.use('/khata', khataRouter);

@@ -62,6 +62,8 @@ src/
     store/        StorePage, Catalogue (filter + grid), ProductCard, ProductDetail,
                   StoreSearch
     cart/         CartPage, CartLine, CartIssues
+    addresses/    AddressesPage, AddressCard, AddressForm — shared with checkout
+    checkout/     CheckoutPage, CheckoutSections
     Account.jsx   profile editing, the links to everything owned, sign out
     Home.jsx  NotFound.jsx  Placeholder.jsx
   styles/
@@ -149,6 +151,21 @@ through. Nobody is carried into checkout on a number they have not seen.
 The minimum-order shortfall is shown as a warning, not enforced: that rule lives in the checkout
 quote, which is the single gate, and re-implementing it here is how the two start disagreeing.
 
+## Checkout
+
+**The quote is the screen.** `POST /checkout/quote` prices the order, lists every reason it cannot be
+placed, and says whether it can — and order creation prices from the same engine, so the number shown
+is the number charged. Nothing here re-derives any of it: `blockers` are why the button is disabled,
+`warnings` are things to know, `canPlaceOrder` is what the button binds to.
+
+A closed shop is a **warning**, not a blocker: the order waits until the shop opens, and blocking
+would simply lose it.
+
+**One `Idempotency-Key` per screen, not per tap.** A retry after a timeout must present the same key
+so the server returns the order it already created instead of placing a second one. `expectedTotalPaise`
+goes with it — if the total moved, the server refuses and the screen re-quotes so the customer sees
+the new number first.
+
 ## Theme
 
 Green, from `src/styles/tokens.css`. It is a grocery portal: green reads as fresh produce and
@@ -177,7 +194,7 @@ skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 311 tests, no network and no backend required.
+`npm test` — 375 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

@@ -37,6 +37,10 @@ function renderCart({ cart = cartFixture(), routes = {} } = {}) {
     '/cart/validate': ok({ cart }),
     '/cart/items/': ok({ cart }),
     '/cart': ok({ cart }),
+    // Tapping Checkout navigates to the real checkout screen, which fetches these.
+    '/addresses': ok({ addresses: [] }),
+    '/payments/methods': ok({ methods: [{ code: 'cash', label: 'Cash', description: 'Pay at the shop' }] }),
+    '/checkout/quote': ok({ quote: null }),
     ...routes,
   });
 

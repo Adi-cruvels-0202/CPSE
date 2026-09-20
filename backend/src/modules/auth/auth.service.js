@@ -5,6 +5,7 @@ import {
   unauthorized,
   badRequest,
   unprocessable,
+  serviceUnavailable,
 } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
@@ -60,6 +61,25 @@ const INVALID_CREDENTIALS = 'Email or password is incorrect.';
  * Anything not recognised here falls through to signUpFailure, which never
  * asserts that an account exists.
  */
+/**
+ * Tells "these credentials are wrong" apart from "the auth service is not
+ * answering properly".
+ *
+ * Supabase answers a bad password with a 400 and a short message. An HTML body is
+ * something in front of it — Cloudflare, a proxy — and a 5xx is Supabase itself
+ * being unwell. Neither is a statement about the password.
+ *
+ * Deliberately narrow: anything unrecognised is still treated as a credential
+ * failure, so an unfamiliar error can never become an account-existence signal.
+ */
+function isUpstreamOutage(error) {
+  const message = String(error?.message ?? '');
+
+  if (/^\s*<(!doctype|html)/i.test(message)) return true;
+  if (typeof error?.status === 'number' && error.status >= 500) return true;
+  return /fetch failed|network|socket hang up|ECONNRESET|ETIMEDOUT/i.test(message);
+}
+
 function isAlreadyRegistered(error) {
   return /already (been )?registered|already exists|user_already_exists/i.test(error?.message ?? '');
 }
@@ -147,6 +167,19 @@ export async function register({ email, password, fullName, phone }) {
 /** Checklist 2.2. */
 export async function login({ email, password }) {
   const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password });
+
+  // An auth service that is briefly unreachable is not a wrong password. D19 says
+  // every credential failure must look identical — and it still does — but telling
+  // a customer their password is wrong when the truth is "the upstream hiccupped"
+  // sends them to reset a password that was fine. Only a refusal *of the
+  // credentials* gets the generic message.
+  if (error && isUpstreamOutage(error)) {
+    logger.error('Auth upstream refused a sign-in', {
+      status: error.status,
+      reason: String(error.message ?? '').slice(0, 120),
+    });
+    throw serviceUnavailable('Sign-in is unavailable right now. Please try again in a moment.');
+  }
 
   if (error || !data?.session) throw unauthorized(INVALID_CREDENTIALS);
 

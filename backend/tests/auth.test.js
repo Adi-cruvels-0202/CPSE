@@ -130,6 +130,83 @@ describe('POST /api/v1/auth/register (2.1)', () => {
  * shopper. These are the failures that reached the register screen verbatim
  * before they were translated.
  */
+/**
+ * A brief upstream outage is not a wrong password. D19 still holds — a genuine
+ * credential refusal is indistinguishable whatever the reason — but a customer
+ * must not be sent to reset a password that was never the problem.
+ */
+describe('login tells an outage apart from wrong credentials', () => {
+  it('answers 503 when the auth upstream returns HTML', async () => {
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({
+      data: { session: null, user: null },
+      error: authError('<!DOCTYPE html><html><title>Attention Required!</title></html>', 403),
+    });
+
+    const res = await api()
+      .post(url('/auth/login'))
+      .send({ email: 'test.customer@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(503);
+    expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect(JSON.stringify(res.body)).not.toMatch(/DOCTYPE|Attention/i);
+  });
+
+  it('answers 503 when the auth upstream is unwell', async () => {
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({
+      data: { session: null, user: null },
+      error: authError('internal server error', 500),
+    });
+
+    const res = await api()
+      .post(url('/auth/login'))
+      .send({ email: 'test.customer@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(503);
+  });
+
+  it('answers 503 when the request never got there', async () => {
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({
+      data: { session: null, user: null },
+      error: authError('fetch failed', undefined),
+    });
+
+    const res = await api()
+      .post(url('/auth/login'))
+      .send({ email: 'test.customer@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(503);
+  });
+
+  it('still answers 401 with the same message for genuinely wrong credentials', async () => {
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({
+      data: { session: null, user: null },
+      error: authError('Invalid login credentials', 400),
+    });
+
+    const res = await api()
+      .post(url('/auth/login'))
+      .send({ email: 'test.customer@cpse.local', password: 'WrongOne!2026' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toBe('Email or password is incorrect.');
+  });
+
+  it('treats an unfamiliar error as a credential failure, never as a hint', async () => {
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({
+      data: { session: null, user: null },
+      error: authError('something nobody has seen before', 418),
+    });
+
+    const res = await api()
+      .post(url('/auth/login'))
+      .send({ email: 'nobody@cpse.local', password: 'CpseTest!2026' });
+
+    // Anything unrecognised must not become an account-existence signal (D19).
+    expect(res.status).toBe(401);
+    expect(res.body.error.message).toBe('Email or password is incorrect.');
+  });
+});
+
 describe('sign-up failures are translated for the customer', () => {
   it('turns a rate limit into something a customer can act on', async () => {
     supabaseAnon.auth.signUp.mockResolvedValue({

@@ -42,6 +42,10 @@ function renderAt(path, { signedIn = false } = {}) {
     '/products': ok(list.data, list.meta),
     '/stores/sharma-kirana': ok({ store: storeFixture() }),
     '/cart': ok({ cart: cartFixture() }),
+    '/addresses': ok({ addresses: [] }),
+    '/payments/methods': ok({ methods: [{ code: 'cash', label: 'Cash', description: 'Pay at the shop' }] }),
+    // Checkout reaches the store by slug, which it gets from the cart.
+    '/checkout/quote': ok({ quote: null }),
   });
 
   return render(

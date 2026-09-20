@@ -1,0 +1,183 @@
+.checkout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.checkout__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* ── Steps ──────────────────────────────────────────────────────────────── */
+
+.checkout__step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.checkout__step-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+}
+
+.checkout__step-number {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  color: var(--text-on-brand);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+/* ── Choices (fulfilment, payment) ──────────────────────────────────────── */
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.choice:hover {
+  border-color: var(--green-300);
+}
+
+.choice--selected {
+  border-color: var(--brand);
+  background: var(--bg-brand-subtle);
+}
+
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.choice input {
+  margin-top: 3px;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--brand);
+  flex-shrink: 0;
+}
+
+.choice__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.choice__label {
+  font-weight: var(--weight-medium);
+  color: var(--text-strong);
+}
+
+.choice__detail {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ── Note ───────────────────────────────────────────────────────────────── */
+
+.checkout__note {
+  /* The shared field style is sized for one line; a textarea needs its own. */
+  min-height: 5rem;
+  padding: var(--space-3);
+  resize: vertical;
+  font-family: inherit;
+}
+
+/* ── Review ─────────────────────────────────────────────────────────────── */
+
+.checkout__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.checkout__lines li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.checkout__line-name {
+  color: var(--text-body);
+}
+
+.checkout__totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.checkout__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.checkout__row dt {
+  color: var(--text-muted);
+}
+
+.checkout__row dd {
+  color: var(--text-strong);
+}
+
+.checkout__row--total {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-lg);
+}
+
+.checkout__row--total dt,
+.checkout__row--total dd {
+  color: var(--text-strong);
+  font-weight: var(--weight-bold);
+}
+
+.checkout__where {
+  padding-top: var(--space-2);
+}
+
+.checkout__issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ── Place ──────────────────────────────────────────────────────────────── */
+
+.checkout__place {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}

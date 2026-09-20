@@ -11,6 +11,8 @@ import { StorePage } from './routes/store/StorePage.jsx';
 import { ProductDetail } from './routes/store/ProductDetail.jsx';
 import { StoreSearch } from './routes/store/StoreSearch.jsx';
 import { CartPage } from './routes/cart/CartPage.jsx';
+import { AddressesPage } from './routes/addresses/AddressesPage.jsx';
+import { CheckoutPage } from './routes/checkout/CheckoutPage.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 import { Placeholder } from './routes/Placeholder.jsx';
 
@@ -70,7 +72,7 @@ export function AppRoutes() {
           path="checkout/:storeId"
           element={
             <RequireAuth>
-              <Placeholder title="Checkout" item="11.8" />
+              <CheckoutPage />
             </RequireAuth>
           }
         />
@@ -142,7 +144,7 @@ export function AppRoutes() {
           path="account/addresses"
           element={
             <RequireAuth>
-              <Placeholder title="Addresses" item="11.12" />
+              <AddressesPage />
             </RequireAuth>
           }
         />

@@ -61,19 +61,33 @@ export function mockRoutes(routes) {
       body: options.body ? JSON.parse(options.body) : undefined,
     });
 
-    // The match furthest to the RIGHT wins, then the longer of any tie.
+    // Matching, in three rules, each of which exists because of a bug:
     //
-    // Neither rule alone is enough. Longest-wins lets '/stores/sharma-kirana'
-    // answer '/stores/sharma-kirana/products/abc', because it is a prefix of it.
-    // First-match-wins lets '/stores/' answer '/stores/<id>/save'. Taking the
-    // rightmost start picks the most specific tail — the endpoint actually being
-    // called — in both cases.
+    //   1. against the PATHNAME only, so a value in a query string cannot be
+    //      mistaken for an endpoint;
+    //   2. on path-segment BOUNDARIES — '/me' must not match inside
+    //      '/payments/methods', which is how the customer payload came back for a
+    //      request for the payment methods;
+    //   3. RIGHTMOST match wins, then the longer of a tie. Longest alone lets
+    //      '/stores/sharma-kirana' answer '.../products/abc' because it is a
+    //      prefix of it; leftmost lets '/stores/' answer '/stores/<id>/save'.
+    const { pathname } = new URL(href);
+
     const pattern = Object.keys(routes)
-      .map((candidate) => ({ candidate, at: href.lastIndexOf(candidate) }))
-      .filter((entry) => entry.at !== -1)
+      .map((candidate) => {
+        const at = pathname.lastIndexOf(candidate);
+        if (at === -1) return null;
+
+        // A key ending in '/' is already a boundary; otherwise the next character
+        // must end the segment.
+        const after = pathname[at + candidate.length];
+        const bounded = candidate.endsWith('/') || after === undefined || after === '/';
+        return bounded ? { candidate, at } : null;
+      })
+      .filter(Boolean)
       .sort((a, b) => b.at - a.at || b.candidate.length - a.candidate.length)[0]?.candidate;
 
-    if (!pattern) throw new Error(`No mock route matches ${href}`);
+    if (!pattern) throw new Error(`No mock route matches ${pathname}`);
 
     const queue = remaining.get(pattern);
     const response = queue ? (queue.shift() ?? routes[pattern].at(-1)) : routes[pattern];
@@ -371,3 +385,102 @@ export const emptyCartFixture = () =>
     },
     isCheckoutReady: false,
   });
+
+/** A saved address, as GET /addresses returns one. */
+export const addressFixture = (overrides = {}) => ({
+  id: 'addr-1',
+  label: 'Home',
+  recipientName: 'Test Customer',
+  phone: '+919876543210',
+  line1: '221B Model Town',
+  line2: null,
+  landmark: null,
+  city: 'Ludhiana',
+  state: 'Punjab',
+  postalCode: '141002',
+  country: 'IN',
+  latitude: null,
+  longitude: null,
+  isDefault: true,
+  createdAt: '2026-09-19T16:05:06.505623+00:00',
+  updatedAt: '2026-09-19T16:05:06.505623+00:00',
+  ...overrides,
+});
+
+/** The checkout quote — the single gate every order passes through. */
+export const quoteFixture = (overrides = {}) => ({
+  storeId: '11111111-1111-4111-8111-000000000001',
+  cartId: 'cart-1',
+  store: {
+    id: '11111111-1111-4111-8111-000000000001',
+    slug: 'sharma-kirana',
+    name: 'Sharma Kirana Store',
+    phone: '+919812345601',
+    addressLine1: '14 Model Town Road',
+    city: 'Ludhiana',
+    state: 'Punjab',
+    postalCode: '141002',
+  },
+  hours: { isOpen: true, opensAt: null },
+  fulfilmentMode: 'pickup',
+  address: null,
+  customerNote: null,
+  lines: [
+    {
+      id: 'line-1',
+      name: 'Basmati Rice',
+      variantName: null,
+      unitPricePaise: 12900,
+      quantity: 2,
+      lineTotalPaise: 25800,
+      issues: [],
+    },
+  ],
+  unavailableLines: [],
+  totals: {
+    subtotalPaise: 25800,
+    discountPaise: 0,
+    deliveryFeePaise: 0,
+    taxPaise: 0,
+    totalPaise: 25800,
+    itemCount: 1,
+    totalQuantity: 2,
+  },
+  blockers: [],
+  warnings: [],
+  canPlaceOrder: true,
+  ...overrides,
+});
+
+export const paymentMethodsFixture = () => ({
+  methods: [
+    {
+      code: 'cash',
+      label: 'Cash on pickup / delivery',
+      description: 'Pay the store directly when you collect or receive your order.',
+      requiresOnlineFlow: false,
+    },
+    {
+      code: 'online',
+      label: 'Pay online',
+      description: 'Card, UPI or net banking through our payment partner.',
+      requiresOnlineFlow: true,
+    },
+  ],
+});
+
+/** An order, as POST /orders returns one. */
+export const orderFixture = (overrides = {}) => ({
+  id: 'order-1',
+  orderNumber: 'CPSE-260920-ABC123',
+  storeId: '11111111-1111-4111-8111-000000000001',
+  storeName: 'Sharma Kirana Store',
+  fulfilmentMode: 'pickup',
+  status: 'placed',
+  statusLabel: 'Order placed',
+  paymentStatus: 'pending',
+  totalPaise: 25800,
+  itemCount: 1,
+  totals: { subtotalPaise: 25800, discountPaise: 0, deliveryFeePaise: 0, taxPaise: 0, totalPaise: 25800 },
+  ...overrides,
+});

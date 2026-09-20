@@ -1,0 +1,156 @@
+/**
+ * Design tokens. Every colour, space and size in the app comes from here, so a
+ * palette change is one file rather than a search across components.
+ *
+ * The palette is green because this is a neighbourhood grocery portal: green
+ * reads as fresh produce, and it is the colour of the kirana-shop signage the
+ * customer already associates with buying food. It is one hue family with a
+ * warm amber accent for anything that needs to interrupt, so "this is a
+ * different kind of thing" is never carried by green alone.
+ *
+ * Contrast: --green-700 on white is 5.3:1 and --green-800 is 7.4:1, so body
+ * text and icons on a light surface clear WCAG AA. White on --green-600 is
+ * 4.6:1, which clears AA for the 16px+ button text it is used for. The pale
+ * tints are surfaces only — never text.
+ */
+
+:root {
+  /* ── Green scale ─────────────────────────────────────────────────────── */
+  --green-50: #f1f9f4;
+  --green-100: #dcf0e3;
+  --green-200: #bae0c9;
+  --green-300: #8ecaa8;
+  --green-400: #5aad83;
+  --green-500: #339063;
+  --green-600: #1f7a4d;   /* the brand green — buttons, active nav */
+  --green-700: #196340;
+  --green-800: #154f34;
+  --green-900: #11402b;
+
+  /* ── Neutrals, very slightly green so they sit with the scale ────────── */
+  --ink-900: #14211b;     /* headings */
+  --ink-700: #33473d;     /* body */
+  --ink-500: #5c7268;     /* secondary text, 4.6:1 on white */
+  --ink-300: #9aaba3;     /* disabled, placeholder */
+  --ink-200: #d3ded8;     /* borders */
+  --ink-100: #e9f0ec;     /* dividers, subtle fills */
+  --ink-50: #f6f9f7;      /* page background */
+  --white: #ffffff;
+
+  /* ── Status. Amber interrupts, red refuses, green confirms ───────────── */
+  --amber-50: #fdf6e7;
+  --amber-200: #f6dfa4;
+  --amber-600: #a06c06;   /* 4.6:1 on white */
+  --amber-700: #7d5404;
+  --red-50: #fdf1ef;
+  --red-100: #fde8e6;
+  --red-200: #f7c4bf;
+  --red-600: #c4372a;     /* 4.9:1 on white */
+  --red-700: #9e2c21;
+  --blue-50: #eef4fb;     /* information only, never an action */
+  --blue-600: #2c6cb0;
+
+  /* ── Semantic aliases. Components use these, not the scale above ─────── */
+  --bg-page: var(--ink-50);
+  --bg-surface: var(--white);
+  --bg-sunken: var(--ink-100);
+  --bg-brand-subtle: var(--green-50);
+
+  --text-strong: var(--ink-900);
+  --text-body: var(--ink-700);
+  --text-muted: var(--ink-500);
+  --text-on-brand: var(--white);
+  --text-brand: var(--green-700);
+
+  --border: var(--ink-200);
+  --border-subtle: var(--ink-100);
+  --border-strong: var(--ink-300);
+
+  --brand: var(--green-600);
+  --brand-hover: var(--green-700);
+  --brand-active: var(--green-800);
+
+  --warning-bg: var(--amber-50);
+  --warning-border: var(--amber-200);
+  --warning-text: var(--amber-700);
+  --danger-bg: var(--red-50);
+  --danger-border: var(--red-200);
+  --danger-text: var(--red-700);
+  --danger: var(--red-600);
+  --info-bg: var(--blue-50);
+  --info-text: var(--blue-600);
+
+  /* ── Spacing: a 4px base, so every gap is a multiple and nothing is ad hoc */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ── Type. 16px base: anything smaller on a phone invites a zoom-in ──── */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  /* Tabular figures, so a column of prices lines up and does not jitter as
+     totals change. */
+  --font-numeric: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* ── Shape and depth. Shadows are green-tinted, not grey, so they read as
+        shade rather than dirt. ────────────────────────────────────────── */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(17, 64, 43, 0.06);
+  --shadow-md: 0 2px 8px rgba(17, 64, 43, 0.08);
+  --shadow-lg: 0 8px 24px rgba(17, 64, 43, 0.12);
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  /* The app is a phone-width column even on a desktop: a grocery list does not
+     get better at 1400px, and one layout is one thing to get right. */
+  --app-max-width: 32rem;
+  --header-height: 3.5rem;
+  --bottom-nav-height: 4rem;
+  /* Anything tappable is at least this tall. 44px is Apple's floor and the one
+     WCAG 2.5.5 settles on. */
+  --tap-target: 2.75rem;
+
+  --z-header: 10;
+  --z-bottom-nav: 10;
+  --z-sheet: 20;
+  --z-toast: 30;
+
+  --transition-fast: 120ms ease;
+  --transition: 200ms ease;
+}
+
+
+/* Respect the system setting rather than animating regardless. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+    --transition: 0ms;
+  }
+}

@@ -1,0 +1,188 @@
+import { describe, it, expect } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { AuthProvider } from '../src/context/AuthContext.jsx';
+import { AppRoutes } from '../src/router.jsx';
+import { writeSession } from '../src/lib/tokens.js';
+import { customerFixture, mockFetch, ok, sessionFixture } from './helpers/api.js';
+
+/**
+ * Checklist 11.1 and 11.18 — what is reachable, by whom.
+ *
+ * The load-bearing claim is that a public store page opens for someone with no
+ * account, because that is how a shared link or a QR code is used (spec: public
+ * store pages). A regression there is invisible to a developer who is always
+ * signed in, so it is asserted from a genuinely empty session.
+ */
+
+/** Matches the flags App.jsx passes, so tests exercise the real behaviour. */
+const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true };
+
+function renderAt(path, { signedIn = false } = {}) {
+  if (signedIn) {
+    writeSession(sessionFixture());
+    mockFetch([ok({ customer: customerFixture() })]);
+  } else {
+    mockFetch([]);
+  }
+
+  return render(
+    <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+}
+
+const PUBLIC_PATHS = [
+  ['/', 'Shop nearby'],
+  ['/login', 'Sign in'],
+  ['/register', 'Create account'],
+  ['/forgot-password', 'Forgot password'],
+  ['/reset-password', 'Choose a new password'],
+  ['/store/sharma-kirana', 'Store'],
+  ['/store/sharma-kirana/search', 'Search this store'],
+  ['/store/sharma-kirana/product/abc', 'Product'],
+  ['/payment/order-1', 'Payment result'],
+  ['/mock-payment', 'Mock gateway'],
+];
+
+const GATED_PATHS = [
+  '/cart/store-1',
+  '/checkout/store-1',
+  '/orders',
+  '/orders/order-1',
+  '/orders/order-1/receipt',
+  '/saved',
+  '/notifications',
+  '/khata',
+  '/khata/account-1',
+  '/account',
+  '/account/addresses',
+];
+
+describe('public routes open with no session at all', () => {
+  it.each(PUBLIC_PATHS)('%s renders "%s"', async (path, heading) => {
+    renderAt(path);
+
+    expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument();
+  });
+
+  it('a store link never redirects to login', async () => {
+    renderAt('/store/sharma-kirana');
+
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Store');
+    expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument();
+  });
+});
+
+describe('gated routes send a stranger to sign in', () => {
+  it.each(GATED_PATHS)('%s redirects', async (path) => {
+    renderAt(path);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Sign in' })).toBeInTheDocument();
+  });
+});
+
+describe('gated routes open for a signed-in customer', () => {
+  it.each([
+    ['/orders', 'Your orders'],
+    ['/saved', 'Saved stores'],
+    ['/khata', 'Khata'],
+    ['/account', 'Account'],
+    ['/account/addresses', 'Addresses'],
+    ['/cart/store-1', 'Cart'],
+    ['/checkout/store-1', 'Checkout'],
+    ['/notifications', 'Notifications'],
+  ])('%s renders "%s"', async (path, heading) => {
+    renderAt(path, { signedIn: true });
+
+    expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument();
+  });
+
+  it('shows a spinner rather than a redirect while the session is being checked', () => {
+    writeSession(sessionFixture());
+    // The profile call never settles.
+    mockFetch([() => new Promise(() => {})]);
+
+    render(
+      <MemoryRouter initialEntries={['/orders']} future={ROUTER_FUTURE}>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    // Bouncing to login and back is the single most obvious way an app looks
+    // broken to a returning customer.
+    expect(screen.getByRole('status')).toHaveTextContent(/checking your session/i);
+    expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument();
+  });
+});
+
+describe('the rest of the map', () => {
+  it('answers an unknown path with a not-found screen, not a blank page', async () => {
+    renderAt('/this/does/not/exist');
+
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  it('sends a bare /cart back to the shop, since there is no store to show', async () => {
+    renderAt('/cart', { signedIn: true });
+
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(/hello|shop nearby/i);
+  });
+
+  it('names the checklist item on every screen that is not built yet', async () => {
+    renderAt('/orders', { signedIn: true });
+
+    expect(await screen.findByText(/checklist 11\.10/)).toBeInTheDocument();
+  });
+});
+
+describe('the shell', () => {
+  it('hides the bottom tabs from a visitor who is not signed in', async () => {
+    renderAt('/');
+
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
+  });
+
+  it('shows the bottom tabs to a signed-in customer', async () => {
+    renderAt('/orders', { signedIn: true });
+
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    expect(nav).toBeInTheDocument();
+    for (const label of ['Shop', 'Orders', 'Saved', 'Account']) {
+      expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
+    }
+  });
+
+  it('hides the tabs on a public store page even when signed in', async () => {
+    renderAt('/store/sharma-kirana', { signedIn: true });
+
+    await screen.findByRole('heading', { level: 1, name: 'Store' });
+    await waitFor(() =>
+      expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('marks the current tab for assistive tech, not just with colour', async () => {
+    renderAt('/orders', { signedIn: true });
+
+    const ordersTab = await screen.findByRole('link', { name: 'Orders' });
+    expect(ordersTab).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Saved' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('offers a skip link and a main landmark', async () => {
+    renderAt('/');
+
+    expect(await screen.findByRole('link', { name: /skip to content/i })).toHaveAttribute(
+      'href',
+      '#main',
+    );
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main');
+  });
+});

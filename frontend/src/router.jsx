@@ -1,0 +1,156 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AppShell } from './components/AppShell.jsx';
+import { RequireAuth } from './components/RequireAuth.jsx';
+import { Home } from './routes/Home.jsx';
+import { NotFound } from './routes/NotFound.jsx';
+import { Placeholder } from './routes/Placeholder.jsx';
+
+/**
+ * The whole URL map — checklist 11.1 and 11.18.
+ *
+ * Every Phase 11 screen is routed now, as a placeholder naming the checklist item
+ * that fills it in. That means navigation can be walked end to end before the
+ * screens exist, and a link added later cannot quietly point at nothing.
+ *
+ * Which routes are public is the load-bearing decision here. A store page must
+ * open for someone who followed a shared link and has no account (spec: public
+ * store pages, backend 3.5) — so `/store/*` sits outside RequireAuth, as do the
+ * credential screens. Everything a customer owns is gated.
+ *
+ * `/store/:slug` uses the slug because that is what a shared link carries;
+ * everything authenticated uses ids, matching the backend (D35).
+ */
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<AppShell />}>
+        {/* ── Public ─────────────────────────────────────────────────────── */}
+        <Route index element={<Home />} />
+
+        <Route path="login" element={<Placeholder title="Sign in" item="11.3" />} />
+        <Route path="register" element={<Placeholder title="Create account" item="11.3" />} />
+        <Route
+          path="forgot-password"
+          element={<Placeholder title="Forgot password" item="11.3" />}
+        />
+        {/* The URL in the emailed link. It must match PASSWORD_RESET_REDIRECT_URL
+            in the backend's .env and Supabase's redirect allowlist. */}
+        <Route path="reset-password" element={<Placeholder title="Choose a new password" item="11.3" />} />
+
+        {/* A shared link or a QR code lands here, with no session. */}
+        <Route path="store/:slug" element={<Placeholder title="Store" item="11.4" />} />
+        <Route
+          path="store/:slug/search"
+          element={<Placeholder title="Search this store" item="11.6" />}
+        />
+        <Route
+          path="store/:slug/product/:productId"
+          element={<Placeholder title="Product" item="11.5" />}
+        />
+
+        {/* The gateway sends the customer back here. Public, because the return
+            trip may land in a fresh tab before the session is restored. */}
+        <Route
+          path="payment/:orderId"
+          element={<Placeholder title="Payment result" item="11.9" />}
+        />
+        {/* The mock provider's stand-in checkout page (PAYMENT_MOCK_CHECKOUT_URL). */}
+        <Route path="mock-payment" element={<Placeholder title="Mock gateway" item="11.9" />} />
+
+        {/* ── Signed in ──────────────────────────────────────────────────── */}
+        <Route
+          path="cart/:storeId"
+          element={
+            <RequireAuth>
+              <Placeholder title="Cart" item="11.7" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="checkout/:storeId"
+          element={
+            <RequireAuth>
+              <Placeholder title="Checkout" item="11.8" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="orders"
+          element={
+            <RequireAuth>
+              <Placeholder title="Your orders" item="11.10" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="orders/:orderId"
+          element={
+            <RequireAuth>
+              <Placeholder title="Order" item="11.10" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="orders/:orderId/receipt"
+          element={
+            <RequireAuth>
+              <Placeholder title="Receipt" item="11.10" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="saved"
+          element={
+            <RequireAuth>
+              <Placeholder title="Saved stores" item="11.13" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="notifications"
+          element={
+            <RequireAuth>
+              <Placeholder title="Notifications" item="11.14" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="khata"
+          element={
+            <RequireAuth>
+              <Placeholder title="Khata" item="11.15" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="khata/:accountId"
+          element={
+            <RequireAuth>
+              <Placeholder title="Khata account" item="11.15" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="account"
+          element={
+            <RequireAuth>
+              <Placeholder title="Account" item="11.3" />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="account/addresses"
+          element={
+            <RequireAuth>
+              <Placeholder title="Addresses" item="11.12" />
+            </RequireAuth>
+          }
+        />
+
+        {/* A bare /cart has no store to show; the shop screen is where you pick one. */}
+        <Route path="cart" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  );
+}

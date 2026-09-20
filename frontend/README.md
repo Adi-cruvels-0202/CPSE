@@ -56,9 +56,11 @@ src/
   hooks/
     useSubmit.js    pending, fieldErrors and the error banner, for every form
     useApiQuery.js  loading / data / error / retry, for every screen that fetches
+    useDebounced.js a value that settles after typing stops — search uses it
   routes/
     auth/         Login, Register, ForgotPassword, ResetPassword, AuthLayout
-    store/        StorePage, Catalogue (filter + grid), ProductCard, ProductDetail
+    store/        StorePage, Catalogue (filter + grid), ProductCard, ProductDetail,
+                  StoreSearch
     Account.jsx   profile editing, the links to everything owned, sign out
     Home.jsx  NotFound.jsx  Placeholder.jsx
   styles/
@@ -160,7 +162,7 @@ skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 261 tests, no network and no backend required.
+`npm test` — 279 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

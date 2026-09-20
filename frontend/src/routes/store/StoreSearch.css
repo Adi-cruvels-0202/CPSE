@@ -1,0 +1,73 @@
+.search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.search__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.search__back {
+  display: grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  flex-shrink: 0;
+  color: var(--text-body);
+  border-radius: var(--radius-full);
+}
+
+.search__back:hover {
+  background: var(--bg-brand-subtle);
+  color: var(--text-brand);
+}
+
+.search__input {
+  flex: 1;
+  min-height: var(--tap-target);
+  /* Room for the clear button on the right. */
+  padding: 0 3rem 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+}
+
+.search__input:focus {
+  border-color: var(--brand);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--green-100);
+}
+
+/* Safari draws its own; ours is the one that is positioned. */
+.search__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.search__clear {
+  position: absolute;
+  right: var(--space-2);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.search__clear:hover {
+  background: var(--ink-200);
+  color: var(--text-strong);
+}
+
+.search__hint,
+.search__count {
+  text-align: center;
+}

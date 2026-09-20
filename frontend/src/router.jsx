@@ -9,6 +9,7 @@ import { ResetPassword } from './routes/auth/ResetPassword.jsx';
 import { Account } from './routes/Account.jsx';
 import { StorePage } from './routes/store/StorePage.jsx';
 import { ProductDetail } from './routes/store/ProductDetail.jsx';
+import { StoreSearch } from './routes/store/StoreSearch.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 import { Placeholder } from './routes/Placeholder.jsx';
 
@@ -43,10 +44,7 @@ export function AppRoutes() {
 
         {/* A shared link or a QR code lands here, with no session. */}
         <Route path="store/:slug" element={<StorePage />} />
-        <Route
-          path="store/:slug/search"
-          element={<Placeholder title="Search this store" item="11.6" />}
-        />
+        <Route path="store/:slug/search" element={<StoreSearch />} />
         <Route path="store/:slug/product/:productId" element={<ProductDetail />} />
 
         {/* The gateway sends the customer back here. Public, because the return

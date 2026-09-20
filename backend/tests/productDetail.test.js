@@ -173,6 +173,54 @@ describe('GET /api/v1/stores/:slug/products/:productId (4.1)', () => {
   });
 });
 
+/**
+ * Cloudflare sits in front of Supabase and refuses a search that looks like an
+ * injection attempt — `or 1=1--` trips it. The request never reaches Postgres,
+ * and what comes back is an HTML block page rather than JSON.
+ */
+describe('an upstream that refuses the search (not our bug)', () => {
+  const BLOCK_PAGE =
+    '<!DOCTYPE html>\n<html><head><title>Attention Required! | Cloudflare</title></head>' +
+    '<body><h1>Sorry, you have been blocked</h1></body></html>';
+
+  it('answers 503, not 500, when the upstream returns HTML', async () => {
+    seedStore();
+    db.failQueryOnTable = { table: 'products', error: { message: BLOCK_PAGE } };
+
+    const res = await api().get(url('/stores/sharma-kirana/search?q=or 1=1--'));
+
+    // A 500 would tell the customer it is our fault, and send us looking for a
+    // bug that is not there.
+    expect(res.status).toBe(503);
+    expect(res.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect(res.body.error.message).toMatch(/try again/i);
+  });
+
+  it('never echoes the upstream page back to the client', async () => {
+    seedStore();
+    db.failQueryOnTable = { table: 'products', error: { message: BLOCK_PAGE } };
+
+    const res = await api().get(url('/stores/sharma-kirana/search?q=or 1=1--'));
+
+    expect(JSON.stringify(res.body)).not.toMatch(/DOCTYPE|Cloudflare|blocked/i);
+  });
+
+  it('still reports a genuine database failure as 500', async () => {
+    seedStore();
+    db.failQueryOnTable = {
+      table: 'products',
+      error: { message: 'relation "products" does not exist', code: '42P01' },
+    };
+
+    const res = await api().get(url('/stores/sharma-kirana/search?q=rice'));
+
+    // Only an HTML body is an upstream refusal; a real bug must not be downgraded
+    // to "try again".
+    expect(res.status).toBe(500);
+    expect(res.body.error.code).toBe('INTERNAL_ERROR');
+  });
+});
+
 describe('GET /api/v1/stores/:slug/search (4.2, 4.3)', () => {
   const searchUrl = (query, slug = 'sharma-kirana') => url(`/stores/${slug}/search?${query}`);
 

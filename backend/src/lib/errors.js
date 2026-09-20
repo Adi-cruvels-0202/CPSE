@@ -42,3 +42,34 @@ export const internal = (message = 'Something went wrong on our end.') =>
   new AppError(500, 'INTERNAL_ERROR', message);
 export const serviceUnavailable = (message = 'An upstream service is unavailable.') =>
   new AppError(503, 'SERVICE_UNAVAILABLE', message);
+
+/**
+ * Turns a failure from Supabase into the right answer for the customer.
+ *
+ * Not everything that comes back from an upstream is our bug, and calling it a
+ * 500 says it is. The case that prompted this: Cloudflare sits in front of
+ * Supabase, and a search for `or 1=1--` trips its WAF — the request never
+ * reaches Postgres, and what comes back is an HTML "you have been blocked" page
+ * that supabase-js cannot parse. Reporting that as INTERNAL_ERROR is wrong twice
+ * over: the fault is not ours, and retrying is the sensible advice.
+ *
+ * Detection is deliberately narrow — an HTML body where JSON belongs. Anything
+ * else stays a 500, because a genuine bug must not be quietly downgraded to
+ * "try again".
+ */
+export function upstreamFailure(error, message) {
+  const body = String(error?.message ?? '');
+  const isHtml = /^\s*<(!doctype|html)/i.test(body);
+
+  if (isHtml) {
+    return new AppError(
+      503,
+      'SERVICE_UNAVAILABLE',
+      'The search service is busy right now. Please try again in a moment.',
+      // Never the page itself: it is kilobytes of markup, and the log has a cap.
+      { upstream: 'non-json response' },
+    );
+  }
+
+  return internal(message);
+}

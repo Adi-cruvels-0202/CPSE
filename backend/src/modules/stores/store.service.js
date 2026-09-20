@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
-import { internal, notFound } from '../../lib/errors.js';
+import { notFound, upstreamFailure } from '../../lib/errors.js';
 import { resolveOpenState } from '../../lib/openingHours.js';
 
 /**
@@ -27,8 +27,17 @@ const PRODUCT_COLUMNS = `
   price_paise, mrp_paise, is_available, stock, sort_order
 `;
 
+/**
+ * Every read in this module goes through here.
+ *
+ * `upstreamFailure` rather than a bare `internal`: a WAF in front of Supabase can
+ * refuse a request outright — a search for `or 1=1--` trips Cloudflare's — and
+ * what comes back is an HTML block page rather than JSON. That is a 503 the
+ * customer can retry, not a 500 that blames us. A genuine database error still
+ * becomes a 500.
+ */
 const fail = (error, message) => {
-  if (error) throw internal(message);
+  if (error) throw upstreamFailure(error, message);
 };
 
 /** Only active stores are reachable: an inactive one is a 404, not a 403. */

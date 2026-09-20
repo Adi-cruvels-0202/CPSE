@@ -13,5 +13,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  // A test that installs fake timers and then fails would otherwise leave every
+  // later test waiting on a clock nobody advances.
+  vi.useRealTimers();
   resetForTests();
 });

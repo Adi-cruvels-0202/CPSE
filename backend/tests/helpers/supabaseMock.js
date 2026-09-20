@@ -29,6 +29,14 @@ export const db = {
   tables: new Map(),
   /** Set to force the next read to fail. */
   failNextQuery: null,
+  /**
+   * Set to `{ table, error }` to fail reads of one table only.
+   *
+   * `failNextQuery` hits whichever query runs first, which for a store-scoped
+   * read is the store lookup — no use when the case under test is the second
+   * query failing.
+   */
+  failQueryOnTable: null,
   /** Set to force the next update to fail. */
   failNextUpdate: null,
   /** Set to force the next insert to fail. */
@@ -72,6 +80,7 @@ export function resetDb() {
   db.customers.clear();
   db.tables.clear();
   db.failNextQuery = null;
+  db.failQueryOnTable = null;
   db.failNextUpdate = null;
   db.failNextInsert = null;
   db.uniqueViolationOnInsert = null;
@@ -337,6 +346,12 @@ function queryBuilder(table) {
     if (db[failure]) {
       const error = db[failure];
       db[failure] = null;
+      return { data: null, error, count: null };
+    }
+
+    if (state.mode === 'select' && db.failQueryOnTable?.table === table) {
+      const { error } = db.failQueryOnTable;
+      db.failQueryOnTable = null;
       return { data: null, error, count: null };
     }
 

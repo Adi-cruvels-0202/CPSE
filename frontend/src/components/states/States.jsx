@@ -51,8 +51,11 @@ export function ErrorState({ error, onRetry, title }) {
         {offline ? <OfflineMark /> : <AlertMark />}
       </div>
 
+      {/* A lost connection outranks any caller-supplied title: "No connection"
+          plus "check your internet" is actionable, where "Could not load the
+          products" leaves the customer tapping Try again on a dead line. */}
       <h2 className="state__title">
-        {title ?? (offline ? 'No connection' : notFound ? 'Not found' : 'Something went wrong')}
+        {offline ? 'No connection' : (title ?? (notFound ? 'Not found' : 'Something went wrong'))}
       </h2>
 
       <p className="state__body">

@@ -61,7 +61,8 @@ const PUBLIC_PATHS = [
   // tests/auth-screens.test.jsx.
   ['/reset-password', 'That link will not work'],
   ['/store/sharma-kirana', 'Sharma Kirana Store'],
-  ['/store/sharma-kirana/search', 'Search this store'],
+  // The search screen has no h1 of its own — it is one input and its results —
+  // so it is covered in tests/store-search.test.jsx rather than by heading here.
   // The real product page; its h1 is the product's own name.
   ['/store/sharma-kirana/product/abc', 'Basmati Rice'],
   ['/payment/order-1', 'Payment result'],
@@ -87,6 +88,13 @@ describe('public routes open with no session at all', () => {
     renderAt(path);
 
     expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument();
+  });
+
+  it('the search screen opens with no session', async () => {
+    renderAt('/store/sharma-kirana/search');
+
+    expect(await screen.findByLabelText(/search this shop/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument();
   });
 
   it('a store link never redirects to login', async () => {

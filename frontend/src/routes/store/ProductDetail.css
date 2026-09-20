@@ -1,0 +1,185 @@
+.product {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.product__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  min-height: var(--tap-target);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.product__back:hover {
+  text-decoration: none;
+}
+
+/* ── Gallery ────────────────────────────────────────────────────────────── */
+
+.product__gallery {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.product__image {
+  border-radius: var(--radius-lg);
+}
+
+.product__thumbs {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding: var(--space-1);
+  margin: calc(var(--space-1) * -1);
+  scrollbar-width: none;
+}
+
+.product__thumbs::-webkit-scrollbar {
+  display: none;
+}
+
+.product__thumb {
+  flex-shrink: 0;
+  width: 3.75rem;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: none;
+  overflow: hidden;
+}
+
+.product__thumb--active {
+  border-color: var(--brand);
+}
+
+/* ── Head ───────────────────────────────────────────────────────────────── */
+
+.product__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.product__head h1 {
+  font-size: var(--text-2xl);
+  overflow-wrap: anywhere;
+}
+
+.product__prices {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.product__price {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-strong);
+}
+
+.product__mrp {
+  color: var(--text-muted);
+}
+
+.product__availability {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.product__availability--out {
+  color: var(--danger-text);
+}
+
+.product__availability--low {
+  color: var(--warning-text);
+}
+
+.product__description {
+  font-size: var(--text-sm);
+  color: var(--text-body);
+  line-height: var(--leading-relaxed);
+}
+
+/* ── Variants ───────────────────────────────────────────────────────────── */
+
+.product__variants {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.product__variants legend {
+  padding: 0 0 var(--space-1);
+}
+
+.product__variant {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.product__variant:hover {
+  border-color: var(--green-300);
+}
+
+/* :has lets the whole row show the selection, not just the dot. */
+.product__variant:has(input:checked) {
+  border-color: var(--brand);
+  background: var(--bg-brand-subtle);
+}
+
+.product__variant:has(input:focus-visible) {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.product__variant--out {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.product__variant input {
+  accent-color: var(--brand);
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.product__variant-name {
+  flex: 1;
+  font-weight: var(--weight-medium);
+  color: var(--text-strong);
+}
+
+.product__variant-price {
+  color: var(--text-body);
+}
+
+/* ── Buy ────────────────────────────────────────────────────────────────── */
+
+.product__buy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.product__running {
+  text-align: center;
+}

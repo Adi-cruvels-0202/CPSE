@@ -376,14 +376,25 @@ describe('when it cannot be loaded', () => {
 });
 
 describe('images that do not load', () => {
-  it('falls back to initials rather than a broken image', async () => {
+  it('never requests a .local image, because that host cannot resolve', async () => {
     renderStore();
 
-    // The seeded catalogue points at images.cpse.local, which resolves nowhere.
+    await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
+
+    // The seeded catalogue points at images.cpse.local. No <img> is rendered at
+    // all, so the browser never fires a request that can only fail.
+    expect(screen.queryByAltText('Sharma Kirana Store logo')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Sharma Kirana Store logo' })).toHaveTextContent('SK');
+  });
+
+  it('still falls back when a reachable image fails to load', async () => {
+    renderStore({
+      store: storeFixture({ logoUrl: 'https://cdn.example.com/logo.png' }),
+    });
+
     const logo = await screen.findByAltText('Sharma Kirana Store logo');
     expect(logo.tagName).toBe('IMG');
 
-    // Simulate the browser giving up on it.
     const { fireEvent } = await import('@testing-library/react');
     fireEvent.error(logo);
 

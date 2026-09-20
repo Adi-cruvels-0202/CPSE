@@ -58,7 +58,7 @@ src/
     useApiQuery.js  loading / data / error / retry, for every screen that fetches
   routes/
     auth/         Login, Register, ForgotPassword, ResetPassword, AuthLayout
-    store/        StorePage — the public storefront
+    store/        StorePage, Catalogue (filter + grid), ProductCard, ProductDetail
     Account.jsx   profile editing, the links to everything owned, sign out
     Home.jsx  NotFound.jsx  Placeholder.jsx
   styles/
@@ -127,8 +127,10 @@ There is no cache and no data-fetching library. A cart total or a store's open/c
 stale is worse than a second request, so there is nothing to invalidate.
 
 Images from URLs we do not control go through `RemoteImage`, which falls back to the name's initials.
-The seeded catalogue points at `images.cpse.local`, which resolves nowhere, so this is the normal
-path in development rather than an edge case.
+It also **never requests an image on a `.local` host**: that TLD is reserved for mDNS and cannot
+resolve, and the seeded catalogue uses it — so every image was firing a request that could only fail,
+filling the console with `ERR_NAME_NOT_RESOLVED` and making the API look broken. Initials in
+development are the expected sight, not a bug.
 
 ## Theme
 
@@ -158,7 +160,7 @@ skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 212 tests, no network and no backend required.
+`npm test` — 261 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

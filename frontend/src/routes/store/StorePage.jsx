@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -8,6 +8,7 @@ import { describeStatus, weekSchedule } from '../../lib/storeHours.js';
 import { RemoteImage } from '../../components/RemoteImage.jsx';
 import { SaveStoreButton } from '../../components/SaveStoreButton.jsx';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
+import { Catalogue } from './Catalogue.jsx';
 import './StorePage.css';
 
 /**
@@ -26,6 +27,27 @@ import './StorePage.css';
 export function StorePage() {
   const { slug } = useParams();
   const { isSignedIn } = useAuth();
+
+  // The category filter and page live in the URL, so a filtered view can be
+  // shared and the back button behaves the way a customer expects.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryId = searchParams.get('category');
+  const page = Number(searchParams.get('page') ?? 1) || 1;
+
+  const setCategory = (id) => {
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set('category', id);
+    else next.delete('category');
+    // Changing the filter starts again at the first page.
+    next.delete('page');
+    setSearchParams(next, { replace: true });
+  };
+
+  const setPage = (value) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', String(value));
+    setSearchParams(next, { replace: true });
+  };
 
   // Refetched when the session changes: `isSaved` is null for an anonymous
   // visitor and a boolean once signed in, so the page personalises on return
@@ -76,6 +98,14 @@ export function StorePage() {
           <span>Search {store.name}</span>
         </Link>
       </nav>
+
+      <Catalogue
+        storeSlug={slug}
+        categoryId={categoryId}
+        page={page}
+        onCategoryChange={setCategory}
+        onPageChange={setPage}
+      />
 
       <Fulfilment fulfilment={store.fulfilment} />
 

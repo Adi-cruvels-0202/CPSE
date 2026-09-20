@@ -61,11 +61,17 @@ export function mockRoutes(routes) {
       body: options.body ? JSON.parse(options.body) : undefined,
     });
 
-    // Longest match wins: '/stores/' would otherwise swallow
-    // '/stores/<id>/save', and the save would be answered by the store route.
+    // The match furthest to the RIGHT wins, then the longer of any tie.
+    //
+    // Neither rule alone is enough. Longest-wins lets '/stores/sharma-kirana'
+    // answer '/stores/sharma-kirana/products/abc', because it is a prefix of it.
+    // First-match-wins lets '/stores/' answer '/stores/<id>/save'. Taking the
+    // rightmost start picks the most specific tail — the endpoint actually being
+    // called — in both cases.
     const pattern = Object.keys(routes)
-      .filter((candidate) => href.includes(candidate))
-      .sort((a, b) => b.length - a.length)[0];
+      .map((candidate) => ({ candidate, at: href.lastIndexOf(candidate) }))
+      .filter((entry) => entry.at !== -1)
+      .sort((a, b) => b.at - a.at || b.candidate.length - a.candidate.length)[0]?.candidate;
 
     if (!pattern) throw new Error(`No mock route matches ${href}`);
 
@@ -203,3 +209,103 @@ export const closedStoreFixture = (overrides = {}) =>
     },
     ...overrides,
   });
+
+/** Categories, as GET /stores/:slug/categories returns them. */
+export const categoriesFixture = (overrides = []) => ({
+  storeId: '11111111-1111-4111-8111-000000000001',
+  categories:
+    overrides.length > 0
+      ? overrides
+      : [
+          {
+            id: '21111111-1111-4111-8111-000000000001',
+            storeId: '11111111-1111-4111-8111-000000000001',
+            name: 'Staples',
+            slug: 'staples',
+            sortOrder: 1,
+          },
+          {
+            id: '21111111-1111-4111-8111-000000000002',
+            storeId: '11111111-1111-4111-8111-000000000001',
+            name: 'Snacks & Namkeen',
+            slug: 'snacks',
+            sortOrder: 2,
+          },
+        ],
+});
+
+/** One grid row. `isPurchasable` is the single flag a card gates on. */
+export const productFixture = (overrides = {}) => ({
+  id: '31111111-1111-4111-8111-000000000001',
+  storeId: '11111111-1111-4111-8111-000000000001',
+  categoryId: '21111111-1111-4111-8111-000000000001',
+  name: 'Basmati Rice',
+  slug: 'basmati-rice',
+  description: 'Aged long-grain basmati, loose.',
+  pricePaise: 12900,
+  mrpPaise: 15000,
+  isAvailable: true,
+  stock: 25,
+  outOfStock: false,
+  isPurchasable: true,
+  imageUrl: 'https://images.cpse.local/products/basmati-1.jpg',
+  ...overrides,
+});
+
+/** The sold-out case the seeded catalogue actually contains. */
+export const soldOutProductFixture = (overrides = {}) =>
+  productFixture({
+    id: '31111111-1111-4111-8111-000000000004',
+    name: 'Soan Papdi',
+    slug: 'soan-papdi',
+    isAvailable: false,
+    stock: 0,
+    outOfStock: true,
+    isPurchasable: false,
+    ...overrides,
+  });
+
+export const productListFixture = (products, meta) => ({
+  data: {
+    storeId: '11111111-1111-4111-8111-000000000001',
+    products: products ?? [productFixture()],
+  },
+  meta: meta ?? { page: 1, limit: 12, total: 1, totalPages: 1, hasNextPage: false },
+});
+
+/** A variant. Its price is absolute, not a delta off the product (backend D15). */
+export const variantFixture = (overrides = {}) => ({
+  id: '41111111-1111-4111-8111-000000000001',
+  productId: '31111111-1111-4111-8111-000000000001',
+  name: '1 kg',
+  pricePaise: 12900,
+  stock: 40,
+  isAvailable: true,
+  outOfStock: false,
+  isPurchasable: true,
+  ...overrides,
+});
+
+/** Product detail, with its images and variants. */
+export const productDetailFixture = (overrides = {}) => ({
+  storeId: '11111111-1111-4111-8111-000000000001',
+  product: {
+    ...productFixture(),
+    images: [
+      {
+        id: '61111111-1111-4111-8111-000000000001',
+        url: 'https://images.cpse.local/products/basmati-1.jpg',
+        altText: 'Basmati rice',
+        sortOrder: 1,
+      },
+      {
+        id: '61111111-1111-4111-8111-000000000002',
+        url: 'https://images.cpse.local/products/basmati-2.jpg',
+        altText: 'Close up of grains',
+        sortOrder: 2,
+      },
+    ],
+    variants: [],
+    ...overrides,
+  },
+});

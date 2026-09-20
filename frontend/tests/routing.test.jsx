@@ -4,7 +4,16 @@ import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../src/context/AuthContext.jsx';
 import { AppRoutes } from '../src/router.jsx';
 import { writeSession } from '../src/lib/tokens.js';
-import { customerFixture, mockRoutes, ok, sessionFixture, storeFixture } from './helpers/api.js';
+import {
+  categoriesFixture,
+  customerFixture,
+  mockRoutes,
+  ok,
+  productDetailFixture,
+  productListFixture,
+  sessionFixture,
+  storeFixture,
+} from './helpers/api.js';
 
 /**
  * Checklist 11.1 and 11.18 — what is reachable, by whom.
@@ -23,9 +32,14 @@ function renderAt(path, { signedIn = false } = {}) {
   // fetch on mount and either can win.
   if (signedIn) writeSession(sessionFixture());
 
+  const list = productListFixture();
+
   mockRoutes({
     '/me': ok({ customer: customerFixture() }),
-    '/stores/': ok({ store: storeFixture() }),
+    '/categories': ok(categoriesFixture()),
+    '/products/': ok(productDetailFixture()),
+    '/products': ok(list.data, list.meta),
+    '/stores/sharma-kirana': ok({ store: storeFixture() }),
   });
 
   return render(
@@ -48,7 +62,8 @@ const PUBLIC_PATHS = [
   ['/reset-password', 'That link will not work'],
   ['/store/sharma-kirana', 'Sharma Kirana Store'],
   ['/store/sharma-kirana/search', 'Search this store'],
-  ['/store/sharma-kirana/product/abc', 'Product'],
+  // The real product page; its h1 is the product's own name.
+  ['/store/sharma-kirana/product/abc', 'Basmati Rice'],
   ['/payment/order-1', 'Payment result'],
   ['/mock-payment', 'Mock gateway'],
 ];

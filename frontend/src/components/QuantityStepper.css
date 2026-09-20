@@ -1,0 +1,37 @@
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  overflow: hidden;
+}
+
+.stepper__button {
+  display: grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border: 0;
+  background: transparent;
+  color: var(--text-brand);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+}
+
+.stepper__button:hover:not(:disabled) {
+  background: var(--bg-brand-subtle);
+}
+
+.stepper__button:disabled {
+  color: var(--ink-300);
+  cursor: not-allowed;
+}
+
+.stepper__value {
+  min-width: 2.5rem;
+  text-align: center;
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+}

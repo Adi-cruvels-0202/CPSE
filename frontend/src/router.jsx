@@ -8,6 +8,7 @@ import { ForgotPassword } from './routes/auth/ForgotPassword.jsx';
 import { ResetPassword } from './routes/auth/ResetPassword.jsx';
 import { Account } from './routes/Account.jsx';
 import { StorePage } from './routes/store/StorePage.jsx';
+import { ProductDetail } from './routes/store/ProductDetail.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 import { Placeholder } from './routes/Placeholder.jsx';
 
@@ -46,10 +47,7 @@ export function AppRoutes() {
           path="store/:slug/search"
           element={<Placeholder title="Search this store" item="11.6" />}
         />
-        <Route
-          path="store/:slug/product/:productId"
-          element={<Placeholder title="Product" item="11.5" />}
-        />
+        <Route path="store/:slug/product/:productId" element={<ProductDetail />} />
 
         {/* The gateway sends the customer back here. Public, because the return
             trip may land in a fresh tab before the session is restored. */}

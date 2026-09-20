@@ -14,7 +14,7 @@ import './RemoteImage.css';
  */
 export function RemoteImage({ src, alt, name, ratio = '1 / 1', className = '', rounded }) {
   const [failed, setFailed] = useState(false);
-  const showFallback = !src || failed;
+  const showFallback = !src || failed || isUnreachableHost(src);
 
   return (
     <div
@@ -36,6 +36,29 @@ export function RemoteImage({ src, alt, name, ratio = '1 / 1', className = '', r
       )}
     </div>
   );
+}
+
+/**
+ * True for a URL whose host cannot resolve on the public internet, so the
+ * network is never asked for it.
+ *
+ * `.local` is reserved by RFC 6762 for multicast DNS: it is not delegable and no
+ * real CDN can live there. The seeded catalogue uses `images.cpse.local`, which
+ * meant every product image, logo and cover fired a request that failed with
+ * ERR_NAME_NOT_RESOLVED — a console full of red, a Network tab that looks like
+ * the API is broken, and a real delay per image while the browser gives up.
+ *
+ * The fallback renders immediately instead. Nothing about a production URL
+ * changes: a merchant's real CDN is not on `.local`.
+ */
+export function isUnreachableHost(src) {
+  try {
+    const { hostname } = new URL(src, window.location.origin);
+    return hostname.endsWith('.local') || hostname === 'localhost.local';
+  } catch {
+    // Not a parseable URL — let the browser try it and fall back on error.
+    return false;
+  }
 }
 
 /** "Sharma Kirana Store" → "SK". Two letters is what fits legibly. */

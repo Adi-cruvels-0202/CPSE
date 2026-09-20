@@ -2,6 +2,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.jsx';
 import { RequireAuth } from './components/RequireAuth.jsx';
 import { Home } from './routes/Home.jsx';
+import { Login } from './routes/auth/Login.jsx';
+import { Register } from './routes/auth/Register.jsx';
+import { ForgotPassword } from './routes/auth/ForgotPassword.jsx';
+import { ResetPassword } from './routes/auth/ResetPassword.jsx';
+import { Account } from './routes/Account.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 import { Placeholder } from './routes/Placeholder.jsx';
 
@@ -27,15 +32,12 @@ export function AppRoutes() {
         {/* ── Public ─────────────────────────────────────────────────────── */}
         <Route index element={<Home />} />
 
-        <Route path="login" element={<Placeholder title="Sign in" item="11.3" />} />
-        <Route path="register" element={<Placeholder title="Create account" item="11.3" />} />
-        <Route
-          path="forgot-password"
-          element={<Placeholder title="Forgot password" item="11.3" />}
-        />
+        <Route path="login" element={<Login />} />
+        <Route path="register" element={<Register />} />
+        <Route path="forgot-password" element={<ForgotPassword />} />
         {/* The URL in the emailed link. It must match PASSWORD_RESET_REDIRECT_URL
             in the backend's .env and Supabase's redirect allowlist. */}
-        <Route path="reset-password" element={<Placeholder title="Choose a new password" item="11.3" />} />
+        <Route path="reset-password" element={<ResetPassword />} />
 
         {/* A shared link or a QR code lands here, with no session. */}
         <Route path="store/:slug" element={<Placeholder title="Store" item="11.4" />} />
@@ -134,7 +136,7 @@ export function AppRoutes() {
           path="account"
           element={
             <RequireAuth>
-              <Placeholder title="Account" item="11.3" />
+              <Account />
             </RequireAuth>
           }
         />

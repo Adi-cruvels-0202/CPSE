@@ -1,6 +1,13 @@
 import { supabaseAdmin, supabaseAnon, createUserClient } from '../../lib/supabase.js';
-import { conflict, internal, unauthorized, badRequest } from '../../lib/errors.js';
+import {
+  conflict,
+  internal,
+  unauthorized,
+  badRequest,
+  unprocessable,
+} from '../../lib/errors.js';
 import { env } from '../../config/env.js';
+import { logger } from '../../lib/logger.js';
 
 /**
  * Everything that talks to Supabase Auth lives here (decision D1 — we use the
@@ -41,8 +48,59 @@ export function toPublicCustomer(row) {
  */
 const INVALID_CREDENTIALS = 'Email or password is incorrect.';
 
+/**
+ * Matched on the message, deliberately not on the status.
+ *
+ * Supabase answers 422 for several different sign-up refusals — a weak password
+ * among them — so treating every 422 as "already registered" told a customer
+ * their email was taken when it was not. That is wrong, and it is also an
+ * account-existence oracle of exactly the kind D19 exists to prevent: it claims
+ * an account exists in response to a password the server merely disliked.
+ *
+ * Anything not recognised here falls through to signUpFailure, which never
+ * asserts that an account exists.
+ */
 function isAlreadyRegistered(error) {
-  return error.status === 422 || /already (been )?registered|already exists/i.test(error.message);
+  return /already (been )?registered|already exists|user_already_exists/i.test(error?.message ?? '');
+}
+
+/**
+ * Turns a Supabase sign-up failure into something a customer can act on.
+ *
+ * Supabase's own wording is written for whoever is reading its logs, not for a
+ * shopper: `email rate limit exceeded` and `Email address "x@y.local" is
+ * invalid` both reached the register screen verbatim before this existed. Worse,
+ * passing `error.message` straight through means any future message Supabase
+ * adds becomes customer-facing copy nobody wrote.
+ *
+ * So: the cases worth naming are named, and anything else gets a generic
+ * sentence while the real text goes to the log for us.
+ */
+function signUpFailure(error) {
+  const message = error?.message ?? '';
+
+  if (/rate limit/i.test(message)) {
+    return badRequest(
+      'Too many sign-up attempts from here just now. Please wait a few minutes and try again.',
+    );
+  }
+  if (/invalid|not valid/i.test(message) && /email/i.test(message)) {
+    // Supabase rejects addresses whose domain it cannot believe in — a .local
+    // or .test TLD, for instance.
+    return unprocessable(
+      'EMAIL_NOT_ACCEPTED',
+      'That email address was not accepted. Please check it, or try a different one.',
+      { issues: [{ source: 'body', field: 'email', message: 'This address was not accepted.' }] },
+    );
+  }
+  if (/password/i.test(message)) {
+    return unprocessable('WEAK_PASSWORD', 'That password was not accepted.', {
+      issues: [{ source: 'body', field: 'password', message: 'Choose a stronger password.' }],
+    });
+  }
+
+  logger.error('Unmapped sign-up failure from Supabase', { reason: message });
+  return badRequest('We could not create the account just now. Please try again.');
 }
 
 export async function loadCustomer(id) {
@@ -72,7 +130,7 @@ export async function register({ email, password, fullName, phone }) {
     if (isAlreadyRegistered(error)) {
       throw conflict('An account with that email already exists.');
     }
-    throw badRequest(error.message);
+    throw signUpFailure(error);
   }
 
   // With email confirmation enabled Supabase returns a user but no session.

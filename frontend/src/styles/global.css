@@ -243,6 +243,42 @@ ul, ol {
   color: var(--text-muted);
 }
 
+.field__optional {
+  color: var(--text-muted);
+  font-weight: var(--weight-normal);
+}
+
+/* An input with a button inside it — the password show/hide. */
+.field__with-action {
+  position: relative;
+  display: flex;
+}
+
+.field__with-action .field__input {
+  flex: 1;
+  /* Room for the button, so a long password never runs under it. */
+  padding-right: 4.25rem;
+}
+
+.field__action {
+  position: absolute;
+  right: var(--space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-brand);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.field__action:hover {
+  background: var(--bg-brand-subtle);
+}
+
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -304,6 +340,12 @@ ul, ol {
 .notice--info {
   background: var(--info-bg);
   color: var(--info-text);
+}
+
+.notice--success {
+  background: var(--bg-brand-subtle);
+  border-color: var(--green-200);
+  color: var(--green-800);
 }
 
 .spinner {

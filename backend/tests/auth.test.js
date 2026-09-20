@@ -125,6 +125,90 @@ describe('POST /api/v1/auth/register (2.1)', () => {
   });
 });
 
+/**
+ * Supabase's own error text is written for whoever reads its logs, not for a
+ * shopper. These are the failures that reached the register screen verbatim
+ * before they were translated.
+ */
+describe('sign-up failures are translated for the customer', () => {
+  it('turns a rate limit into something a customer can act on', async () => {
+    supabaseAnon.auth.signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: authError('email rate limit exceeded', 429),
+    });
+
+    const res = await api()
+      .post(url('/auth/register'))
+      .send({ email: 'new@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/wait a few minutes/i);
+    // Supabase's phrasing must not reach the screen.
+    expect(JSON.stringify(res.body)).not.toMatch(/rate limit exceeded/);
+  });
+
+  it('puts a rejected email address under the email field', async () => {
+    supabaseAnon.auth.signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: authError('Email address "x@y.local" is invalid', 400),
+    });
+
+    const res = await api()
+      .post(url('/auth/register'))
+      .send({ email: 'x@y.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('EMAIL_NOT_ACCEPTED');
+    expect(res.body.error.details.issues[0]).toMatchObject({ field: 'email' });
+    // The address itself is not echoed back in the message.
+    expect(res.body.error.message).not.toContain('x@y.local');
+  });
+
+  it('puts a rejected password under the password field', async () => {
+    supabaseAnon.auth.signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: authError('Password is known to be weak and easy to guess', 422),
+    });
+
+    const res = await api()
+      .post(url('/auth/register'))
+      .send({ email: 'new@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('WEAK_PASSWORD');
+    expect(res.body.error.details.issues[0]).toMatchObject({ field: 'password' });
+  });
+
+  it('says something generic for a message it does not recognise, and leaks nothing', async () => {
+    supabaseAnon.auth.signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: authError('pgbouncer: could not connect to db-xyz.internal:6543', 500),
+    });
+
+    const res = await api()
+      .post(url('/auth/register'))
+      .send({ email: 'new@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe('We could not create the account just now. Please try again.');
+    expect(JSON.stringify(res.body)).not.toMatch(/pgbouncer|internal|6543/);
+  });
+
+  it('still reports a duplicate email as a conflict', async () => {
+    supabaseAnon.auth.signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: authError('User already registered', 422),
+    });
+
+    const res = await api()
+      .post(url('/auth/register'))
+      .send({ email: 'taken@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/already exists/i);
+  });
+});
+
 describe('POST /api/v1/auth/login (2.2)', () => {
   it('returns the session and profile', async () => {
     const row = seedCustomer();

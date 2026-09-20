@@ -1,0 +1,47 @@
+.auth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  /* Sits a little above centre: on a phone the keyboard takes the bottom half,
+     and a form pinned to the middle ends up behind it. */
+  padding-top: var(--space-6);
+}
+
+.auth__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.auth__foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.auth__switch {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.auth__link {
+  font-weight: var(--weight-semibold);
+}
+
+/* "Forgot password?" — right-aligned under the password field, where it is
+   looked for only after the password has failed. */
+.auth__aside {
+  display: flex;
+  justify-content: flex-end;
+  font-size: var(--text-sm);
+  margin-top: calc(var(--space-2) * -1);
+}

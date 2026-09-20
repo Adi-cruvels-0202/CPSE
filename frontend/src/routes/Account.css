@@ -1,0 +1,56 @@
+.account__section-title {
+  font-size: var(--text-base);
+}
+
+.account__email p {
+  color: var(--text-strong);
+}
+
+.account__links {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  /* The dividers come from the rows, so the first and last sit flush. */
+  overflow: hidden;
+}
+
+.account__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-body);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+}
+
+.account__link:last-child {
+  border-bottom: 0;
+}
+
+.account__link:hover {
+  text-decoration: none;
+  background: var(--bg-brand-subtle);
+}
+
+.account__link-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.account__link-label {
+  color: var(--text-strong);
+  font-weight: var(--weight-medium);
+}
+
+.account__link-hint {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.account__link svg {
+  color: var(--ink-300);
+  flex-shrink: 0;
+}

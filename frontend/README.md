@@ -53,7 +53,12 @@ src/
     AppShell.jsx      header, bottom tabs, skip link — the frame every screen sits in
     RequireAuth.jsx   the gate; shows a spinner rather than a redirect while checking
     ErrorBoundary.jsx the white-screen catcher
-  routes/         Home, NotFound, and the Placeholder used by every unbuilt screen
+  hooks/
+    useSubmit.js  pending, fieldErrors and the error banner, for every form
+  routes/
+    auth/         Login, Register, ForgotPassword, ResetPassword, AuthLayout
+    Account.jsx   profile editing, the links to everything owned, sign out
+    Home.jsx  NotFound.jsx  Placeholder.jsx
   styles/
     tokens.css    the green palette, spacing, type scale — one file to change a theme
     global.css    reset plus the primitives (button, field, card, badge, notice, skeleton)
@@ -80,6 +85,32 @@ Each call declares how it authenticates, and this is the part worth getting righ
 | `none` | login, register, the password-reset pair — never sends a token, even when one is stored |
 | `optional` | public store pages: they must open from a shared link with no session, and personalise with one |
 | `required` | everything a customer owns. A 401 triggers the refresh-and-replay |
+
+## Forms
+
+Every form goes through `useSubmit`, which owns the four things each one needs: a disabled button
+while in flight (so a double tap cannot submit twice), a 422's issues under the right inputs, the one
+error that is not about a field, and clearing both on retry.
+
+**The server's message is displayed as written.** `ApiError.message` is customer-facing by contract,
+so re-phrasing it here would mean two copies of the same sentence drifting apart. The sign-in screen
+is the sharpest case: the backend answers a wrong password and an unknown email identically, and a
+client trying to be more helpful would rebuild the account-existence oracle the server avoids.
+
+A 422 whose issues are all field-level shows no banner — the inputs already explain it.
+
+### What the auth screens handle that is easy to miss
+
+- **Registering with email confirmation on** returns no session. The screen says "check your inbox"
+  rather than appearing to do nothing.
+- **Sign-in returns the customer to where they were going.** `RequireAuth` puts the intended path in
+  location state.
+- **The reset screen reads the recovery token from the query string or the URL fragment**, because
+  Supabase puts it in the fragment. With no token it says the link will not work instead of showing a
+  form that cannot submit.
+- **The account screen sends only what changed**, and `null` rather than `''` to clear a phone.
+  Email is shown but not editable: the backend rejects an email change with a 422 rather than
+  ignoring it, so offering the input would be a trap.
 
 ## Theme
 
@@ -109,7 +140,7 @@ skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 134 tests, no network and no backend required.
+`npm test` — 169 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

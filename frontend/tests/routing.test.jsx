@@ -40,7 +40,10 @@ const PUBLIC_PATHS = [
   ['/login', 'Sign in'],
   ['/register', 'Create account'],
   ['/forgot-password', 'Forgot password'],
-  ['/reset-password', 'Choose a new password'],
+  // No recovery token in the URL, so the screen says the link will not work
+  // rather than showing a form that cannot submit. The form itself is covered in
+  // tests/auth-screens.test.jsx.
+  ['/reset-password', 'That link will not work'],
   ['/store/sharma-kirana', 'Store'],
   ['/store/sharma-kirana/search', 'Search this store'],
   ['/store/sharma-kirana/product/abc', 'Product'],

@@ -1,0 +1,193 @@
+.cart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cart__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cart__issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ── Lines ──────────────────────────────────────────────────────────────── */
+
+.cart__lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cart-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.cart-line--unavailable {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.cart-line__main {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.cart-line__image {
+  width: 4.5rem;
+}
+
+.cart-line__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.cart-line__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cart-line__name {
+  color: var(--text-strong);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.cart-line__variant {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.cart-line__unit {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.cart-line__mrp {
+  color: var(--ink-300);
+}
+
+.cart-line__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.cart-line__remove {
+  border: 0;
+  background: none;
+  padding: var(--space-1) 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+}
+
+.cart-line__remove:hover:not(:disabled) {
+  color: var(--danger-text);
+}
+
+.cart-line__remove:disabled {
+  color: var(--ink-300);
+  cursor: not-allowed;
+}
+
+/* The line total sits on the right, aligned with the name. */
+.cart-line__total {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  white-space: nowrap;
+}
+
+.cart-line__issues {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ── Totals ─────────────────────────────────────────────────────────────── */
+
+.cart__totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cart__totals-title {
+  font-size: var(--text-base);
+}
+
+.cart__totals dl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cart__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.cart__row dt {
+  color: var(--text-muted);
+}
+
+.cart__row dd {
+  color: var(--text-strong);
+}
+
+.cart__row--total {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--text-base);
+}
+
+.cart__row--total dt,
+.cart__row--total dd {
+  color: var(--text-strong);
+  font-weight: var(--weight-bold);
+}
+
+.cart__good {
+  color: var(--green-700);
+}
+
+/* ── Actions ────────────────────────────────────────────────────────────── */
+
+.cart__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cart__blocked {
+  text-align: center;
+}
+
+.cart__secondary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}

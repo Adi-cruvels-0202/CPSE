@@ -5,6 +5,7 @@ import { AuthProvider } from '../src/context/AuthContext.jsx';
 import { AppRoutes } from '../src/router.jsx';
 import { writeSession } from '../src/lib/tokens.js';
 import {
+  cartFixture,
   categoriesFixture,
   customerFixture,
   mockRoutes,
@@ -40,6 +41,7 @@ function renderAt(path, { signedIn = false } = {}) {
     '/products/': ok(productDetailFixture()),
     '/products': ok(list.data, list.meta),
     '/stores/sharma-kirana': ok({ store: storeFixture() }),
+    '/cart': ok({ cart: cartFixture() }),
   });
 
   return render(
@@ -122,7 +124,7 @@ describe('gated routes open for a signed-in customer', () => {
     ['/khata', 'Khata'],
     ['/account', 'Account'],
     ['/account/addresses', 'Addresses'],
-    ['/cart/store-1', 'Cart'],
+    ['/cart/store-1', 'Your cart'],
     ['/checkout/store-1', 'Checkout'],
     ['/notifications', 'Notifications'],
   ])('%s renders "%s"', async (path, heading) => {

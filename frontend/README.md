@@ -61,6 +61,7 @@ src/
     auth/         Login, Register, ForgotPassword, ResetPassword, AuthLayout
     store/        StorePage, Catalogue (filter + grid), ProductCard, ProductDetail,
                   StoreSearch
+    cart/         CartPage, CartLine, CartIssues
     Account.jsx   profile editing, the links to everything owned, sign out
     Home.jsx  NotFound.jsx  Placeholder.jsx
   styles/
@@ -134,6 +135,20 @@ resolve, and the seeded catalogue uses it — so every image was firing a reques
 filling the console with `ERR_NAME_NOT_RESOLVED` and making the API look broken. Initials in
 development are the expected sight, not a bug.
 
+## The cart
+
+**Every number on that screen comes from the server.** The cart stores no prices and reprices on
+every read, so a subtotal added up in the client is a second opinion — and the one that eventually
+disagrees with the bill. Each mutation adopts the whole cart from the response rather than patching a
+line.
+
+Tapping Checkout first tells the server exactly what the screen is displaying, via
+`POST /cart/validate`. If a price moved, the customer stays put and sees it; a second tap goes
+through. Nobody is carried into checkout on a number they have not seen.
+
+The minimum-order shortfall is shown as a warning, not enforced: that rule lives in the checkout
+quote, which is the single gate, and re-implementing it here is how the two start disagreeing.
+
 ## Theme
 
 Green, from `src/styles/tokens.css`. It is a grocery portal: green reads as fresh produce and
@@ -162,7 +177,7 @@ skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 279 tests, no network and no backend required.
+`npm test` — 311 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

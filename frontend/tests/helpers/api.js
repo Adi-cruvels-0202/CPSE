@@ -309,3 +309,65 @@ export const productDetailFixture = (overrides = {}) => ({
     ...overrides,
   },
 });
+
+/** A cart line, as GET /cart returns one. */
+export const cartLineFixture = (overrides = {}) => ({
+  id: 'line-1',
+  productId: '31111111-1111-4111-8111-000000000001',
+  variantId: null,
+  name: 'Basmati Rice',
+  variantName: null,
+  imageUrl: 'https://images.cpse.local/products/basmati-1.jpg',
+  unitPricePaise: 12900,
+  mrpPaise: 15000,
+  quantity: 2,
+  lineTotalPaise: 25800,
+  stock: 25,
+  isPurchasable: true,
+  issues: [],
+  ...overrides,
+});
+
+/**
+ * The cart. Totals come from the server — the screen never adds anything up —
+ * so a fixture has to state them explicitly, as the real payload does.
+ */
+export const cartFixture = (overrides = {}) => {
+  const lines = overrides.lines ?? [cartLineFixture()];
+  const subtotal = lines.reduce((sum, line) => sum + line.lineTotalPaise, 0);
+
+  return {
+    storeId: '11111111-1111-4111-8111-000000000001',
+    storeName: 'Sharma Kirana Store',
+    storeSlug: 'sharma-kirana',
+    cartId: 'cart-1',
+    lines,
+    totals: {
+      subtotalPaise: subtotal,
+      discountPaise: 0,
+      deliveryFeePaise: 0,
+      taxPaise: 0,
+      totalPaise: subtotal,
+      itemCount: lines.length,
+      totalQuantity: lines.reduce((sum, line) => sum + line.quantity, 0),
+    },
+    issues: [],
+    isCheckoutReady: lines.length > 0,
+    ...overrides,
+  };
+};
+
+export const emptyCartFixture = () =>
+  cartFixture({
+    lines: [],
+    totals: {
+      subtotalPaise: 0,
+      discountPaise: 0,
+      deliveryFeePaise: 0,
+      taxPaise: 0,
+      totalPaise: 0,
+      itemCount: 0,
+      totalQuantity: 0,
+    },
+    isCheckoutReady: false,
+  });

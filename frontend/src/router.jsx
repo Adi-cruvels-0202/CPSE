@@ -10,6 +10,7 @@ import { Account } from './routes/Account.jsx';
 import { StorePage } from './routes/store/StorePage.jsx';
 import { ProductDetail } from './routes/store/ProductDetail.jsx';
 import { StoreSearch } from './routes/store/StoreSearch.jsx';
+import { CartPage } from './routes/cart/CartPage.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 import { Placeholder } from './routes/Placeholder.jsx';
 
@@ -61,7 +62,7 @@ export function AppRoutes() {
           path="cart/:storeId"
           element={
             <RequireAuth>
-              <Placeholder title="Cart" item="11.7" />
+              <CartPage />
             </RequireAuth>
           }
         />

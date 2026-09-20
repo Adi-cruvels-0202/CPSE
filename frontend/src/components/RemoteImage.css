@@ -1,0 +1,25 @@
+.remote-image {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-sunken);
+  /* Stops a tall image pushing the row's height around before it loads. */
+  flex-shrink: 0;
+}
+
+.remote-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remote-image__fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--green-100);
+  color: var(--green-700);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+}

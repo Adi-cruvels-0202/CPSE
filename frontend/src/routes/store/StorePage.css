@@ -1,0 +1,183 @@
+.store {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.store__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.store__cover {
+  border-radius: var(--radius-lg);
+}
+
+.store__identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  /* Pulls the logo up over the cover, the way a shop sign sits on a shopfront. */
+  margin-top: calc(var(--space-8) * -1);
+  padding: 0 var(--space-1);
+}
+
+.store__logo {
+  width: 4.5rem;
+  border: 3px solid var(--bg-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.store__titles {
+  flex: 1;
+  /* Aligns the name with the bottom of the logo rather than the cover. */
+  padding-top: var(--space-8);
+  min-width: 0;
+}
+
+.store__titles h1 {
+  font-size: var(--text-xl);
+  /* A long shop name wraps instead of pushing the heart off the row. */
+  overflow-wrap: anywhere;
+}
+
+.store__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.store__status strong {
+  color: var(--danger-text);
+}
+
+.store__status--open strong {
+  color: var(--green-700);
+}
+
+/* The dot repeats the open/closed state in position as well as colour, so it is
+   not the only cue — and the words are there regardless. */
+.store__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--radius-full);
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+.store__status--open .store__dot {
+  background: var(--green-500);
+}
+
+.store__description {
+  color: var(--text-body);
+  font-size: var(--text-sm);
+  padding-top: var(--space-6);
+}
+
+/* When there is no description, the identity block still needs the space the
+   pulled-up logo borrowed. */
+.store__identity:last-child {
+  margin-bottom: var(--space-2);
+}
+
+/* ── Search entry ───────────────────────────────────────────────────────── */
+
+.store__actions {
+  display: flex;
+}
+
+.store__search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.store__search:hover {
+  text-decoration: none;
+  border-color: var(--green-300);
+  background: var(--bg-brand-subtle);
+  color: var(--text-brand);
+}
+
+/* ── Sections ───────────────────────────────────────────────────────────── */
+
+.store__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.store__section-title {
+  font-size: var(--text-base);
+}
+
+.store__facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.store__facts > div,
+.store__week > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.store__facts dt,
+.store__week dt {
+  color: var(--text-muted);
+}
+
+.store__facts dd,
+.store__week dd {
+  color: var(--text-strong);
+  font-weight: var(--weight-medium);
+  text-align: right;
+}
+
+.store__today {
+  font-size: var(--text-sm);
+}
+
+.store__week {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.store__week-row--today dt,
+.store__week-row--today dd {
+  color: var(--text-brand);
+  font-weight: var(--weight-semibold);
+}
+
+.store__address {
+  font-size: var(--text-sm);
+  color: var(--text-body);
+}
+
+.store__contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

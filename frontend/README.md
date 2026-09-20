@@ -54,9 +54,11 @@ src/
     RequireAuth.jsx   the gate; shows a spinner rather than a redirect while checking
     ErrorBoundary.jsx the white-screen catcher
   hooks/
-    useSubmit.js  pending, fieldErrors and the error banner, for every form
+    useSubmit.js    pending, fieldErrors and the error banner, for every form
+    useApiQuery.js  loading / data / error / retry, for every screen that fetches
   routes/
     auth/         Login, Register, ForgotPassword, ResetPassword, AuthLayout
+    store/        StorePage — the public storefront
     Account.jsx   profile editing, the links to everything owned, sign out
     Home.jsx  NotFound.jsx  Placeholder.jsx
   styles/
@@ -112,6 +114,22 @@ A 422 whose issues are all field-level shows no banner — the inputs already ex
   Email is shown but not editable: the backend rejects an email change with a 422 rather than
   ignoring it, so offering the input would be a trap.
 
+## Fetching
+
+`useApiQuery` gives a screen the four states it actually has: `loading` (show a skeleton), `data`,
+`error` with a `refetch` to retry, and `refreshing` for a later fetch over data already on screen.
+
+**A skeleton appears only on the first load.** The store page refetches when the session resolves,
+because `isSaved` cannot be known before then — and with a skeleton on every fetch the shop appeared,
+blanked and reappeared, with a tap during the blank hitting a button that had just unmounted.
+
+There is no cache and no data-fetching library. A cart total or a store's open/closed state going
+stale is worse than a second request, so there is nothing to invalidate.
+
+Images from URLs we do not control go through `RemoteImage`, which falls back to the name's initials.
+The seeded catalogue points at `images.cpse.local`, which resolves nowhere, so this is the normal
+path in development rather than an edge case.
+
 ## Theme
 
 Green, from `src/styles/tokens.css`. It is a grocery portal: green reads as fresh produce and
@@ -140,7 +158,7 @@ skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 169 tests, no network and no backend required.
+`npm test` — 212 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

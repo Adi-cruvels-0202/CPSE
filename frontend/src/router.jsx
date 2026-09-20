@@ -7,6 +7,7 @@ import { Register } from './routes/auth/Register.jsx';
 import { ForgotPassword } from './routes/auth/ForgotPassword.jsx';
 import { ResetPassword } from './routes/auth/ResetPassword.jsx';
 import { Account } from './routes/Account.jsx';
+import { StorePage } from './routes/store/StorePage.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 import { Placeholder } from './routes/Placeholder.jsx';
 
@@ -40,7 +41,7 @@ export function AppRoutes() {
         <Route path="reset-password" element={<ResetPassword />} />
 
         {/* A shared link or a QR code lands here, with no session. */}
-        <Route path="store/:slug" element={<Placeholder title="Store" item="11.4" />} />
+        <Route path="store/:slug" element={<StorePage />} />
         <Route
           path="store/:slug/search"
           element={<Placeholder title="Search this store" item="11.6" />}

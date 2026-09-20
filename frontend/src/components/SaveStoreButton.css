@@ -1,0 +1,22 @@
+.save-store {
+  display: grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.save-store:hover {
+  color: var(--danger);
+  border-color: var(--red-200);
+}
+
+.save-store--on {
+  color: var(--danger);
+  border-color: var(--red-200);
+}

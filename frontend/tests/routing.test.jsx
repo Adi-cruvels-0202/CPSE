@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../src/context/AuthContext.jsx';
 import { AppRoutes } from '../src/router.jsx';
 import { writeSession } from '../src/lib/tokens.js';
-import { customerFixture, mockFetch, ok, sessionFixture } from './helpers/api.js';
+import { customerFixture, mockRoutes, ok, sessionFixture, storeFixture } from './helpers/api.js';
 
 /**
  * Checklist 11.1 and 11.18 — what is reachable, by whom.
@@ -19,12 +19,14 @@ import { customerFixture, mockFetch, ok, sessionFixture } from './helpers/api.js
 const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true };
 
 function renderAt(path, { signedIn = false } = {}) {
-  if (signedIn) {
-    writeSession(sessionFixture());
-    mockFetch([ok({ customer: customerFixture() })]);
-  } else {
-    mockFetch([]);
-  }
+  // Matched by URL, not by order: the store page and the auth provider both
+  // fetch on mount and either can win.
+  if (signedIn) writeSession(sessionFixture());
+
+  mockRoutes({
+    '/me': ok({ customer: customerFixture() }),
+    '/stores/': ok({ store: storeFixture() }),
+  });
 
   return render(
     <MemoryRouter initialEntries={[path]} future={ROUTER_FUTURE}>
@@ -44,7 +46,7 @@ const PUBLIC_PATHS = [
   // rather than showing a form that cannot submit. The form itself is covered in
   // tests/auth-screens.test.jsx.
   ['/reset-password', 'That link will not work'],
-  ['/store/sharma-kirana', 'Store'],
+  ['/store/sharma-kirana', 'Sharma Kirana Store'],
   ['/store/sharma-kirana/search', 'Search this store'],
   ['/store/sharma-kirana/product/abc', 'Product'],
   ['/payment/order-1', 'Payment result'],
@@ -75,7 +77,9 @@ describe('public routes open with no session at all', () => {
   it('a store link never redirects to login', async () => {
     renderAt('/store/sharma-kirana');
 
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Store');
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
+      'Sharma Kirana Store',
+    );
     expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument();
   });
 });
@@ -107,7 +111,7 @@ describe('gated routes open for a signed-in customer', () => {
   it('shows a spinner rather than a redirect while the session is being checked', () => {
     writeSession(sessionFixture());
     // The profile call never settles.
-    mockFetch([() => new Promise(() => {})]);
+    mockRoutes({ '/me': () => new Promise(() => {}) });
 
     render(
       <MemoryRouter initialEntries={['/orders']} future={ROUTER_FUTURE}>
@@ -165,7 +169,7 @@ describe('the shell', () => {
   it('hides the tabs on a public store page even when signed in', async () => {
     renderAt('/store/sharma-kirana', { signedIn: true });
 
-    await screen.findByRole('heading', { level: 1, name: 'Store' });
+    await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
     await waitFor(() =>
       expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument(),
     );

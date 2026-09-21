@@ -31,8 +31,10 @@
   --ink-900: #14211b;     /* headings */
   --ink-700: #33473d;     /* body */
   --ink-500: #5c7268;     /* secondary text, 4.6:1 on white */
-  --ink-300: #9aaba3;     /* disabled, placeholder */
-  --ink-200: #d3ded8;     /* borders */
+  --ink-400: #65766e;     /* placeholder and disabled TEXT — 4.8:1 on white */
+  --ink-300: #9aaba3;     /* decorative only: chevrons, an inactive marker */
+  --ink-250: #87928c;     /* the edge of an interactive control — 3.2:1 on white */
+  --ink-200: #d3ded8;     /* a card's edge, which is decoration not a boundary */
   --ink-100: #e9f0ec;     /* dividers, subtle fills */
   --ink-50: #f6f9f7;      /* page background */
   --white: #ffffff;
@@ -62,9 +64,23 @@
   --text-on-brand: var(--white);
   --text-brand: var(--green-700);
 
+  /**
+   * Three border tokens, because they answer different rules.
+   *
+   * WCAG 1.4.11 wants 3:1 for the boundary of a control you must be able to find —
+   * an input, a chip, a secondary button. A card's edge identifies nothing, so it
+   * stays a hairline; making every border 3:1 turns a quiet page into a wireframe.
+   * The pass that added this measured both and found the old single token failed
+   * the first rule at 1.38:1.
+   */
+  --border-control: var(--ink-250);
   --border: var(--ink-200);
   --border-subtle: var(--ink-100);
-  --border-strong: var(--ink-300);
+  --border-strong: var(--ink-250);
+
+  /* Placeholder and disabled text are text, and need 4.5:1 like any other. */
+  --text-placeholder: var(--ink-400);
+  --text-disabled: var(--ink-400);
 
   --brand: var(--green-600);
   --brand-hover: var(--green-700);
@@ -133,9 +149,22 @@
   --app-max-width: 32rem;
   --header-height: 3.5rem;
   --bottom-nav-height: 4rem;
-  /* Anything tappable is at least this tall. 44px is Apple's floor and the one
-     WCAG 2.5.5 settles on. */
+  /**
+   * Two tap targets, because one number was a policy the code did not keep.
+   *
+   * `--tap-target` (44px) is for anything a customer reaches for without looking:
+   * every primary button, the stepper, the tab bar, a radio row, the heart.
+   *
+   * `--tap-target-dense` (36px) is for controls that sit in a row of their own
+   * kind — filter chips, a Remove link, the password reveal. WCAG 2.5.8 asks for
+   * 24px at AA and these clear it with room; forcing 44px on a scrolling chip row
+   * would make the filter taller than the grid it filters.
+   *
+   * Nothing interactive goes below `--tap-target-dense`. A measured pass found one
+   * that had: the cart's Remove link, at about 20px.
+   */
   --tap-target: 2.75rem;
+  --tap-target-dense: 2.25rem;
 
   --z-header: 10;
   --z-bottom-nav: 10;

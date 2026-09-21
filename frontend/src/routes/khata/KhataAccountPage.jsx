@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
@@ -30,7 +30,16 @@ export function KhataAccountPage() {
   const [period, setPeriod] = useState('all');
 
   const chosen = PERIODS.find((entry) => entry.key === period) ?? PERIODS[0];
-  const from = chosen.months ? monthsAgo(chosen.months) : null;
+
+  /**
+   * Computed once per chosen period, not per render.
+   *
+   * `monthsAgo` reads the clock, so calling it inline produced a different string
+   * every render — and since it is a dependency of the query below, every render
+   * asked the server again. That is an infinite fetch loop, and it only showed up
+   * as a flaky test before it showed up as load.
+   */
+  const from = useMemo(() => (chosen.months ? monthsAgo(chosen.months) : null), [chosen.months]);
 
   // The statement endpoint answers both: with no period it is the whole ledger,
   // so there is one call rather than two code paths.

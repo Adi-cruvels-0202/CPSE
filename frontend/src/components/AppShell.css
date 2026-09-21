@@ -115,3 +115,15 @@
 .shell__tab-label {
   line-height: 1;
 }
+
+/* Checklist 11.16 — the offline banner, above everything including the header. */
+.shell__offline {
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--z-header) + 1);
+  padding: var(--space-2) var(--space-4);
+  background: var(--ink-900);
+  color: var(--white);
+  font-size: var(--text-sm);
+  text-align: center;
+}

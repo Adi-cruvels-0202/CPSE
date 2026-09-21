@@ -51,9 +51,10 @@
 
 .address__delete {
   margin-left: auto;
+  min-height: var(--tap-target-dense);
   border: 0;
   background: none;
-  padding: var(--space-2);
+  padding: 0 var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-sm);
   text-decoration: underline;
@@ -64,7 +65,7 @@
 }
 
 .address__delete:disabled {
-  color: var(--ink-300);
+  color: var(--text-disabled);
   cursor: not-allowed;
 }
 

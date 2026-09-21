@@ -93,9 +93,12 @@
 }
 
 .cart-line__remove {
+  /* A text button still has to be hittable: 4px of padding made this about 20px
+     tall, under the 24px WCAG 2.5.8 asks for. */
+  min-height: var(--tap-target-dense);
   border: 0;
   background: none;
-  padding: var(--space-1) 0;
+  padding: 0 var(--space-1);
   color: var(--text-muted);
   font-size: var(--text-sm);
   text-decoration: underline;
@@ -106,7 +109,7 @@
 }
 
 .cart-line__remove:disabled {
-  color: var(--ink-300);
+  color: var(--text-disabled);
   cursor: not-allowed;
 }
 

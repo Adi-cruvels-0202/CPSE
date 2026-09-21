@@ -31,7 +31,7 @@
   min-height: var(--tap-target);
   /* Room for the clear button on the right. */
   padding: 0 3rem 0 var(--space-4);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-full);
   background: var(--bg-surface);
 }

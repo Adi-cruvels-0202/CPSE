@@ -100,7 +100,7 @@
   width: 100%;
   min-height: var(--tap-target);
   padding: 0 var(--space-4);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-full);
   background: var(--bg-surface);
   color: var(--text-muted);

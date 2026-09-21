@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUnreadCount } from '../hooks/useUnreadCount.js';
+import { useOnline } from '../hooks/useOnline.js';
 import './AppShell.css';
 
 /**
@@ -26,6 +27,7 @@ export function AppShell() {
   const { isSignedIn } = useAuth();
   const { pathname } = useLocation();
   const unread = useUnreadCount();
+  const online = useOnline();
 
   // A shared store link is the one entry point that must work for a stranger.
   const isPublicStorePage = pathname.startsWith('/store/');
@@ -36,6 +38,16 @@ export function AppShell() {
       <a className="shell__skip" href="#main">
         Skip to content
       </a>
+
+      {/* Checklist 11.16. A banner rather than a blocked screen: navigator.onLine
+          is a hint — it reports true on a wifi network with no route out — so
+          requests still go, and a real failure still surfaces per screen. What this
+          adds is telling the customer whose fault it is before they tap. */}
+      {online ? null : (
+        <p className="shell__offline" role="status">
+          You are offline. Anything you do now may not go through.
+        </p>
+      )}
 
       <header className="shell__header">
         <NavLink to="/" className="shell__brand">

@@ -56,7 +56,11 @@ export function useApiQuery(fetcher, deps = [], { enabled = true } = {}) {
         // in place. Without this, the store page blanked back to a skeleton the
         // moment the session resolved and `isSaved` became knowable: the shop
         // appeared, vanished, and reappeared.
-        const isFirstLoad = current.data === null;
+        //
+        // An error counts as something on screen. A failed store page was blanking
+        // to a skeleton and back for the same reason, which both looks like a
+        // second failure and swaps the element under anyone reading it.
+        const isFirstLoad = current.data === null && current.error === null;
 
         return {
           ...current,

@@ -3,7 +3,7 @@
   place-items: center;
   width: var(--tap-target);
   height: var(--tap-target);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-full);
   background: var(--bg-surface);
   color: var(--text-muted);

@@ -58,6 +58,7 @@ src/
     useApiQuery.js  loading / data / error / retry, for every screen that fetches
     useDebounced.js a value that settles after typing stops — search uses it
     useUnreadCount.js the notification badge, polled for the shell
+    useOnline.js    whether the browser thinks it has a connection
   routes/
     auth/         Login, Register, ForgotPassword, ResetPassword, AuthLayout
     store/        StorePage, Catalogue (filter + grid), ProductCard, ProductDetail,
@@ -211,14 +212,22 @@ neither is noise.
 
 ## Accessibility
 
-Not a later pass. A skip link, a focusable `<main>` landmark, a visible focus ring on everything
+Not a later pass, and measured rather than assumed. The design pass computed contrast on every
+colour pair the app actually uses and found two failures: placeholder text at 2.41:1 and input
+borders at 1.38:1. Hence `--text-placeholder` (4.8:1) and `--border-control` (3.2:1, per WCAG
+1.4.11), with the decorative hairline kept for a card's edge — making every border 3:1 turns a quiet
+page into a wireframe.
+
+Tap targets are two sizes, stated honestly: **44px** for anything reached for without looking, and
+**36px** for controls in a row of their own kind, such as filter chips. Nothing goes below that; the
+audit found one link at about 20px and fixed it. A skip link, a focusable `<main>` landmark, a visible focus ring on everything
 interactive, `aria-current` on the active tab (colour alone is not a state), `role="status"` on
 loading text, labels on every field, and `prefers-reduced-motion` honoured by the spinner and the
 skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 469 tests, no network and no backend required.
+`npm test` — 542 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

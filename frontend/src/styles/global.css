@@ -156,14 +156,15 @@ ul, ol {
 }
 
 .btn:disabled {
-  background: var(--ink-200);
-  color: var(--ink-500);
+  background: var(--ink-100);
+  color: var(--text-disabled);
+  border-color: var(--border-control);
   cursor: not-allowed;
 }
 
 .btn--secondary {
   background: var(--bg-surface);
-  border-color: var(--border);
+  border-color: var(--border-control);
   color: var(--text-brand);
 }
 
@@ -195,7 +196,7 @@ ul, ol {
 }
 
 .btn--sm {
-  min-height: 2.25rem;
+  min-height: var(--tap-target-dense);
   padding: 0 var(--space-3);
   font-size: var(--text-sm);
 }
@@ -215,7 +216,7 @@ ul, ol {
 .field__input {
   min-height: var(--tap-target);
   padding: 0 var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
   transition: border-color var(--transition-fast);
@@ -226,7 +227,7 @@ ul, ol {
 }
 
 .field__input::placeholder {
-  color: var(--ink-300);
+  color: var(--text-placeholder);
 }
 
 .field__input[aria-invalid='true'] {
@@ -265,7 +266,7 @@ ul, ol {
   right: var(--space-1);
   top: 50%;
   transform: translateY(-50%);
-  min-height: 2.25rem;
+  min-height: var(--tap-target-dense);
   padding: 0 var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);

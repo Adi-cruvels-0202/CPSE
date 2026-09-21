@@ -1,0 +1,147 @@
+.khata__headline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.khata__headline-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.khata__headline-amount {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  color: var(--text-strong);
+  line-height: 1.1;
+}
+
+.khata__headline-note {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.khata__accounts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.khata-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-body);
+}
+
+.khata-row:hover {
+  text-decoration: none;
+  border-color: var(--green-300);
+}
+
+.khata-row__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.khata-row__store {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.khata-row__state {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.khata-row__amount {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.khata-row__amount--owed {
+  color: var(--danger-text);
+}
+
+.khata-row__amount--credit {
+  color: var(--green-700);
+}
+
+.khata-row__amount--settled {
+  color: var(--text-muted);
+}
+
+.khata__totals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.khata__entries {
+  display: flex;
+  flex-direction: column;
+}
+
+.khata-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.khata-entry:last-child {
+  border-bottom: 0;
+}
+
+.khata-entry__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.khata-entry__what {
+  font-size: var(--text-sm);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.khata-entry__when {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.khata-entry__order {
+  font-size: var(--text-xs);
+  flex-shrink: 0;
+}
+
+.khata-entry__amount {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+
+/* A debit is what you owe more of, a credit is what you paid off. */
+.khata-entry__amount--debit {
+  color: var(--danger-text);
+}
+
+.khata-entry__amount--credit {
+  color: var(--green-700);
+}

@@ -7,17 +7,32 @@ import { vi } from 'vitest';
  * do with the *second* response — the replay after a refresh — and a mock that
  * returns one thing forever cannot express that.
  */
-export function mockFetch(responses) {
+/**
+ * Queued responses, in order.
+ *
+ * Kept for the auth-screen tests, whose point *is* a sequence — login, then the
+ * profile, then a rotated session. Everything else uses `mockRoutes`, which does
+ * not care which effect fires first.
+ *
+ * `ignore` lets a test exempt endpoints the app polls in the background — the
+ * unread-count badge fires from the shell on every signed-in screen, and it would
+ * otherwise eat a queued entry meant for something else.
+ */
+export function mockFetch(responses, { ignore = [], ignoreWith = () => ok({ unreadCount: 0 }) } = {}) {
   const queue = [...responses];
   const calls = [];
 
   const fetchMock = vi.fn(async (url, options = {}) => {
+    const href = String(url);
     calls.push({
-      url: String(url),
+      url: href,
       method: options.method ?? 'GET',
       headers: options.headers ?? {},
       body: options.body ? JSON.parse(options.body) : undefined,
     });
+
+    // Background polling is answered without touching the queue.
+    if (ignore.some((pattern) => href.includes(pattern))) return ignoreWith();
 
     const next = queue.shift();
     if (!next) throw new Error(`Unexpected request to ${url} — the queue is empty.`);
@@ -578,5 +593,86 @@ export const receiptFixture = (overrides = {}) => ({
   items: [orderItemFixture()],
   totals: orderDetailFixture().totals,
   payment: { method: 'cash', status: 'pending' },
+  ...overrides,
+});
+
+/** A saved-store row, as GET /saved-stores returns one. */
+export const savedStoreFixture = (overrides = {}) => ({
+  savedAt: '2026-09-20T10:00:00.000Z',
+  store: storeFixture(),
+  ...overrides,
+});
+
+/** A notification. Payloads carry deep-link ids and nothing else. */
+export const notificationFixture = (overrides = {}) => ({
+  id: 'notif-1',
+  type: 'order_status_changed',
+  title: 'Order CPSE-260920-ABC123: accepted by the store',
+  body: 'The store has accepted your order.',
+  payload: {
+    order_id: 'order-1',
+    order_number: 'CPSE-260920-ABC123',
+    store_id: '11111111-1111-4111-8111-000000000001',
+    status: 'accepted',
+  },
+  isRead: false,
+  readAt: null,
+  createdAt: '2026-09-20T16:20:00.000Z',
+  ...overrides,
+});
+
+/** A khata account in the list. */
+export const khataAccountFixture = (overrides = {}) => ({
+  id: 'khata-1',
+  storeId: '11111111-1111-4111-8111-000000000001',
+  store: {
+    id: '11111111-1111-4111-8111-000000000001',
+    slug: 'sharma-kirana',
+    name: 'Sharma Kirana Store',
+    logoUrl: null,
+  },
+  balancePaise: 2940,
+  outstandingPaise: 2940,
+  creditPaise: 0,
+  isSettled: false,
+  createdAt: '2026-09-01T10:00:00.000Z',
+  updatedAt: '2026-09-20T10:00:00.000Z',
+  ...overrides,
+});
+
+/** A ledger entry. `signedAmountPaise` is signed by the server. */
+export const khataTxnFixture = (overrides = {}) => ({
+  id: 'txn-1',
+  type: 'debit',
+  amountPaise: 2500,
+  signedAmountPaise: 2500,
+  description: 'Groceries on credit',
+  orderId: null,
+  occurredAt: '2026-08-02T10:15:00.000Z',
+  ...overrides,
+});
+
+/** The statement payload, which also serves as the whole-history view. */
+export const khataStatementFixture = (overrides = {}) => ({
+  account: khataAccountFixture(),
+  period: { from: null, to: null },
+  totals: {
+    openingPaise: 0,
+    debitPaise: 4940,
+    creditPaise: 2000,
+    closingPaise: 2940,
+    transactionCount: 2,
+  },
+  transactions: [
+    khataTxnFixture(),
+    khataTxnFixture({
+      id: 'txn-2',
+      type: 'credit',
+      amountPaise: 2000,
+      signedAmountPaise: -2000,
+      description: 'Part payment (UPI)',
+      occurredAt: '2026-08-20T10:00:00.000Z',
+    }),
+  ],
   ...overrides,
 });

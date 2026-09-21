@@ -18,15 +18,18 @@ import { OrderPage } from './routes/orders/OrderPage.jsx';
 import { ReceiptPage } from './routes/orders/ReceiptPage.jsx';
 import { PaymentPage } from './routes/payment/PaymentPage.jsx';
 import { MockPaymentPage } from './routes/payment/MockPaymentPage.jsx';
+import { SavedStoresPage } from './routes/saved/SavedStoresPage.jsx';
+import { NotificationsPage } from './routes/notifications/NotificationsPage.jsx';
+import { KhataPage } from './routes/khata/KhataPage.jsx';
+import { KhataAccountPage } from './routes/khata/KhataAccountPage.jsx';
 import { NotFound } from './routes/NotFound.jsx';
-import { Placeholder } from './routes/Placeholder.jsx';
 
 /**
  * The whole URL map — checklist 11.1 and 11.18.
  *
- * Every Phase 11 screen is routed now, as a placeholder naming the checklist item
- * that fills it in. That means navigation can be walked end to end before the
- * screens exist, and a link added later cannot quietly point at nothing.
+ * Every Phase 11 screen through 11.15 is now a real screen. They were routed as
+ * placeholders from the start so navigation could be walked end to end before they
+ * existed; the last placeholder went with the khata view, and the component with it.
  *
  * Which routes are public is the load-bearing decision here. A store page must
  * open for someone who followed a shared link and has no account (spec: public
@@ -109,7 +112,7 @@ export function AppRoutes() {
           path="saved"
           element={
             <RequireAuth>
-              <Placeholder title="Saved stores" item="11.13" />
+              <SavedStoresPage />
             </RequireAuth>
           }
         />
@@ -117,7 +120,7 @@ export function AppRoutes() {
           path="notifications"
           element={
             <RequireAuth>
-              <Placeholder title="Notifications" item="11.14" />
+              <NotificationsPage />
             </RequireAuth>
           }
         />
@@ -125,7 +128,7 @@ export function AppRoutes() {
           path="khata"
           element={
             <RequireAuth>
-              <Placeholder title="Khata" item="11.15" />
+              <KhataPage />
             </RequireAuth>
           }
         />
@@ -133,7 +136,7 @@ export function AppRoutes() {
           path="khata/:accountId"
           element={
             <RequireAuth>
-              <Placeholder title="Khata account" item="11.15" />
+              <KhataAccountPage />
             </RequireAuth>
           }
         />

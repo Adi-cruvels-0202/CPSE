@@ -49,6 +49,10 @@ function renderAt(path, { signedIn = false } = {}) {
     '/checkout/quote': ok({ quote: null }),
     '/orders': ok({ orders: [] }, { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false }),
     '/orders/order-1': ok({ order: orderDetailFixture() }),
+    '/saved-stores': ok({ savedStores: [] }, { page: 1, limit: 20, total: 0, totalPages: 0, hasNextPage: false }),
+    '/notifications/unread-count': ok({ unreadCount: 0 }),
+    '/notifications': ok({ notifications: [], unreadCount: 0 }, { page: 1, limit: 20, total: 0, totalPages: 0, hasNextPage: false }),
+    '/khata': ok({ accounts: [], totalOutstandingPaise: 0 }),
   });
 
   return render(
@@ -137,17 +141,26 @@ describe('gated routes send a stranger to sign in', () => {
 describe('gated routes open for a signed-in customer', () => {
   it.each([
     ['/orders', 'Your orders'],
-    ['/saved', 'Saved stores'],
-    ['/khata', 'Khata'],
+    // Empty for this customer, so each shows its own empty state rather than an h1.
     ['/account', 'Account'],
     ['/account/addresses', 'Addresses'],
     ['/cart/store-1', 'Your cart'],
     ['/checkout/store-1', 'Checkout'],
-    ['/notifications', 'Notifications'],
+
   ])('%s renders "%s"', async (path, heading) => {
     renderAt(path, { signedIn: true });
 
     expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['/saved', /no saved stores yet/i],
+    ['/notifications', /no notifications yet/i],
+    ['/khata', /no khata yet/i],
+  ])('%s opens and shows its empty state', async (path, heading) => {
+    renderAt(path, { signedIn: true });
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
   });
 
   it('shows a spinner rather than a redirect while the session is being checked', () => {
@@ -183,11 +196,6 @@ describe('the rest of the map', () => {
     expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(/hello|shop nearby/i);
   });
 
-  it('names the checklist item on every screen that is not built yet', async () => {
-    renderAt('/notifications', { signedIn: true });
-
-    expect(await screen.findByText(/checklist 11\.14/)).toBeInTheDocument();
-  });
 });
 
 describe('the shell', () => {
@@ -203,7 +211,7 @@ describe('the shell', () => {
 
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(nav).toBeInTheDocument();
-    for (const label of ['Shop', 'Orders', 'Saved', 'Account']) {
+    for (const label of ['Shop', 'Orders', 'Alerts', 'Account']) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
     }
   });
@@ -222,7 +230,7 @@ describe('the shell', () => {
 
     const ordersTab = await screen.findByRole('link', { name: 'Orders' });
     expect(ordersTab).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Saved' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Alerts' })).not.toHaveAttribute('aria-current');
   });
 
   it('offers a skip link and a main landmark', async () => {

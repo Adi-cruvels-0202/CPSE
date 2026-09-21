@@ -26,9 +26,13 @@ const ROUTER_FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true };
 function renderApp(path, { signedIn = false, responses = [] } = {}) {
   if (signedIn) {
     writeSession(sessionFixture());
-    mockFetch([ok({ customer: customerFixture() }), ...responses]);
+    // The shell polls the unread badge on every signed-in screen; it must not
+    // consume a queued response meant for the screen under test.
+    mockFetch([ok({ customer: customerFixture() }), ...responses], {
+      ignore: ['/notifications/unread-count'],
+    });
   } else {
-    mockFetch(responses);
+    mockFetch(responses, { ignore: ['/notifications/unread-count'] });
   }
 
   return {
@@ -44,6 +48,17 @@ function renderApp(path, { signedIn = false, responses = [] } = {}) {
 }
 
 const field = (name) => screen.getByLabelText(new RegExp(name, 'i'));
+
+/**
+ * Found by method and URL, not by position: the shell polls the unread badge on
+ * every signed-in screen, so a call index is not a stable way to name a request.
+ */
+const patchCalls = () =>
+  globalThis.fetch.mock.calls.filter(
+    ([, options]) => options?.method === 'PATCH',
+  );
+
+const patchBody = () => JSON.parse(patchCalls()[0][1].body);
 
 describe('sign in', () => {
   it('signs the customer in and stores the session', async () => {
@@ -435,8 +450,7 @@ describe('the account screen', () => {
     await screen.findByText('Saved.');
     // The phone did not change, so it is not in the payload — and the backend
     // rejects an empty object with "provide at least one field".
-    const body = JSON.parse(globalThis.fetch.mock.calls[1][1].body);
-    expect(body).toEqual({ fullName: 'Aditya Suresh' });
+    expect(patchBody()).toEqual({ fullName: 'Aditya Suresh' });
   });
 
   it('sends null, not an empty string, to clear the phone', async () => {
@@ -446,8 +460,7 @@ describe('the account screen', () => {
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await screen.findByText('Saved.');
-    const body = JSON.parse(globalThis.fetch.mock.calls[1][1].body);
-    expect(body).toEqual({ phone: null });
+    expect(patchBody()).toEqual({ phone: null });
   });
 
   it('does not call the server when nothing changed', async () => {
@@ -457,8 +470,8 @@ describe('the account screen', () => {
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await screen.findByText('Saved.');
-    // Only the boot profile fetch.
-    expect(globalThis.fetch.mock.calls).toHaveLength(1);
+    // No PATCH at all; the profile fetch and the badge poll are the only calls.
+    expect(patchCalls()).toHaveLength(0);
   });
 
   it('puts a rejected phone number under the phone field', async () => {

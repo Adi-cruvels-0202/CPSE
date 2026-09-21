@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useUnreadCount } from '../hooks/useUnreadCount.js';
 import './AppShell.css';
 
 /**
- * The frame every screen sits in — checklist 11.1.
+ * The frame every screen sits in — checklist 11.1, and the unread badge from 11.14.
  *
  * Mobile-first, and on a desktop it stays a phone-width column: a grocery list
  * does not get better at 1400px, and one layout is one thing to get right.
@@ -17,13 +18,14 @@ import './AppShell.css';
 const TABS = [
   { to: '/', label: 'Shop', icon: StoreIcon, end: true },
   { to: '/orders', label: 'Orders', icon: ReceiptIcon },
-  { to: '/saved', label: 'Saved', icon: HeartIcon },
+  { to: '/notifications', label: 'Alerts', icon: BellIcon, badge: true },
   { to: '/account', label: 'Account', icon: PersonIcon },
 ];
 
 export function AppShell() {
   const { isSignedIn } = useAuth();
   const { pathname } = useLocation();
+  const unread = useUnreadCount();
 
   // A shared store link is the one entry point that must work for a stranger.
   const isPublicStorePage = pathname.startsWith('/store/');
@@ -50,7 +52,7 @@ export function AppShell() {
 
       {showTabs ? (
         <nav className="shell__tabs" aria-label="Main">
-          {TABS.map(({ to, label, icon: Icon, end }) => (
+          {TABS.map(({ to, label, icon: Icon, end, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -62,6 +64,16 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <Icon filled={isActive} />
+                  {badge && unread > 0 ? (
+                    <>
+                      <span className="shell__tab-badge" aria-hidden="true">
+                        {unread > 9 ? '9+' : unread}
+                      </span>
+                      {/* The number is in the link's own name, so a screen reader
+                          hears "Alerts, 3 unread" rather than a bare digit. */}
+                      <span className="sr-only">, {unread} unread</span>
+                    </>
+                  ) : null}
                   <span className="shell__tab-label">{label}</span>
                 </>
               )}
@@ -120,10 +132,11 @@ function ReceiptIcon({ filled }) {
   );
 }
 
-function HeartIcon({ filled }) {
+function BellIcon({ filled }) {
   return (
-    <svg {...iconProps} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.15 : 0}>
-      <path d="M12 20s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 2.8C19 15.6 12 20 12 20Z" />
+    <svg {...iconProps} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.12 : 0}>
+      <path d="M12 4a5 5 0 0 1 5 5v4l2 3H5l2-3V9a5 5 0 0 1 5-5Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
     </svg>
   );
 }

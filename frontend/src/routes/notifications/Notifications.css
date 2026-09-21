@@ -1,0 +1,116 @@
+.notifications {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notification {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-body);
+  transition: border-color var(--transition-fast);
+}
+
+a.notification:hover {
+  text-decoration: none;
+  border-color: var(--green-300);
+}
+
+/* Unread reads as unread in weight and fill, not only in the dot's colour. */
+.notification--unread {
+  background: var(--bg-brand-subtle);
+  border-color: var(--green-200);
+}
+
+.notification__icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+}
+
+.notification__icon--receipt,
+.notification__icon--truck {
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+
+.notification__icon--rupee {
+  background: var(--green-100);
+  color: var(--green-700);
+}
+
+.notification__icon--cross {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.notification__icon--book {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.notification__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notification__title {
+  font-size: var(--text-sm);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.notification--unread .notification__title {
+  font-weight: var(--weight-semibold);
+}
+
+.notification__text {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.notification__when {
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+}
+
+.notification__unread {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  margin-top: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--brand);
+}
+
+/* ── The badge on the bottom tab bar ─────────────────────────────────────── */
+
+.shell__tab-badge {
+  position: absolute;
+  top: 0.35rem;
+  /* Sits on the icon's top-right, not the label's. */
+  margin-left: 1.1rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: var(--radius-full);
+  background: var(--danger);
+  color: var(--white);
+  font-size: 0.625rem;
+  font-weight: var(--weight-bold);
+  line-height: 1.1rem;
+  text-align: center;
+}

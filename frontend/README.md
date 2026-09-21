@@ -64,6 +64,8 @@ src/
     cart/         CartPage, CartLine, CartIssues
     addresses/    AddressesPage, AddressCard, AddressForm — shared with checkout
     checkout/     CheckoutPage, CheckoutSections
+    orders/       OrdersPage, OrderPage, OrderTimeline, ReceiptPage
+    payment/      PaymentPage, MockPaymentPage (the stand-in gateway)
     Account.jsx   profile editing, the links to everything owned, sign out
     Home.jsx  NotFound.jsx  Placeholder.jsx
   styles/
@@ -166,6 +168,24 @@ so the server returns the order it already created instead of placing a second o
 goes with it — if the total moved, the server refuses and the screen re-quotes so the customer sees
 the new number first.
 
+## Payment
+
+**The screen reports what the order says, never what the return URL claims.** A gateway can send a
+customer to a success URL for a payment that never completed, so the claim in the query string is
+passed to `verify` as something to check — and every word on screen is derived from the order
+afterwards.
+
+Four outcomes, and the fourth is the one that gets forgotten: paid, failed, cancelled, and **pending**.
+The signed webhook can arrive after the customer does, so pending is a state to wait in — the screen
+polls, bounded at ten attempts.
+
+`/payment/:orderId` is deliberately **public**: a gateway return can land in a fresh tab before the
+session is restored, so the screen renders its own sign-in prompt rather than being redirected away at
+the worst possible moment.
+
+`/mock-payment` is the stand-in gateway, behind a dashed "no money moves" banner. It simulates the
+*provider*, not this app — swapping in a real gateway deletes that one file.
+
 ## Theme
 
 Green, from `src/styles/tokens.css`. It is a grocery portal: green reads as fresh produce and
@@ -194,7 +214,7 @@ skeleton shimmer. Pinch-zoom is left enabled.
 
 ## Tests
 
-`npm test` — 375 tests, no network and no backend required.
+`npm test` — 434 tests, no network and no backend required.
 
 They cover what silently breaks: the refresh-and-replay path including the parallel case, a
 network failure not being mistaken for a sign-out, session storage surviving a browser that refuses

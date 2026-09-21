@@ -484,3 +484,99 @@ export const orderFixture = (overrides = {}) => ({
   totals: { subtotalPaise: 25800, discountPaise: 0, deliveryFeePaise: 0, taxPaise: 0, totalPaise: 25800 },
   ...overrides,
 });
+
+/** An order item, as the order detail returns one. */
+export const orderItemFixture = (overrides = {}) => ({
+  id: 'oi-1',
+  productId: '31111111-1111-4111-8111-000000000001',
+  variantId: null,
+  name: 'Basmati Rice',
+  variantName: null,
+  imageUrl: 'https://images.cpse.local/products/basmati-1.jpg',
+  unitPricePaise: 12900,
+  quantity: 2,
+  lineTotalPaise: 25800,
+  ...overrides,
+});
+
+/**
+ * The order detail, with the timeline the server builds.
+ *
+ * `steps` is the path *this* order takes — a pickup order has no
+ * "out for delivery" step — so a fixture carries the pickup path by default.
+ */
+export const orderDetailFixture = (overrides = {}) => ({
+  ...orderFixture(),
+  placedAt: '2026-09-20T16:17:28.490933+00:00',
+  completedAt: null,
+  cancelledAt: null,
+  isCancellable: true,
+  items: [orderItemFixture()],
+  totals: {
+    subtotalPaise: 25800,
+    discountPaise: 0,
+    deliveryFeePaise: 0,
+    taxPaise: 0,
+    totalPaise: 25800,
+  },
+  fulfilment: {
+    mode: 'pickup',
+    pickupFrom: {
+      id: '11111111-1111-4111-8111-000000000001',
+      name: 'Sharma Kirana Store',
+      slug: 'sharma-kirana',
+      phone: '+919812345601',
+      addressLine1: '14 Model Town Road',
+      addressLine2: 'Near Gurudwara',
+      city: 'Ludhiana',
+      state: 'Punjab',
+      postalCode: '141002',
+    },
+  },
+  store: {
+    id: '11111111-1111-4111-8111-000000000001',
+    name: 'Sharma Kirana Store',
+    slug: 'sharma-kirana',
+    phone: '+919812345601',
+    addressLine1: '14 Model Town Road',
+    city: 'Ludhiana',
+    state: 'Punjab',
+    postalCode: '141002',
+  },
+  payment: null,
+  customerNote: null,
+  cancellationReason: null,
+  timeline: {
+    steps: [
+      { status: 'placed', label: 'Order placed', reachedAt: '2026-09-20T16:17:28.490933+00:00', isCurrent: true },
+      { status: 'accepted', label: 'Accepted by the store', reachedAt: null, isCurrent: false },
+      { status: 'preparing', label: 'Being prepared', reachedAt: null, isCurrent: false },
+      { status: 'ready_for_pickup', label: 'Ready for pickup', reachedAt: null, isCurrent: false },
+      { status: 'completed', label: 'Completed', reachedAt: null, isCurrent: false },
+    ],
+    history: [
+      {
+        fromStatus: null,
+        toStatus: 'placed',
+        label: 'Order placed',
+        note: 'Order placed',
+        at: '2026-09-20T16:17:28.490933+00:00',
+      },
+    ],
+  },
+  ...overrides,
+});
+
+/** The receipt payload. */
+export const receiptFixture = (overrides = {}) => ({
+  orderNumber: 'CPSE-260920-ABC123',
+  placedAt: '2026-09-20T16:17:28.490933+00:00',
+  status: 'placed',
+  store: orderDetailFixture().store,
+  customerNote: null,
+  fulfilment: orderDetailFixture().fulfilment,
+  items: [orderItemFixture()],
+  totals: orderDetailFixture().totals,
+  payment: { method: 'cash', status: 'pending' },
+  ...overrides,
+});

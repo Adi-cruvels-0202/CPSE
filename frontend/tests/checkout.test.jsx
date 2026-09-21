@@ -7,6 +7,7 @@ import { AppRoutes } from '../src/router.jsx';
 import { writeSession } from '../src/lib/tokens.js';
 import {
   addressFixture,
+  orderDetailFixture,
   cartFixture,
   created,
   customerFixture,
@@ -43,6 +44,8 @@ function renderCheckout({
     '/payments/methods': ok(paymentMethodsFixture()),
     '/checkout/quote': ok({ quote }),
     '/orders': created({ order: orderFixture() }),
+    // Placing an order navigates to the real order or payment screen, which fetch.
+    '/orders/order-1': ok({ order: orderDetailFixture() }),
     ...routes,
   });
 
@@ -470,8 +473,9 @@ describe('placing the order', () => {
     await screen.findByRole('heading', { level: 1, name: 'Checkout' });
     await user.click(placeButton());
 
-    // The orders screen is 11.10; for now its placeholder proves the navigation.
-    expect(await screen.findByRole('heading', { name: 'Order' })).toBeInTheDocument();
+    // Lands on the order itself, with the confirmation banner.
+    expect(await screen.findByText(/order placed\./i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'CPSE-260920-ABC123' })).toBeInTheDocument();
   });
 
   it('sends an online order to the payment screen instead', async () => {
@@ -485,8 +489,9 @@ describe('placing the order', () => {
     await user.click(await screen.findByRole('radio', { name: /pay online/i }));
     await user.click(placeButton());
 
-    // An online order is not placed until the provider confirms.
-    expect(await screen.findByRole('heading', { name: /payment result/i })).toBeInTheDocument();
+    // An online order is not placed until the provider confirms, so the payment
+    // screen is where it goes.
+    expect(await screen.findByRole('heading', { level: 1, name: /payment|waiting/i })).toBeInTheDocument();
   });
 
   it('warns about the hand-off before it happens', async () => {

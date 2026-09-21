@@ -7,6 +7,7 @@ import { writeSession } from '../src/lib/tokens.js';
 import {
   cartFixture,
   categoriesFixture,
+  orderDetailFixture,
   customerFixture,
   mockRoutes,
   ok,
@@ -46,6 +47,8 @@ function renderAt(path, { signedIn = false } = {}) {
     '/payments/methods': ok({ methods: [{ code: 'cash', label: 'Cash', description: 'Pay at the shop' }] }),
     // Checkout reaches the store by slug, which it gets from the cart.
     '/checkout/quote': ok({ quote: null }),
+    '/orders': ok({ orders: [] }, { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false }),
+    '/orders/order-1': ok({ order: orderDetailFixture() }),
   });
 
   return render(
@@ -71,8 +74,11 @@ const PUBLIC_PATHS = [
   // so it is covered in tests/store-search.test.jsx rather than by heading here.
   // The real product page; its h1 is the product's own name.
   ['/store/sharma-kirana/product/abc', 'Basmati Rice'],
-  ['/payment/order-1', 'Payment result'],
-  ['/mock-payment', 'Mock gateway'],
+  // Both are real screens now. Signed out, the payment screen asks for a sign-in
+  // itself rather than redirecting — the return from a gateway may be a fresh tab.
+  ['/payment/order-1', 'Sign in to see your payment'],
+  // The stand-in gateway is asserted below rather than here: opened with no
+  // provider reference it shows an error state, whose heading is an h2.
 ];
 
 const GATED_PATHS = [
@@ -94,6 +100,13 @@ describe('public routes open with no session at all', () => {
     renderAt(path);
 
     expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument();
+  });
+
+  it('the stand-in gateway opens with no session, and says there is nothing to pay', async () => {
+    renderAt('/mock-payment');
+
+    expect(await screen.findByRole('heading', { name: /nothing to pay for/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument();
   });
 
   it('the search screen opens with no session', async () => {
@@ -171,9 +184,9 @@ describe('the rest of the map', () => {
   });
 
   it('names the checklist item on every screen that is not built yet', async () => {
-    renderAt('/orders', { signedIn: true });
+    renderAt('/notifications', { signedIn: true });
 
-    expect(await screen.findByText(/checklist 11\.10/)).toBeInTheDocument();
+    expect(await screen.findByText(/checklist 11\.14/)).toBeInTheDocument();
   });
 });
 

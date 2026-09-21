@@ -9,6 +9,7 @@ import { readRecoveryToken } from '../src/routes/auth/ResetPassword.jsx';
 import { readSession, writeSession } from '../src/lib/tokens.js';
 import {
   created,
+  mockRoutes,
   customerFixture,
   fail,
   mockFetch,
@@ -168,10 +169,23 @@ describe('sign in', () => {
   });
 
   it('returns the customer to the page they were trying to reach', async () => {
-    // Visiting a gated page unauthenticated redirects here with the intent.
-    const { user } = renderApp('/orders', {
-      responses: [ok({ customer: customerFixture(), session: sessionFixture() })],
+    // Routed by URL rather than queued: the orders screen fetches once it opens,
+    // and a queue would hand it the login response.
+    mockRoutes({
+      '/auth/login': ok({ customer: customerFixture(), session: sessionFixture() }),
+      '/me': ok({ customer: customerFixture() }),
+      '/orders': ok({ orders: [] }, { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false }),
     });
+    const user = userEvent.setup();
+
+    // Visiting a gated page unauthenticated redirects to sign-in with the intent.
+    render(
+      <MemoryRouter initialEntries={['/orders']} future={ROUTER_FUTURE}>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
 
     await screen.findByRole('heading', { name: 'Sign in' });
     await user.type(field('email'), 'test.customer@cpse.local');

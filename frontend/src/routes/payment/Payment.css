@@ -1,0 +1,107 @@
+.payment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  padding-top: var(--space-6);
+}
+
+.payment__mark {
+  display: grid;
+  place-items: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-full);
+}
+
+.payment__mark--done {
+  background: var(--green-100);
+  color: var(--green-700);
+}
+
+.payment__mark--waiting {
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.payment__mark--stopped {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.payment__lead {
+  max-width: 26rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.payment__facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.payment__facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.payment__facts dt {
+  color: var(--text-muted);
+}
+
+.payment__facts dd {
+  color: var(--text-strong);
+  font-weight: var(--weight-medium);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.payment__polling {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.payment__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+/* ── The stand-in gateway ───────────────────────────────────────────────── */
+
+.mock-pay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Unmistakably not a real payment page. */
+.mock-pay__banner {
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--amber-600);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.mock-pay__title {
+  font-size: var(--text-lg);
+}
+
+.mock-pay__ref {
+  font-size: var(--text-xs);
+}

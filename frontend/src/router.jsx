@@ -13,6 +13,11 @@ import { StoreSearch } from './routes/store/StoreSearch.jsx';
 import { CartPage } from './routes/cart/CartPage.jsx';
 import { AddressesPage } from './routes/addresses/AddressesPage.jsx';
 import { CheckoutPage } from './routes/checkout/CheckoutPage.jsx';
+import { OrdersPage } from './routes/orders/OrdersPage.jsx';
+import { OrderPage } from './routes/orders/OrderPage.jsx';
+import { ReceiptPage } from './routes/orders/ReceiptPage.jsx';
+import { PaymentPage } from './routes/payment/PaymentPage.jsx';
+import { MockPaymentPage } from './routes/payment/MockPaymentPage.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 import { Placeholder } from './routes/Placeholder.jsx';
 
@@ -52,12 +57,12 @@ export function AppRoutes() {
 
         {/* The gateway sends the customer back here. Public, because the return
             trip may land in a fresh tab before the session is restored. */}
-        <Route
-          path="payment/:orderId"
-          element={<Placeholder title="Payment result" item="11.9" />}
-        />
+        {/* Public on purpose: a return from the gateway can land in a fresh tab
+            before the session is restored, and the screen asks for a sign-in
+            itself rather than losing the customer to a redirect. */}
+        <Route path="payment/:orderId" element={<PaymentPage />} />
         {/* The mock provider's stand-in checkout page (PAYMENT_MOCK_CHECKOUT_URL). */}
-        <Route path="mock-payment" element={<Placeholder title="Mock gateway" item="11.9" />} />
+        <Route path="mock-payment" element={<MockPaymentPage />} />
 
         {/* ── Signed in ──────────────────────────────────────────────────── */}
         <Route
@@ -80,7 +85,7 @@ export function AppRoutes() {
           path="orders"
           element={
             <RequireAuth>
-              <Placeholder title="Your orders" item="11.10" />
+              <OrdersPage />
             </RequireAuth>
           }
         />
@@ -88,7 +93,7 @@ export function AppRoutes() {
           path="orders/:orderId"
           element={
             <RequireAuth>
-              <Placeholder title="Order" item="11.10" />
+              <OrderPage />
             </RequireAuth>
           }
         />
@@ -96,7 +101,7 @@ export function AppRoutes() {
           path="orders/:orderId/receipt"
           element={
             <RequireAuth>
-              <Placeholder title="Receipt" item="11.10" />
+              <ReceiptPage />
             </RequireAuth>
           }
         />

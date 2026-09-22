@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../src/context/AuthContext.jsx';
 import { AppRoutes } from '../src/router.jsx';
@@ -190,10 +190,22 @@ describe('the rest of the map', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
   });
 
-  it('sends a bare /cart back to the shop, since there is no store to show', async () => {
+  it('resolves a bare /cart to the shop the customer was last in', async () => {
+    const { rememberStore } = await import('../src/lib/activeStore.js');
+    rememberStore({ id: '11111111-1111-4111-8111-000000000001', slug: 'sharma-kirana' });
+
     renderAt('/cart', { signedIn: true });
 
-    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(/hello|shop nearby/i);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your cart' })).toBeInTheDocument();
+  });
+
+  it('says there is no cart when no shop has been opened', async () => {
+    const { forgetStore } = await import('../src/lib/activeStore.js');
+    forgetStore();
+
+    renderAt('/cart', { signedIn: true });
+
+    expect(await screen.findByRole('heading', { name: /no cart yet/i })).toBeInTheDocument();
   });
 
 });
@@ -211,17 +223,36 @@ describe('the shell', () => {
 
     const nav = await screen.findByRole('navigation', { name: 'Main' });
     expect(nav).toBeInTheDocument();
-    for (const label of ['Shop', 'Orders', 'Alerts', 'Account']) {
+    for (const label of ['Shop', 'Orders', 'Cart', 'Account']) {
       expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
     }
   });
 
-  it('hides the tabs on a public store page even when signed in', async () => {
+  it('keeps the tabs on a store page for a signed-in customer', async () => {
     renderAt('/store/sharma-kirana', { signedIn: true });
 
     await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
-    await waitFor(() =>
-      expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument(),
+    // They used to be hidden here, which left a customer who opened a shop with no
+    // way out. The rule only ever needed to be "are you signed in".
+    expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+  });
+
+  it('still hides them from a stranger following a shared link', async () => {
+    renderAt('/store/sharma-kirana');
+
+    await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
+  });
+
+  it('puts notifications in the header, not the tab bar', async () => {
+    renderAt('/orders', { signedIn: true });
+
+    await screen.findByRole('navigation', { name: 'Main' });
+    const tabs = within(screen.getByRole('navigation', { name: 'Main' }));
+    expect(tabs.queryByRole('link', { name: /notification|alerts/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^notifications$/i })).toHaveAttribute(
+      'href',
+      '/notifications',
     );
   });
 
@@ -230,7 +261,7 @@ describe('the shell', () => {
 
     const ordersTab = await screen.findByRole('link', { name: 'Orders' });
     expect(ordersTab).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Alerts' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Cart' })).not.toHaveAttribute('aria-current');
   });
 
   it('offers a skip link and a main landmark', async () => {

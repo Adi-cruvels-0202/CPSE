@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { endpoints } from '../lib/endpoints.js';
 import { useSubmit } from '../hooks/useSubmit.js';
+import { rememberStore } from '../lib/activeStore.js';
 import { FormError } from './FormError.jsx';
 
 /**
@@ -30,7 +31,13 @@ export function AddToCartButton({ storeId, storeSlug, productId, variantId, quan
         ...(variantId ? { variantId } : {}),
         quantity,
       }),
-    { onSuccess: () => setAdded(true) },
+    {
+      onSuccess: () => {
+        setAdded(true);
+        // So the Cart tab goes to the cart they just added to.
+        rememberStore({ id: storeId, slug: storeSlug });
+      },
+    },
   );
 
   if (!isSignedIn) {

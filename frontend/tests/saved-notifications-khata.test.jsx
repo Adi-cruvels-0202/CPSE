@@ -256,38 +256,38 @@ describe('notifications (11.14)', () => {
   });
 });
 
-describe('the unread badge on the tab bar (11.14)', () => {
+describe('the unread badge in the header (11.14)', () => {
   it('shows the count the server reports', async () => {
     renderAt('/orders', { '/notifications/unread-count': ok({ unreadCount: 3 }) });
 
-    const tab = await screen.findByRole('link', { name: /alerts/i });
-    expect(tab).toHaveTextContent('3');
+    const bell = await screen.findByRole('link', { name: /notifications/i });
+    expect(bell).toHaveTextContent('3');
     // Announced as words, not as a bare digit.
-    expect(tab).toHaveAccessibleName(/3 unread/i);
+    expect(bell).toHaveAccessibleName(/3 unread/i);
   });
 
   it('caps the badge so a big number cannot break the tab', async () => {
     renderAt('/orders', { '/notifications/unread-count': ok({ unreadCount: 47 }) });
 
-    const tab = await screen.findByRole('link', { name: /alerts/i });
-    expect(tab).toHaveTextContent('9+');
+    const bell = await screen.findByRole('link', { name: /notifications/i });
+    expect(bell).toHaveTextContent('9+');
     // The real number is still available to a screen reader.
-    expect(tab).toHaveAccessibleName(/47 unread/i);
+    expect(bell).toHaveAccessibleName(/47 unread/i);
   });
 
   it('shows nothing when there is nothing unread', async () => {
     renderAt('/orders', { '/notifications/unread-count': ok({ unreadCount: 0 }) });
 
-    const tab = await screen.findByRole('link', { name: 'Alerts' });
-    expect(tab).not.toHaveTextContent(/\d/);
+    const bell = await screen.findByRole('link', { name: 'Notifications' });
+    expect(bell).not.toHaveTextContent(/\d/);
   });
 
   it('does not let a failed count break the shell', async () => {
     renderAt('/orders', { '/notifications/unread-count': fail(500, 'INTERNAL_ERROR') });
 
     // A badge is not worth an error message.
-    const tab = await screen.findByRole('link', { name: 'Alerts' });
-    expect(tab).toBeInTheDocument();
+    const bell = await screen.findByRole('link', { name: 'Notifications' });
+    expect(bell).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

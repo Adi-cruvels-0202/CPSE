@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell.jsx';
 import { RequireAuth } from './components/RequireAuth.jsx';
 import { Home } from './routes/Home.jsx';
@@ -11,6 +11,7 @@ import { StorePage } from './routes/store/StorePage.jsx';
 import { ProductDetail } from './routes/store/ProductDetail.jsx';
 import { StoreSearch } from './routes/store/StoreSearch.jsx';
 import { CartPage } from './routes/cart/CartPage.jsx';
+import { CartIndex } from './routes/cart/CartIndex.jsx';
 import { AddressesPage } from './routes/addresses/AddressesPage.jsx';
 import { CheckoutPage } from './routes/checkout/CheckoutPage.jsx';
 import { OrdersPage } from './routes/orders/OrdersPage.jsx';
@@ -157,8 +158,16 @@ export function AppRoutes() {
           }
         />
 
-        {/* A bare /cart has no store to show; the shop screen is where you pick one. */}
-        <Route path="cart" element={<Navigate to="/" replace />} />
+        {/* The Cart tab points here: a cart belongs to a shop, so this resolves to
+            the one the customer was last in. */}
+        <Route
+          path="cart"
+          element={
+            <RequireAuth>
+              <CartIndex />
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

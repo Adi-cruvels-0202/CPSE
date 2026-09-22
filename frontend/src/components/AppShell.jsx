@@ -19,7 +19,7 @@ import './AppShell.css';
 const TABS = [
   { to: '/', label: 'Shop', icon: StoreIcon, end: true },
   { to: '/orders', label: 'Orders', icon: ReceiptIcon },
-  { to: '/notifications', label: 'Alerts', icon: BellIcon, badge: true },
+  { to: '/cart', label: 'Cart', icon: CartIcon },
   { to: '/account', label: 'Account', icon: PersonIcon },
 ];
 
@@ -29,9 +29,15 @@ export function AppShell() {
   const unread = useUnreadCount();
   const online = useOnline();
 
-  // A shared store link is the one entry point that must work for a stranger.
-  const isPublicStorePage = pathname.startsWith('/store/');
-  const showTabs = isSignedIn && !isPublicStorePage;
+  /**
+   * The tabs are for a signed-in customer, everywhere — including inside a shop.
+   *
+   * They used to be hidden on store pages, on the reasoning that a stranger
+   * following a shared link should not be offered Orders and Account. But a
+   * *signed-in* customer who opens a shop lost their way out, which is worse: the
+   * condition only ever needed to be "are you signed in".
+   */
+  const showTabs = isSignedIn;
 
   return (
     <div className="shell">
@@ -54,6 +60,23 @@ export function AppShell() {
           <LeafMark />
           <span>CPSE</span>
         </NavLink>
+
+        {/* Top right, where a bell belongs — and out of the bottom bar, which is
+            for the places a customer goes rather than the things that happened. */}
+        {isSignedIn ? (
+          <NavLink
+            to="/notifications"
+            className="shell__bell"
+            aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+          >
+            <BellIcon />
+            {unread > 0 ? (
+              <span className="shell__bell-badge" aria-hidden="true">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            ) : null}
+          </NavLink>
+        ) : null}
       </header>
 
       {/* The landmark a screen reader jumps to, and the anchor the skip link
@@ -64,7 +87,7 @@ export function AppShell() {
 
       {showTabs ? (
         <nav className="shell__tabs" aria-label="Main">
-          {TABS.map(({ to, label, icon: Icon, end, badge }) => (
+          {TABS.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -76,16 +99,6 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <Icon filled={isActive} />
-                  {badge && unread > 0 ? (
-                    <>
-                      <span className="shell__tab-badge" aria-hidden="true">
-                        {unread > 9 ? '9+' : unread}
-                      </span>
-                      {/* The number is in the link's own name, so a screen reader
-                          hears "Alerts, 3 unread" rather than a bare digit. */}
-                      <span className="sr-only">, {unread} unread</span>
-                    </>
-                  ) : null}
                   <span className="shell__tab-label">{label}</span>
                 </>
               )}
@@ -149,6 +162,16 @@ function BellIcon({ filled }) {
     <svg {...iconProps} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.12 : 0}>
       <path d="M12 4a5 5 0 0 1 5 5v4l2 3H5l2-3V9a5 5 0 0 1 5-5Z" />
       <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+function CartIcon({ filled }) {
+  return (
+    <svg {...iconProps} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.12 : 0}>
+      <path d="M4 5h2l2.2 9.2a1.5 1.5 0 0 0 1.5 1.15h6.9a1.5 1.5 0 0 0 1.45-1.1L20 8H7" />
+      <circle cx="10" cy="19" r="1.4" />
+      <circle cx="17" cy="19" r="1.4" />
     </svg>
   );
 }

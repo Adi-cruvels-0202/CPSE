@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
+import { rememberStore } from '../../lib/activeStore.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { formatPaiseShort } from '../../lib/money.js';
 import { describeStatus, weekSchedule } from '../../lib/storeHours.js';
@@ -56,6 +58,11 @@ export function StorePage() {
     () => endpoints.stores.get(slug),
     [slug, isSignedIn],
   );
+
+  // The Cart tab has to answer "which cart?", and this is the shop they are in.
+  useEffect(() => {
+    if (data?.store) rememberStore(data.store);
+  }, [data?.store]);
 
   if (loading) return <StorePageSkeleton />;
 
@@ -119,13 +126,34 @@ export function StorePage() {
 function StoreHeader({ store, status, onSaveChange }) {
   return (
     <header className="store__header">
-      <RemoteImage
-        src={store.coverImageUrl}
-        name={store.name}
-        alt=""
-        ratio="16 / 9"
-        className="store__cover"
-      />
+      {/*
+        The back link and the heart sit ON the cover, which is where a shop page
+        puts them and, more to the point, where they cannot collide with anything.
+        They used to live in the row below, which is pulled up over the cover so the
+        logo overlaps it — and the heart came up with it and landed on the image.
+      */}
+      <div className="store__banner">
+        <RemoteImage
+          src={store.coverImageUrl}
+          name={store.name}
+          alt=""
+          ratio="16 / 9"
+          className="store__cover"
+        />
+
+        <Link to="/" className="store__back" aria-label="Back to shops">
+          <ChevronLeft />
+        </Link>
+
+        <div className="store__save">
+          <SaveStoreButton
+            storeId={store.id}
+            storeSlug={store.slug}
+            isSaved={store.isSaved}
+            onChange={onSaveChange}
+          />
+        </div>
+      </div>
 
       <div className="store__identity">
         <RemoteImage
@@ -145,17 +173,29 @@ function StoreHeader({ store, status, onSaveChange }) {
             {status.detail ? <span className="muted"> · {status.detail}</span> : null}
           </p>
         </div>
-
-        <SaveStoreButton
-          storeId={store.id}
-          storeSlug={store.slug}
-          isSaved={store.isSaved}
-          onChange={onSaveChange}
-        />
       </div>
 
       {store.description ? <p className="store__description">{store.description}</p> : null}
     </header>
+  );
+}
+
+function ChevronLeft() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M15 6l-6 6 6 6" />
+    </svg>
   );
 }
 

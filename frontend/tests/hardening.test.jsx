@@ -345,12 +345,13 @@ describe('11.18 — every screen offers a way onward', () => {
     expect(Boolean(tabs) || links.length > 0).toBe(true);
   });
 
-  it('keeps the tab bar off the public store pages, where it would confuse', async () => {
+  it('gives a store page a way back to the shops, and keeps the tabs', async () => {
     renderAt('/store/sharma-kirana');
 
     await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
-    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
-    // But there is still a way to browse and to search.
+    // A customer who opens a shop must not be stranded in it.
+    expect(screen.getByRole('link', { name: /back to shops/i })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('navigation', { name: 'Main' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /search this store/i })).toBeInTheDocument();
   });
 
@@ -427,5 +428,78 @@ describe('11.16 — accessibility basics hold on every screen', () => {
 
     expect(await screen.findByRole('link', { name: /skip to content/i })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main');
+  });
+});
+
+/**
+ * Changes from the first real use of the app, on a phone.
+ *
+ * All five were reported after walking the shop: the heart sat on the cover image,
+ * a store page had no way home, there was no way to the cart except by adding
+ * something, and the tab bar vanished inside a shop — while carrying a bell that
+ * belonged in the header.
+ */
+describe('navigation, after the first walkthrough', () => {
+  it('puts the back link and the heart on the cover, clear of the logo', async () => {
+    renderAt('/store/sharma-kirana');
+
+    await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
+
+    const back = screen.getByRole('link', { name: /back to shops/i });
+    const heart = screen.getByRole('button', { name: /save this store|tap to remove/i });
+
+    // Both live in the banner, not in the row below that is pulled up over it.
+    expect(back.closest('.store__banner')).not.toBeNull();
+    expect(heart.closest('.store__banner')).not.toBeNull();
+    expect(heart.closest('.store__identity')).toBeNull();
+  });
+
+  it('offers a Cart tab that goes to the shop you were last in', async () => {
+    const { user } = renderAt('/store/sharma-kirana');
+
+    await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
+
+    await user.click(screen.getByRole('link', { name: 'Cart' }));
+
+    // A cart belongs to a shop, so the tab resolves to that shop's cart.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your cart' })).toBeInTheDocument();
+  });
+
+  it('says so, rather than showing an empty cart, when no shop has been opened', async () => {
+    const { forgetStore } = await import('../src/lib/activeStore.js');
+    forgetStore();
+
+    const { user } = renderAt('/orders');
+    await screen.findByRole('heading', { level: 1, name: 'Your orders' });
+
+    await user.click(screen.getByRole('link', { name: 'Cart' }));
+
+    expect(await screen.findByRole('heading', { name: /no cart yet/i })).toBeInTheDocument();
+  });
+
+  it('remembers the shop when something is added from a product page', async () => {
+    const { forgetStore, readActiveStore } = await import('../src/lib/activeStore.js');
+    forgetStore();
+
+    const { user } = renderAt(
+      '/store/sharma-kirana/product/31111111-1111-4111-8111-000000000001',
+    );
+
+    await user.click(await screen.findByRole('button', { name: /^add to cart$/i }));
+    await screen.findByText(/added to your cart/i);
+
+    expect(readActiveStore()?.id).toBe('11111111-1111-4111-8111-000000000001');
+  });
+
+  it('shows Shop, Orders, Cart and Account — and no bell — in the tab bar', async () => {
+    renderAt('/orders');
+
+    const tabs = within(await screen.findByRole('navigation', { name: 'Main' }));
+    expect(tabs.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Shop',
+      'Orders',
+      'Cart',
+      'Account',
+    ]);
   });
 });

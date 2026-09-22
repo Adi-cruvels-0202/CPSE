@@ -12,8 +12,43 @@
   gap: var(--space-3);
 }
 
+/* The cover, with the two controls that float on it. */
+.store__banner {
+  position: relative;
+}
+
 .store__cover {
   border-radius: var(--radius-lg);
+}
+
+.store__back,
+.store__save {
+  position: absolute;
+  top: var(--space-3);
+  z-index: 1;
+}
+
+.store__back {
+  left: var(--space-3);
+  display: grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  border-radius: var(--radius-full);
+  /* Solid, not translucent: it has to stay legible over a photograph as well as
+     over the initials fallback. */
+  background: var(--bg-surface);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.store__back:hover {
+  background: var(--bg-brand-subtle);
+  color: var(--text-brand);
+}
+
+.store__save {
+  right: var(--space-3);
 }
 
 .store__identity {
@@ -36,6 +71,11 @@
   /* Aligns the name with the bottom of the logo rather than the cover. */
   padding-top: var(--space-8);
   min-width: 0;
+}
+
+.store__titles h1 {
+  /* Nothing sits beside it now, so it has the width it needs. */
+  padding-right: var(--space-2);
 }
 
 .store__titles h1 {

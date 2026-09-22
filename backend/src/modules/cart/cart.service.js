@@ -246,6 +246,11 @@ export function toPublicCart({ store, cart, lines, totals, issues }) {
   return {
     storeId: store.id,
     storeName: store.name,
+    // The slug is what a link back to the shop needs, and the client has no other
+    // way to get it: GET /stores/:slug takes a slug, so an id gets it nowhere. Its
+    // absence left the checkout screen waiting forever for a store it could not
+    // ask for.
+    storeSlug: store.slug,
     cartId: cart?.id ?? null,
     lines,
     totals,

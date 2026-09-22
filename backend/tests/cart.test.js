@@ -73,6 +73,19 @@ function seedCartItem(overrides = {}) {
 }
 
 describe('GET /api/v1/cart (5.1)', () => {
+  it('carries the slug a link back to the shop needs (5.1)', async () => {
+    const auth = signIn();
+    const product = seedProduct({ price_paise: 12500, stock: 10 });
+    await addItem(auth, { storeId: STORE_ID, productId: product.id, quantity: 1 });
+
+    const res = await api().get(url(`/cart?storeId=${STORE_ID}`)).set(auth);
+
+    // GET /stores/:slug takes a slug, so a client holding only the cart's storeId
+    // cannot reach the shop at all. Its absence hung the checkout screen.
+    expect(res.status).toBe(200);
+    expect(res.body.data.cart.storeSlug).toBe('sharma-kirana');
+  });
+
   it('requires a signed-in customer', async () => {
     const res = await api().get(cartUrl());
 

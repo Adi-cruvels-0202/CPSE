@@ -563,3 +563,68 @@ describe('placing the order', () => {
     );
   });
 });
+
+/**
+ * The regression that hung checkout for five minutes.
+ *
+ * `storeSlug` was in the cart *fixture* and not in the cart *payload*. The store
+ * query is chained off it, so it never became enabled, so `store.data` stayed null
+ * — and the screen's guard waited on exactly that. Every test passed while the
+ * real screen span forever.
+ *
+ * The backend now sends the field. These cover the other half: a screen must never
+ * wait on something that cannot arrive.
+ */
+describe('a cart with no storeSlug still reaches checkout', () => {
+  const slugless = () => {
+    const cart = cartFixture();
+    delete cart.storeSlug;
+    return cart;
+  };
+
+  it('renders instead of spinning forever', async () => {
+    renderCheckout({ cart: slugless() });
+
+    // The whole bug in one assertion.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Checkout' })).toBeInTheDocument();
+    expect(screen.queryByText(/getting checkout ready/i)).not.toBeInTheDocument();
+  });
+
+  it('still offers both ways to get the order, and lets one be chosen', async () => {
+    const { user } = renderCheckout({ cart: slugless() });
+
+    await screen.findByRole('heading', { level: 1, name: 'Checkout' });
+    expect(screen.getByRole('radio', { name: /pick it up/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('radio', { name: /have it delivered/i }));
+    expect(screen.getByRole('radio', { name: /have it delivered/i })).toBeChecked();
+  });
+
+  it('still places the order, because the quote is the authority', async () => {
+    const { user, calls } = renderCheckout({ cart: slugless() });
+
+    await screen.findByRole('heading', { level: 1, name: 'Checkout' });
+    await user.click(screen.getByRole('button', { name: /place order/i }));
+
+    await waitFor(() =>
+      expect(calls.some((call) => call.method === 'POST' && call.url.endsWith('/orders'))).toBe(
+        true,
+      ),
+    );
+  });
+
+  it('does not ask for a store it cannot name', async () => {
+    const { calls } = renderCheckout({ cart: slugless() });
+
+    await screen.findByRole('heading', { level: 1, name: 'Checkout' });
+    expect(calls.some((call) => call.url.includes('/stores/undefined'))).toBe(false);
+    expect(calls.some((call) => call.url.includes('/stores/null'))).toBe(false);
+  });
+
+  it('renders when the store request itself fails', async () => {
+    renderCheckout({ routes: { '/stores/sharma-kirana': fail(500, 'INTERNAL_ERROR') } });
+
+    // A shop we cannot load costs the fulfilment detail, not the whole screen.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Checkout' })).toBeInTheDocument();
+  });
+});

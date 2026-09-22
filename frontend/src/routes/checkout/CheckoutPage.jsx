@@ -30,6 +30,19 @@ import './Checkout.css';
  * Every change of mode or address re-quotes, because the fee and the blockers
  * depend on both.
  */
+/**
+ * What to offer when the shop itself could not be loaded.
+ *
+ * Both modes, no fee stated — the quote is the authority on both, and it refuses a
+ * mode the shop does not do. Better than a screen with no choices on it.
+ */
+const FALLBACK_FULFILMENT = {
+  pickupEnabled: true,
+  deliveryEnabled: true,
+  minOrderPaise: 0,
+  deliveryFeePaise: 0,
+};
+
 export function CheckoutPage() {
   const { storeId } = useParams();
   const navigate = useNavigate();
@@ -74,12 +87,16 @@ export function CheckoutPage() {
   const fulfilment = store.data?.store?.fulfilment;
 
   // Default to whatever the shop offers — pickup when it does both, since it is
-  // the option with no fee and no address to choose.
+  // the option with no fee and no address to choose. With no store to ask, the
+  // quote is still the authority: it refuses a mode the shop does not do.
   useEffect(() => {
-    if (fulfilmentMode || !fulfilment) return;
-    if (fulfilment.pickupEnabled) setFulfilmentMode('pickup');
-    else if (fulfilment.deliveryEnabled) setFulfilmentMode('delivery');
-  }, [fulfilment, fulfilmentMode]);
+    if (fulfilmentMode) return;
+    const offered = fulfilment ?? (storeSlug && !store.error ? null : FALLBACK_FULFILMENT);
+    if (!offered) return;
+
+    if (offered.pickupEnabled) setFulfilmentMode('pickup');
+    else if (offered.deliveryEnabled) setFulfilmentMode('delivery');
+  }, [fulfilment, fulfilmentMode, storeSlug, store.error]);
 
   // The default address, once they load — the one a customer means nine times out
   // of ten.
@@ -153,14 +170,16 @@ export function CheckoutPage() {
   // Order matters here. Errors first, then "nothing to buy", then the wait —
   // otherwise a failed cart sits under a skeleton forever, and a cart that has not
   // arrived reads as an empty one.
-  if (cart.error || store.error) {
-    return (
-      <ErrorState
-        error={cart.error ?? store.error}
-        onRetry={cart.error ? cart.refetch : store.refetch}
-        title="Could not start checkout"
-      />
-    );
+  /**
+   * Only the cart is essential.
+   *
+   * The store is fetched for the fulfilment options and the minimum — useful, not
+   * load-bearing, because the quote decides both and refuses anything the shop does
+   * not do. Treating its failure as fatal stopped a customer checking out over a
+   * detail they never see.
+   */
+  if (cart.error) {
+    return <ErrorState error={cart.error} onRetry={cart.refetch} title="Could not start checkout" />;
   }
 
   // An empty cart is not an error to report, it is a customer with nothing to buy.
@@ -182,7 +201,22 @@ export function CheckoutPage() {
   // `store.data` is null. Gating on `loading` alone rendered the page, then blanked
   // it back to a skeleton the instant the store request began (the same flicker
   // D56 fixed for the storefront). Waiting for the data itself covers both.
-  if (cart.loading || addresses.loading || !store.data) return <CheckoutSkeleton />;
+  /**
+   * Waits for the cart and the addresses, and for the store only while it still
+   * might arrive.
+   *
+   * It used to wait on `!store.data` alone. The store query is chained off the
+   * cart's `storeSlug`, and when that field was missing from the payload the query
+   * never became enabled — so the condition was permanently true and the screen
+   * span forever. A guard that can never be satisfied is worse than no guard: the
+   * customer gets no error, no retry, and nothing to report.
+   *
+   * Now an unresolvable store costs the fulfilment choices their detail, and
+   * nothing else.
+   */
+  const storeMightArrive = Boolean(storeSlug) && !store.data && !store.error;
+
+  if (cart.loading || addresses.loading || storeMightArrive) return <CheckoutSkeleton />;
 
   return (
     <div className="checkout">
@@ -193,7 +227,7 @@ export function CheckoutPage() {
 
       <Step step={1} title="How do you want it?">
         <FulfilmentChoice
-          fulfilment={fulfilment}
+          fulfilment={fulfilment ?? FALLBACK_FULFILMENT}
           value={fulfilmentMode}
           onChange={(mode) => setFulfilmentMode(mode)}
           disabled={placing}

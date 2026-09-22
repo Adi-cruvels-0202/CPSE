@@ -46,6 +46,9 @@ export function CartPage() {
    * It stays a warning rather than disabling the button: the quote is the
    * authority, and re-implementing its rules client-side is how the two start
    * disagreeing.
+   *
+   * If the shop cannot be loaded the hint simply does not appear. Nothing on this
+   * screen waits for it — the cart is the cart whether or not we know the minimum.
    */
   const store = useApiQuery(
     () => endpoints.stores.get(cartData.storeSlug),

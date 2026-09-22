@@ -4,7 +4,13 @@ import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { useSubmit } from '../../hooks/useSubmit.js';
 import { formatPaise } from '../../lib/money.js';
-import { formatWhen, meaningFor, paymentFor, toneFor } from '../../lib/orderStatus.js';
+import {
+  REFUND_WORKING_DAYS,
+  formatWhen,
+  meaningFor,
+  paymentFor,
+  toneFor,
+} from '../../lib/orderStatus.js';
 import { RemoteImage } from '../../components/RemoteImage.jsx';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { FormError } from '../../components/FormError.jsx';
@@ -68,6 +74,10 @@ export function OrderPage() {
   }
 
   const payment = paymentFor(order.paymentStatus);
+
+  // Money has already left the customer's account, so cancelling has to say where
+  // it goes. 'refunded' is excluded: that one has its own label already.
+  const paidOnline = order.paymentStatus === 'paid';
   const meaning = meaningFor(order.status);
 
   return (
@@ -88,6 +98,21 @@ export function OrderPage() {
         </p>
         {meaning ? <p className="order__meaning">{meaning}</p> : null}
       </header>
+
+      {/* The refund is the first thing they will look for after cancelling, so it
+          stays on the order rather than only appearing in the confirmation. */}
+      {order.status === 'cancelled' && paidOnline ? (
+        <p className="notice notice--info">
+          {formatPaise(order.totals.totalPaise)} will be refunded to the account you paid from.
+          Banks usually take {REFUND_WORKING_DAYS} working days to show it.
+        </p>
+      ) : null}
+
+      {order.status === 'cancelled' && order.paymentStatus === 'refunded' ? (
+        <p className="notice notice--success">
+          {formatPaise(order.totals.totalPaise)} has been refunded to the account you paid from.
+        </p>
+      ) : null}
 
       {order.cancellationReason ? (
         <p className="notice notice--warning">Reason given: {order.cancellationReason}</p>
@@ -190,6 +215,12 @@ export function OrderPage() {
           cancelling ? (
             <div className="notice notice--danger stack" role="alertdialog" aria-label="Cancel this order?">
               <p>Cancel {order.orderNumber}? The shop will be told.</p>
+              {paidOnline ? (
+                <p>
+                  You paid {formatPaise(order.totals.totalPaise)} online. It will be refunded to
+                  the account you paid from, usually within {REFUND_WORKING_DAYS} working days.
+                </p>
+              ) : null}
               <div className="row">
                 <button
                   type="button"

@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { formatPaise } from '../../lib/money.js';
-import { formatDate, formatWhen } from '../../lib/orderStatus.js';
+import { REFUND_WORKING_DAYS, formatDate, formatWhen } from '../../lib/orderStatus.js';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import './Receipt.css';
 
@@ -75,6 +75,13 @@ export function ReceiptPage() {
 
         <table className="receipt__table">
           <caption className="sr-only">Items on this order</caption>
+          {/* Fixed widths for the two numeric columns: the amounts then line up
+              under each other and under the totals, whatever the item names do. */}
+          <colgroup>
+            <col />
+            <col className="receipt__col-qty" />
+            <col className="receipt__col-amount" />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Item</th>
@@ -87,12 +94,18 @@ export function ReceiptPage() {
             </tr>
           </thead>
           <tbody>
-            {(receipt.items ?? []).map((item) => (
+            {/* `lines`, which is what the API calls them. Reading `items` here —
+                a name only the fixture used — printed an empty table. */}
+            {(receipt.lines ?? []).map((item) => (
               <tr key={item.id ?? `${item.name}-${item.variantName ?? ''}`}>
                 <td>
-                  {item.name}
-                  {item.variantName ? <span className="muted"> · {item.variantName}</span> : null}
-                  <span className="receipt__unit muted"> @ {formatPaise(item.unitPricePaise)}</span>
+                  <span className="receipt__item-name">
+                    {item.name}
+                    {item.variantName ? <span className="muted"> · {item.variantName}</span> : null}
+                  </span>
+                  <span className="receipt__unit muted">
+                    {item.quantity} × {formatPaise(item.unitPricePaise)}
+                  </span>
                 </td>
                 <td className="receipt__qty numeric">{item.quantity}</td>
                 <td className="receipt__amount numeric">{formatPaise(item.lineTotalPaise)}</td>
@@ -131,13 +144,44 @@ export function ReceiptPage() {
           ) : null}
         </section>
 
+        {/* A receipt for a cancelled order that was paid online has to account for
+            the money, or it reads as a bill for something that never happened. */}
+        {receipt.status === 'cancelled' && receipt.payment?.status === 'paid' ? (
+          <p className="notice notice--info">
+            This order was cancelled. {formatPaise(receipt.totals.totalPaise)} will be refunded to
+            the account it was paid from, usually within {REFUND_WORKING_DAYS} working days.
+          </p>
+        ) : null}
+
         {receipt.payment ? (
           <section className="receipt__block">
             <h3>Payment</h3>
-            <p>
-              {receipt.payment.method === 'online' ? 'Paid online' : 'Cash on collection or delivery'}
-              {receipt.payment.status ? ` · ${receipt.payment.status}` : null}
-            </p>
+            <dl className="receipt__pairs">
+              <div>
+                <dt>Method</dt>
+                <dd>
+                  {receipt.payment.method === 'online' ? 'Paid online' : 'Cash on collection or delivery'}
+                </dd>
+              </div>
+              {receipt.payment.status ? (
+                <div>
+                  <dt>Status</dt>
+                  <dd>{receipt.payment.status}</dd>
+                </div>
+              ) : null}
+              {receipt.payment.reference ? (
+                <div>
+                  <dt>Reference</dt>
+                  <dd className="numeric receipt__reference">{receipt.payment.reference}</dd>
+                </div>
+              ) : null}
+              {receipt.payment.paidAt ? (
+                <div>
+                  <dt>Paid</dt>
+                  <dd>{formatDate(receipt.payment.paidAt)}</dd>
+                </div>
+              ) : null}
+            </dl>
           </section>
         ) : null}
 
@@ -149,7 +193,10 @@ export function ReceiptPage() {
         ) : null}
 
         <footer className="receipt__foot muted">
-          <p>Prices include tax. Keep this for your records.</p>
+          <p>
+            {receipt.isTaxInvoice ? 'Tax invoice. ' : null}
+            Prices include tax. Keep this for your records.
+          </p>
         </footer>
       </article>
     </div>

@@ -15,6 +15,7 @@ import {
   ok,
   orderDetailFixture,
   orderFixture,
+  orderItemFixture,
   receiptFixture,
   sessionFixture,
 } from './helpers/api.js';
@@ -346,6 +347,70 @@ describe('cancelling', () => {
     expect(await screen.findByText('Cancelled')).toBeInTheDocument();
   });
 
+  it('says where the money goes before cancelling a paid online order', async () => {
+    const { user } = renderAt('/orders/order-1', {
+      routes: {
+        '/orders/order-1': ok({
+          order: orderDetailFixture({ paymentStatus: 'paid', paymentMethod: 'online' }),
+        }),
+      },
+    });
+
+    await user.click(await screen.findByRole('button', { name: /cancel this order/i }));
+
+    const dialog = within(screen.getByRole('alertdialog'));
+    expect(dialog.getByText(/refunded to\s+the account you paid from/i)).toBeInTheDocument();
+    expect(dialog.getByText(/within 7 working days/i)).toBeInTheDocument();
+  });
+
+  it('does not promise a refund on a cash order', async () => {
+    const { user } = renderAt('/orders/order-1', {
+      routes: {
+        '/orders/order-1': ok({ order: orderDetailFixture({ paymentStatus: 'pending' }) }),
+      },
+    });
+
+    await user.click(await screen.findByRole('button', { name: /cancel this order/i }));
+
+    expect(within(screen.getByRole('alertdialog')).queryByText(/refund/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps the refund promise on the order after it is cancelled', async () => {
+    renderAt('/orders/order-1', {
+      routes: {
+        '/orders/order-1': ok({
+          order: orderDetailFixture({
+            status: 'cancelled',
+            statusLabel: 'Cancelled',
+            isCancellable: false,
+            paymentStatus: 'paid',
+          }),
+        }),
+      },
+    });
+
+    // Not only in the confirmation they have already dismissed.
+    expect(await screen.findByText(/will be refunded to the account you paid from/i)).toBeInTheDocument();
+  });
+
+  it('says so plainly once the refund has actually been made', async () => {
+    renderAt('/orders/order-1', {
+      routes: {
+        '/orders/order-1': ok({
+          order: orderDetailFixture({
+            status: 'cancelled',
+            statusLabel: 'Cancelled',
+            isCancellable: false,
+            paymentStatus: 'refunded',
+          }),
+        }),
+      },
+    });
+
+    expect(await screen.findByText(/has been refunded to the account you paid from/i)).toBeInTheDocument();
+    expect(screen.queryByText(/working days/i)).not.toBeInTheDocument();
+  });
+
   it('can be called off', async () => {
     const { user, calls } = renderAt('/orders/order-1');
 
@@ -449,6 +514,39 @@ describe('the receipt', () => {
     expect(table.getByRole('rowheader', { name: 'Total' })).toBeInTheDocument();
   });
 
+  it('lists every item, with its quantity and its line total', async () => {
+    renderAt('/orders/order-1/receipt');
+
+    const table = await screen.findByRole('table');
+    const row = within(table).getByRole('row', { name: /basmati rice/i });
+    expect(within(row).getByText('2 × ₹129.00')).toBeInTheDocument();
+    expect(within(row).getByText('₹258.00')).toBeInTheDocument();
+  });
+
+  it('reads the items from `lines`, which is the name the API uses', async () => {
+    // The screen once read `receipt.items`, a name only the fixture had, so the
+    // table rendered empty for every real order while this suite stayed green.
+    // Serving a payload with no `lines` must therefore show nothing at all —
+    // that is what proves the screen is not reading some other key.
+    renderAt('/orders/order-1/receipt', {
+      routes: {
+        '/orders/order-1/receipt': ok({
+          receipt: { ...receiptFixture(), lines: undefined, items: [orderItemFixture()] },
+        }),
+      },
+    });
+
+    const table = await screen.findByRole('table');
+    expect(within(table).queryByText(/basmati rice/i)).not.toBeInTheDocument();
+  });
+
+  it('shows how the order was paid', async () => {
+    renderAt('/orders/order-1/receipt');
+
+    expect(await screen.findByText('Paid online')).toBeInTheDocument();
+    expect(screen.getByText('mock_e17644cc95e032c077098f76')).toBeInTheDocument();
+  });
+
   it('is a real table, so it can be read and copied', async () => {
     renderAt('/orders/order-1/receipt');
 
@@ -470,6 +568,22 @@ describe('the receipt', () => {
     renderAt('/orders/order-1/receipt');
 
     expect(await screen.findByRole('button', { name: /print or save/i })).toBeInTheDocument();
+  });
+
+  it('accounts for the money on a cancelled order that was paid online', async () => {
+    renderAt('/orders/order-1/receipt', {
+      routes: {
+        '/orders/order-1/receipt': ok({
+          receipt: receiptFixture({
+            status: 'cancelled',
+            payment: { method: 'online', status: 'paid', reference: 'mock_x', paidAt: '2026-09-21T13:04:48Z' },
+          }),
+        }),
+      },
+    });
+
+    expect(await screen.findByText(/will be refunded to the account it was paid from/i)).toBeInTheDocument();
+    expect(screen.getByText(/within 7 working days/i)).toBeInTheDocument();
   });
 
   it('404s politely', async () => {

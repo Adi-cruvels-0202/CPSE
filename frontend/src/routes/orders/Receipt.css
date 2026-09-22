@@ -79,24 +79,73 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.receipt__col-qty {
+  width: 3.5rem;
+}
+
+.receipt__col-amount {
+  width: 6.5rem;
+}
+
 .receipt__qty {
-  text-align: center;
-  width: 3rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .receipt__amount {
   text-align: right;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
+.receipt__item-name {
+  display: block;
+}
+
+/* The unit price on its own line, so a long item name cannot push it out of
+   sight and every row is the same shape. */
 .receipt__unit {
+  display: block;
   font-size: var(--text-xs);
+  margin-top: 2px;
 }
 
 .receipt__table tfoot th {
   text-align: right;
   font-weight: var(--weight-normal);
   color: var(--text-muted);
+}
+
+/* Totals sit against the amount column, clear of the items above them. */
+.receipt__table tfoot tr:first-child th,
+.receipt__table tfoot tr:first-child td {
+  padding-top: var(--space-3);
+}
+
+.receipt__pairs {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.receipt__pairs > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.receipt__pairs dt {
+  color: var(--text-muted);
+}
+
+.receipt__pairs dd {
+  margin: 0;
+  text-align: right;
+}
+
+.receipt__reference {
+  font-size: var(--text-xs);
+  word-break: break-all;
 }
 
 .receipt__total th,

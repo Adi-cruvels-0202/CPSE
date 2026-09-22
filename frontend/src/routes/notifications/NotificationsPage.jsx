@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
+import { refreshUnreadCount } from '../../hooks/useUnreadCount.js';
 import { formatWhen } from '../../lib/orderStatus.js';
 import { EmptyState, ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { FormError } from '../../components/FormError.jsx';
@@ -55,6 +56,9 @@ export function NotificationsPage() {
     setActionError(null);
     try {
       await action();
+      // The badge on the bell reads its own count, so it has to be told: marking
+      // things read here left a red dot up there until the next poll.
+      refreshUnreadCount();
       await refetch();
     } catch (caught) {
       setActionError(caught);

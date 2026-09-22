@@ -282,6 +282,27 @@ describe('the unread badge in the header (11.14)', () => {
     expect(bell).not.toHaveTextContent(/\d/);
   });
 
+  it('clears on the same tap as "Mark all read", not a minute later', async () => {
+    // The count endpoint is polled, so the badge used to keep its red dot for up
+    // to a minute after the list had emptied — the customer had just told us the
+    // count was zero and the bell argued with them.
+    renderAt('/notifications', {
+      '/notifications/unread-count': [ok({ unreadCount: 3 }), ok({ unreadCount: 0 })],
+      '/notifications/read-all': ok({ updated: 3, unreadCount: 0 }),
+      '/notifications': [
+        ok({ notifications: [notificationFixture()], unreadCount: 3 }, LIST_META()),
+        ok({ notifications: [notificationFixture({ isRead: true })], unreadCount: 0 }, LIST_META()),
+      ],
+    });
+
+    const bell = await screen.findByRole('link', { name: /3 unread/i });
+    expect(bell).toHaveTextContent('3');
+
+    await userEvent.click(await screen.findByRole('button', { name: /mark all read/i }));
+
+    await waitFor(() => expect(bell).not.toHaveTextContent(/\d/));
+  });
+
   it('does not let a failed count break the shell', async () => {
     renderAt('/orders', { '/notifications/unread-count': fail(500, 'INTERNAL_ERROR') });
 

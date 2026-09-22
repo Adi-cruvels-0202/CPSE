@@ -52,6 +52,16 @@ const PAYMENT = {
 export const paymentFor = (status) => PAYMENT[status] ?? null;
 
 /**
+ * How long a refund takes to appear, in working days.
+ *
+ * A number, stated once, because it is a promise to a customer: the order screen
+ * and the receipt must not quote different figures. It is the bank's clearing
+ * time, not ours — the shop releases the refund, the bank decides when it lands,
+ * which is why the wording says "usually" everywhere it is used.
+ */
+export const REFUND_WORKING_DAYS = 7;
+
+/**
  * "20 Sep, 9:47 pm" — short, and in the reader's own timezone, because an order's
  * timestamps are about when *they* did something.
  */

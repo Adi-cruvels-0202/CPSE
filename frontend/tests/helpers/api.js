@@ -582,17 +582,33 @@ export const orderDetailFixture = (overrides = {}) => ({
   ...overrides,
 });
 
-/** The receipt payload. */
+/**
+ * The receipt payload — copied from what the API actually returns.
+ *
+ * It calls them `lines`, not `items`. An earlier version of this fixture said
+ * `items`, so the receipt's table rendered empty in production while every test
+ * passed: the fixture and the screen agreed with each other and neither agreed
+ * with the server.
+ */
 export const receiptFixture = (overrides = {}) => ({
   orderNumber: 'CPSE-260920-ABC123',
   placedAt: '2026-09-20T16:17:28.490933+00:00',
   status: 'placed',
   store: orderDetailFixture().store,
+  // Not a person: the API bills to the delivery address, or to the store on a
+  // pickup order. The screen shows the same thing as "Delivered to".
+  billedTo: orderDetailFixture().fulfilment.address ?? orderDetailFixture().store,
   customerNote: null,
   fulfilment: orderDetailFixture().fulfilment,
-  items: [orderItemFixture()],
+  lines: [orderItemFixture()],
   totals: orderDetailFixture().totals,
-  payment: { method: 'cash', status: 'pending' },
+  payment: {
+    method: 'online',
+    status: 'paid',
+    reference: 'mock_e17644cc95e032c077098f76',
+    paidAt: '2026-09-21T13:04:48.061+00:00',
+  },
+  isTaxInvoice: false,
   ...overrides,
 });
 

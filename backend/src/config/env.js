@@ -37,6 +37,13 @@ const envSchema = z.object({
     .default('false')
     .transform((value) => value === 'true'),
 
+  // Serve the React app from this process too, so `npm run dev` in the backend
+  // is the only thing you need to run. Set false to go back to API-only.
+  SERVE_FRONTEND: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
   // Rate limiting

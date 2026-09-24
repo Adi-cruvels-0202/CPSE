@@ -21,10 +21,10 @@ import { readSession, writeSession, clearSession } from './tokens.js';
  * for the customer (see backend docs/API.md).
  */
 
-const BASE_URL = (import.meta.env?.VITE_API_BASE_URL ?? 'http://localhost:4000/api/v1').replace(
-  /\/+$/,
-  '',
-);
+// Relative by default: the API is served from the same origin as this app
+// (the backend hosts both), so there is no origin to hardcode and no CORS
+// preflight. Set VITE_API_BASE_URL to an absolute URL to point elsewhere.
+const BASE_URL = (import.meta.env?.VITE_API_BASE_URL ?? '/api/v1').replace(/\/+$/, '');
 
 export class ApiError extends Error {
   constructor({ status, code, message, details, requestId }) {
@@ -77,8 +77,11 @@ const networkError = (cause) =>
     details: { cause: cause?.message ?? String(cause) },
   });
 
+/** `new URL` needs an origin, and a relative BASE_URL has none of its own. */
+const ORIGIN = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+
 function buildUrl(path, query) {
-  const url = new URL(`${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`);
+  const url = new URL(`${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`, ORIGIN);
 
   for (const [key, value] of Object.entries(query ?? {})) {
     // An absent filter must not become `?status=undefined`, which the backend
@@ -86,7 +89,9 @@ function buildUrl(path, query) {
     if (value === undefined || value === null || value === '') continue;
     url.searchParams.set(key, String(value));
   }
-  return url.toString();
+  // A relative base stays relative, so the request follows whatever origin the
+  // page was served from instead of being pinned to one at build time.
+  return BASE_URL.startsWith('/') ? `${url.pathname}${url.search}` : url.toString();
 }
 
 /**

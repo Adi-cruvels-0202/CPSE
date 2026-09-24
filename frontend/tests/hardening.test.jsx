@@ -399,7 +399,6 @@ describe('11.18 — every screen offers a way onward', () => {
     for (const [name, href] of [
       ['Addresses', '/account/addresses'],
       ['Orders', '/orders'],
-      ['Saved stores', '/saved'],
       ['Notifications', '/notifications'],
       ['Khata', '/khata'],
     ]) {
@@ -408,6 +407,12 @@ describe('11.18 — every screen offers a way onward', () => {
         href,
       );
     }
+
+    // Saved stores is the one that is not in this menu: it lives in the header,
+    // reachable from every screen rather than only from here.
+    expect(
+      within(screen.getByRole('banner')).getByRole('link', { name: 'Saved stores' }),
+    ).toHaveAttribute('href', '/saved');
   });
 });
 

@@ -43,8 +43,14 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-/* The bell, top right. */
-.shell__bell {
+/* Saved stores and the bell, top right. */
+.shell__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.shell__action {
   position: relative;
   display: grid;
   place-items: center;
@@ -55,12 +61,12 @@
   color: var(--text-body);
 }
 
-.shell__bell:hover {
+.shell__action:hover {
   background: var(--bg-brand-subtle);
   color: var(--text-brand);
 }
 
-.shell__bell.active {
+.shell__action.active {
   color: var(--brand);
 }
 

@@ -494,13 +494,13 @@ describe('the account screen', () => {
 
     await screen.findByRole('heading', { name: 'Account' });
     // Scoped to the account's own list: the bottom tab bar also has an "Orders"
-    // and a "Saved" link, and matching those would prove nothing about this screen.
+    // link and the header a "Saved stores" one, and matching those would prove
+    // nothing about this screen.
     const links = within(screen.getByRole('navigation', { name: 'Your things' }));
 
     for (const [name, href] of [
       ['Addresses', '/account/addresses'],
       ['Orders', '/orders'],
-      ['Saved stores', '/saved'],
       ['Notifications', '/notifications'],
       ['Khata', '/khata'],
     ]) {

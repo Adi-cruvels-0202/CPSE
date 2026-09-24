@@ -70,6 +70,22 @@ describe('saved stores (11.13)', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
   });
 
+  it('is reachable from the header on any signed-in screen', async () => {
+    renderAt('/orders');
+
+    // The shell's header, not the page: the shortcut has to be there wherever
+    // the customer happens to be, which is why it left the Account screen.
+    // The header's actions appear once the session has loaded.
+    await screen.findByRole('link', { name: 'Notifications' });
+
+    const header = within(screen.getByRole('banner'));
+    expect(header.getByRole('link', { name: 'Saved stores' })).toHaveAttribute('href', '/saved');
+    expect(header.getByRole('link', { name: 'Notifications' })).toHaveAttribute(
+      'href',
+      '/notifications',
+    );
+  });
+
   it('shows each shop with what decides the tap', async () => {
     renderAt('/saved');
 

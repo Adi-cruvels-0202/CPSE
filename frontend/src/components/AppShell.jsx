@@ -62,20 +62,29 @@ export function AppShell() {
         </NavLink>
 
         {/* Top right, where a bell belongs — and out of the bottom bar, which is
-            for the places a customer goes rather than the things that happened. */}
+            for the places a customer goes rather than the things that happened.
+            Saved stores sits beside it: it is a shortcut back to the shops you
+            already chose, wanted from anywhere, and burying it one tap deep in
+            Account made it something you had to remember rather than see. */}
         {isSignedIn ? (
-          <NavLink
-            to="/notifications"
-            className="shell__bell"
-            aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-          >
-            <BellIcon />
-            {unread > 0 ? (
-              <span className="shell__bell-badge" aria-hidden="true">
-                {unread > 9 ? '9+' : unread}
-              </span>
-            ) : null}
-          </NavLink>
+          <div className="shell__actions">
+            <NavLink to="/saved" className="shell__action" aria-label="Saved stores">
+              <HeartIcon />
+            </NavLink>
+
+            <NavLink
+              to="/notifications"
+              className="shell__action"
+              aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+            >
+              <BellIcon />
+              {unread > 0 ? (
+                <span className="shell__bell-badge" aria-hidden="true">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              ) : null}
+            </NavLink>
+          </div>
         ) : null}
       </header>
 
@@ -111,7 +120,7 @@ export function AppShell() {
 }
 
 /* ── Icons ─────────────────────────────────────────────────────────────────
-   Inline SVG rather than an icon package: five icons is not worth a dependency
+   Inline SVG rather than an icon package: a handful of icons is not worth a dependency
    and a request. aria-hidden throughout — each one sits next to a text label,
    so announcing it again would just repeat the word. */
 
@@ -153,6 +162,15 @@ function ReceiptIcon({ filled }) {
     <svg {...iconProps} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.12 : 0}>
       <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
       <path d="M9 8h6M9 12h6" />
+    </svg>
+  );
+}
+
+/** The same heart as SaveStoreButton, so the header links to what it fills. */
+function HeartIcon({ filled }) {
+  return (
+    <svg {...iconProps} fill={filled ? 'currentColor' : 'none'} fillOpacity={filled ? 0.12 : 0}>
+      <path d="M12 20s-7-4.4-7-9.2A3.8 3.8 0 0 1 12 8a3.8 3.8 0 0 1 7 2.8C19 15.6 12 20 12 20Z" />
     </svg>
   );
 }

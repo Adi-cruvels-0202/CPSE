@@ -117,7 +117,6 @@ export function Account() {
       <nav className="card account__links" aria-label="Your things">
         <AccountLink to="/account/addresses" label="Addresses" hint="Where your orders go" />
         <AccountLink to="/orders" label="Orders" hint="What you have bought" />
-        <AccountLink to="/saved" label="Saved stores" hint="Shops you go back to" />
         <AccountLink to="/notifications" label="Notifications" hint="Order and payment updates" />
         <AccountLink to="/khata" label="Khata" hint="What you owe your stores" />
       </nav>

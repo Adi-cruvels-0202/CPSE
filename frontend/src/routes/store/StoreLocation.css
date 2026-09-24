@@ -52,107 +52,20 @@
 }
 
 /* The description below used to carry the clearance for the pulled-up logo.
-   The row sits between them now, so that padding became a hole. */
-.store-loc__row + .store__description {
+   The row and the facts strip sit between them now, so that padding became a
+   hole. */
+.store-loc__row + .store__description,
+.store-loc__row + .store-facts + .store__description {
   padding-top: 0;
 }
 
-/* And when there is no description, the row inherits the breathing room the
-   identity block had when it was last. */
+/* And when nothing follows, the row inherits the breathing room the identity
+   block had when it was last. */
 .store-loc__row:last-child {
   margin-bottom: var(--space-2);
 }
 
-.store-loc__sheet:focus {
-  outline: none;
-}
-
-/* ── The sheet ──────────────────────────────────────────────────────────── */
-
-.store-loc__scrim {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-sheet);
-  display: flex;
-  /* Bottom on a phone, where a thumb is. Centred on a wide screen, where the
-     bottom edge is nowhere near the pointer. */
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(17, 64, 43, 0.45);
-  animation: store-loc-fade 160ms ease-out;
-}
-
-.store-loc__sheet {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  width: 100%;
-  max-width: 30rem;
-  max-height: 85vh;
-  overflow-y: auto;
-  padding: var(--space-3) var(--space-4) var(--space-6);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-lg);
-  /* Clear of the home indicator on an iPhone, zero everywhere else. */
-  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
-  animation: store-loc-rise 220ms cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-
-@media (min-width: 30rem) {
-  .store-loc__scrim {
-    align-items: center;
-    padding: var(--space-4);
-  }
-
-  .store-loc__sheet {
-    border-radius: var(--radius-lg);
-  }
-
-  /* A grab handle on a centred dialog promises a drag that is not there. */
-  .store-loc__grip {
-    display: none;
-  }
-}
-
-.store-loc__grip {
-  align-self: center;
-  width: 2.25rem;
-  height: 0.25rem;
-  border-radius: var(--radius-full);
-  background: var(--border-strong);
-}
-
-.store-loc__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.store-loc__title {
-  font-size: var(--text-base);
-}
-
-.store-loc__close {
-  display: grid;
-  place-items: center;
-  width: var(--tap-target);
-  height: var(--tap-target);
-  margin-right: calc(var(--space-2) * -1);
-  /* The reset leaves a button's border and grey fill alone, so an icon button
-     has to strip them itself — the same way SaveStoreButton does. */
-  border: none;
-  border-radius: var(--radius-full);
-  background: none;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.store-loc__close:hover {
-  background: var(--bg-sunken);
-  color: var(--text-strong);
-}
+/* ── Inside the sheet ───────────────────────────────────────────────────── */
 
 .store-loc__name {
   color: var(--text-strong);
@@ -177,24 +90,4 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: var(--space-2);
-}
-
-@keyframes store-loc-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes store-loc-rise {
-  from {
-    transform: translateY(100%);
-  }
-}
-
-/* Motion is the one thing here that can make someone ill. */
-@media (prefers-reduced-motion: reduce) {
-  .store-loc__scrim,
-  .store-loc__sheet {
-    animation: none;
-  }
 }

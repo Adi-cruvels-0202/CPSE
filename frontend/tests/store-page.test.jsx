@@ -113,71 +113,116 @@ describe('open and closed', () => {
     expect(screen.queryByText(/closed right now/i)).not.toBeInTheDocument();
   });
 
-  it('shows today’s hours, and the week on request', async () => {
+  it('shows today’s hours on a chip, and the week when it is tapped', async () => {
     const { user } = renderStore();
 
-    await screen.findByText('Open now');
-    expect(screen.getByText(/8:00 am – 9:00 pm/)).toBeInTheDocument();
-    // Not before it is asked for.
+    // In the header, above the catalogue — not a card at the foot of the page.
+    const chip = await screen.findByRole('button', { name: /opening hours\. today/i });
+    expect(chip.closest('header')).not.toBeNull();
+    expect(chip).toHaveTextContent('8:00 am – 9:00 pm');
+
+    // The rest of the week is not in the header until it is asked for.
     expect(screen.queryByText('Saturday')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /whole week/i }));
+    await user.click(chip);
 
-    expect(screen.getByText('Saturday')).toBeInTheDocument();
-    expect(screen.getByText(/8:00 am – 10:00 pm/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /hide week/i })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    );
+    const sheet = within(await screen.findByRole('dialog', { name: 'Opening hours' }));
+    expect(sheet.getByText('Saturday')).toBeInTheDocument();
+    expect(sheet.getByText(/8:00 am – 10:00 pm/)).toBeInTheDocument();
+    // The whole week at once: no second toggle inside a sheet the customer
+    // already chose to open.
+    expect(sheet.getAllByRole('definition')).toHaveLength(7);
   });
 
   it('names the timezone, because the times are the shop’s not the visitor’s', async () => {
-    renderStore();
+    const { user } = renderStore();
+
+    await user.click(await screen.findByRole('button', { name: /opening hours\. today/i }));
 
     expect(await screen.findByText(/Asia\/Kolkata/)).toBeInTheDocument();
+  });
+
+  it('closes the hours sheet on Escape and restores focus to the chip', async () => {
+    const { user } = renderStore();
+
+    const chip = await screen.findByRole('button', { name: /opening hours\. today/i });
+    await user.click(chip);
+    await screen.findByRole('dialog', { name: 'Opening hours' });
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(chip).toHaveFocus();
   });
 });
 
 describe('what the shop will do', () => {
-  it('shows the fulfilment modes, minimum and delivery fee', async () => {
+  // Every ordering chip opens the same sheet — that is deliberate, the way an
+  // info chip row works — so any of them will do.
+  const openOrdering = async (user) => {
+    const chips = await screen.findAllByRole('button', { name: /^ordering\./i });
+    await user.click(chips[0]);
+    return within(await screen.findByRole('dialog', { name: 'Ordering' }));
+  };
+
+  it('puts the facts that change a decision on the chips themselves', async () => {
     renderStore();
 
-    await screen.findByRole('heading', { name: 'Ordering' });
-    expect(screen.getByText('Pickup or Delivery')).toBeInTheDocument();
-    expect(screen.getByText('₹199')).toBeInTheDocument();
-    expect(screen.getByText('₹29')).toBeInTheDocument();
+    // Without tapping anything: what they do, the floor, and the fee. These
+    // used to be a card below the entire catalogue.
+    const strip = within(await screen.findByRole('group', { name: 'About this shop' }));
+    expect(strip.getByText('Pickup or Delivery')).toBeInTheDocument();
+    expect(strip.getByText('₹199 minimum')).toBeInTheDocument();
+    expect(strip.getByText('₹29 delivery')).toBeInTheDocument();
+  });
+
+  it('opens the detail in a sheet', async () => {
+    const { user } = renderStore();
+    const sheet = await openOrdering(user);
+
+    expect(sheet.getByText('Pickup or Delivery')).toBeInTheDocument();
+    expect(sheet.getByText('₹199')).toBeInTheDocument();
+    expect(sheet.getByText('₹29')).toBeInTheDocument();
   });
 
   it('says Free rather than ₹0 when delivery costs nothing', async () => {
-    renderStore({
+    const { user } = renderStore({
       store: storeFixture({
         fulfilment: { ...storeFixture().fulfilment, deliveryFeePaise: 0 },
       }),
     });
 
-    await screen.findByRole('heading', { name: 'Ordering' });
-    expect(screen.getByText('Free')).toBeInTheDocument();
+    expect(await screen.findByText('Free delivery')).toBeInTheDocument();
+
+    const sheet = await openOrdering(user);
+    expect(sheet.getByText('Free')).toBeInTheDocument();
   });
 
   it('hides the minimum when there is not one', async () => {
-    renderStore({
+    const { user } = renderStore({
       store: storeFixture({ fulfilment: { ...storeFixture().fulfilment, minOrderPaise: 0 } }),
     });
 
-    await screen.findByRole('heading', { name: 'Ordering' });
-    expect(screen.queryByText(/minimum order/i)).not.toBeInTheDocument();
+    const sheet = await openOrdering(user);
+    expect(sheet.queryByText(/minimum order/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/minimum/i)).not.toBeInTheDocument();
   });
 
   it('shows only pickup when delivery is off, and drops the fee row', async () => {
-    renderStore({
+    const { user } = renderStore({
       store: storeFixture({
         fulfilment: { ...storeFixture().fulfilment, deliveryEnabled: false },
       }),
     });
 
-    await screen.findByRole('heading', { name: 'Ordering' });
-    expect(screen.getByText('Pickup')).toBeInTheDocument();
-    expect(screen.queryByText(/delivery fee/i)).not.toBeInTheDocument();
+    // No delivery fee chip either — the strip is not a place for facts that
+    // do not apply.
+    expect(await screen.findByText('Pickup')).toBeInTheDocument();
+    expect(screen.queryByText(/delivery/i)).not.toBeInTheDocument();
+
+    const sheet = await openOrdering(user);
+    expect(sheet.getByText('Pickup')).toBeInTheDocument();
+    expect(sheet.queryByText(/delivery fee/i)).not.toBeInTheDocument();
   });
 
   it('says so plainly when the shop takes no orders at all', async () => {

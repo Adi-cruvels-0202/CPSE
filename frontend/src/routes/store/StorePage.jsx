@@ -1,16 +1,15 @@
-import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useEffect } from 'react';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { rememberStore } from '../../lib/activeStore.js';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { formatPaiseShort } from '../../lib/money.js';
-import { describeStatus, weekSchedule } from '../../lib/storeHours.js';
+import { describeStatus } from '../../lib/storeHours.js';
 import { RemoteImage } from '../../components/RemoteImage.jsx';
 import { SaveStoreButton } from '../../components/SaveStoreButton.jsx';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { Catalogue } from './Catalogue.jsx';
+import { StoreFacts } from './StoreFacts.jsx';
 import { StoreLocation } from './StoreLocation.jsx';
 import './StorePage.css';
 
@@ -115,9 +114,6 @@ export function StorePage() {
         onPageChange={setPage}
       />
 
-      <Fulfilment fulfilment={store.fulfilment} />
-
-      <Hours hours={store.hours} />
     </article>
   );
 }
@@ -178,6 +174,11 @@ function StoreHeader({ store, status, onSaveChange }) {
           catalogue and the week's hours, which is where it used to be. */}
       <StoreLocation store={store} />
 
+      {/* Ordering and opening hours, in the header rather than in two cards
+          below the whole catalogue — nobody scrolls past a hundred products to
+          discover there is a minimum order. */}
+      <StoreFacts store={store} />
+
       {store.description ? <p className="store__description">{store.description}</p> : null}
     </header>
   );
@@ -199,97 +200,6 @@ function ChevronLeft() {
     >
       <path d="M15 6l-6 6 6 6" />
     </svg>
-  );
-}
-
-/** What the shop will and will not do, and the floor an order has to clear. */
-function Fulfilment({ fulfilment }) {
-  if (!fulfilment) return null;
-
-  const modes = [
-    fulfilment.pickupEnabled ? 'Pickup' : null,
-    fulfilment.deliveryEnabled ? 'Delivery' : null,
-  ].filter(Boolean);
-
-  return (
-    <section className="card store__section" aria-labelledby="fulfilment-heading">
-      <h2 id="fulfilment-heading" className="store__section-title">
-        Ordering
-      </h2>
-
-      <dl className="store__facts">
-        <div>
-          <dt>Ways to get it</dt>
-          <dd>{modes.length > 0 ? modes.join(' or ') : 'Not taking orders'}</dd>
-        </div>
-
-        {fulfilment.minOrderPaise > 0 ? (
-          <div>
-            <dt>Minimum order</dt>
-            <dd className="numeric">{formatPaiseShort(fulfilment.minOrderPaise)}</dd>
-          </div>
-        ) : null}
-
-        {fulfilment.deliveryEnabled ? (
-          <div>
-            <dt>Delivery fee</dt>
-            <dd className="numeric">
-              {fulfilment.deliveryFeePaise > 0
-                ? formatPaiseShort(fulfilment.deliveryFeePaise)
-                : 'Free'}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-    </section>
-  );
-}
-
-/** Today's line is always visible; the rest of the week is one tap away. */
-function Hours({ hours }) {
-  const [expanded, setExpanded] = useState(false);
-  const week = weekSchedule(hours);
-  const today = week.find((day) => day.isToday);
-
-  return (
-    <section className="card store__section" aria-labelledby="hours-heading">
-      <div className="spread">
-        <h2 id="hours-heading" className="store__section-title">
-          Opening hours
-        </h2>
-        <button
-          type="button"
-          className="btn btn--ghost btn--sm"
-          onClick={() => setExpanded((current) => !current)}
-          aria-expanded={expanded}
-        >
-          {expanded ? 'Hide week' : 'Whole week'}
-        </button>
-      </div>
-
-      {/* Just the window. The header already carries the "closes at" / "opens
-          at" line, and saying it twice on one screen reads as a mistake. */}
-      {today ? (
-        <p className="store__today">
-          <strong>Today</strong> · {today.text}
-        </p>
-      ) : null}
-
-      {expanded ? (
-        <dl className="store__week">
-          {week.map((day) => (
-            <div key={day.key} className={day.isToday ? 'store__week-row--today' : undefined}>
-              <dt>{day.name}</dt>
-              <dd className="numeric">{day.text}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-
-      {hours?.timezone ? (
-        <p className="field__hint">All times are the shop's local time ({hours.timezone}).</p>
-      ) : null}
-    </section>
   );
 }
 

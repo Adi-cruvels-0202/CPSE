@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { Sheet } from '../../components/Sheet.jsx';
 import './StoreLocation.css';
 
 /**
@@ -10,15 +11,10 @@ import './StoreLocation.css';
  * ask anything else, and the answer was four scrolls away.
  *
  * So it sits under the shop name as one tappable line — the address row every
- * delivery app puts there — and the detail lives in a bottom sheet. That split
- * is the point: the header stays a header (one line, no wall of text), and the
- * things you might actually do with an address — navigate, call, copy it into a
- * message — are one tap away instead of being three buttons nobody reads.
- *
- * The sheet is a real dialog, not a div that appears: it takes focus, traps Tab
- * while it is open, closes on Escape and on the backdrop, and hands focus back
- * to the row that opened it. A sheet that does none of that is a trap for anyone
- * not using a mouse.
+ * delivery app puts there — and the detail lives in a sheet. That split is the
+ * point: the header stays a header, and the things you might actually do with
+ * an address — navigate, call, copy it into a message — are one tap away
+ * instead of being three buttons nobody reads.
  */
 export function StoreLocation({ store }) {
   const { contact, location, name } = store;
@@ -72,72 +68,23 @@ export function StoreLocation({ store }) {
       </button>
 
       {open ? (
-        <LocationSheet
-          name={name}
-          address={address}
-          mapHref={mapHref}
-          phone={contact?.phone}
+        <Sheet
+          title="Where to find them"
           onClose={() => {
             setOpen(false);
             // Back where they were, not back to the top of the document.
             triggerRef.current?.focus();
           }}
-        />
+        >
+          <LocationBody name={name} address={address} mapHref={mapHref} phone={contact?.phone} />
+        </Sheet>
       ) : null}
     </>
   );
 }
 
-function LocationSheet({ name, address, mapHref, phone, onClose }) {
-  const panelRef = useRef(null);
+function LocationBody({ name, address, mapHref, phone }) {
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    const panel = panelRef.current;
-    // The panel itself, not the close button and not the first action: focus has
-    // to enter the dialog, but landing it on a control both draws a focus ring
-    // onto something nobody chose and puts a finger on "Open in Maps". Focusing
-    // the labelled dialog announces its heading and leaves Tab to the reader.
-    panel?.focus();
-
-    const onKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        onClose();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-
-      // Keep Tab inside the sheet: behind it is a whole page of links that a
-      // sighted user cannot see and cannot reach.
-      const focusable = panel?.querySelectorAll(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusable?.length) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-
-    // The page behind must not scroll under the sheet.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onClose]);
 
   const copy = async () => {
     try {
@@ -152,76 +99,41 @@ function LocationSheet({ name, address, mapHref, phone, onClose }) {
   };
 
   return (
-    <div className="store-loc__scrim" onClick={onClose}>
-      {/* The sheet swallows the click that would close it. */}
-      <div
-        className="store-loc__sheet"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="store-loc-heading"
-        ref={panelRef}
-        tabIndex={-1}
-        onClick={(event) => event.stopPropagation()}
-      >
-        {/* The grab handle every bottom sheet has: it says "this pulls down"
-            before anyone has tried. Decorative — the close button is the
-            control, and dragging is not a keyboard gesture. */}
-        <span className="store-loc__grip" aria-hidden="true" />
+    <>
+      <p className="store-loc__name">{name}</p>
+      {address ? <p className="store-loc__address">{address}</p> : null}
 
-        <div className="store-loc__head">
-          <h2 id="store-loc-heading" className="store-loc__title">
-            Where to find them
-          </h2>
-          <button
-            type="button"
-            className="store-loc__close"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            <CloseIcon />
-          </button>
-        </div>
+      <div className="store-loc__actions">
+        {mapHref ? (
+          <a className="btn btn--block" href={mapHref} target="_blank" rel="noreferrer noopener">
+            <NavIcon />
+            Open in Maps
+          </a>
+        ) : null}
 
-        <p className="store-loc__name">{name}</p>
-        {address ? <p className="store-loc__address">{address}</p> : null}
-
-        <div className="store-loc__actions">
-          {mapHref ? (
-            <a
-              className="btn btn--block"
-              href={mapHref}
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              <NavIcon />
-              Open in Maps
+        <div className="store-loc__secondary">
+          {phone ? (
+            <a className="btn btn--secondary" href={`tel:${phone}`}>
+              <PhoneIcon />
+              Call the shop
             </a>
           ) : null}
 
-          <div className="store-loc__secondary">
-            {phone ? (
-              <a className="btn btn--secondary" href={`tel:${phone}`}>
-                <PhoneIcon />
-                Call the shop
-              </a>
-            ) : null}
-
-            {address ? (
-              <button type="button" className="btn btn--secondary" onClick={copy}>
-                <CopyIcon />
-                {copied ? 'Copied' : 'Copy address'}
-              </button>
-            ) : null}
-          </div>
+          {address ? (
+            <button type="button" className="btn btn--secondary" onClick={copy}>
+              <CopyIcon />
+              {copied ? 'Copied' : 'Copy address'}
+            </button>
+          ) : null}
         </div>
-
-        {/* Announced rather than shown alone: the label change above is a visual
-            cue, and a screen reader gets no event from it. */}
-        <p className="sr-only" role="status">
-          {copied ? 'Address copied.' : ''}
-        </p>
       </div>
-    </div>
+
+      {/* Announced rather than shown alone: the label change above is a visual
+          cue, and a screen reader gets no event from it. */}
+      <p className="sr-only" role="status">
+        {copied ? 'Address copied.' : ''}
+      </p>
+    </>
   );
 }
 
@@ -253,14 +165,6 @@ function ChevronRight() {
   return (
     <svg {...iconProps} width={16} height={16} className="store-loc__chevron">
       <path d="M9 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg {...iconProps} width={20} height={20}>
-      <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
 }

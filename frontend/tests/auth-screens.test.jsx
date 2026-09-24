@@ -419,21 +419,42 @@ describe('the account screen', () => {
   const renderAccount = (responses = []) =>
     renderApp('/account', { signedIn: true, responses });
 
-  it('shows the profile, with the email not editable', async () => {
-    renderAccount();
+  /** Editing is behind a deliberate tap now, not open on arrival. */
+  const openEditor = async (user) => {
+    await user.click(await screen.findByRole('button', { name: /edit profile/i }));
+    return within(await screen.findByRole('dialog', { name: 'Edit profile' }));
+  };
+
+  it('leads with who is signed in, not with a form', async () => {
+    const { user } = renderAccount();
 
     await screen.findByRole('heading', { name: 'Account' });
+    expect(screen.getByText('Test Customer')).toBeInTheDocument();
     expect(screen.getByText('test.customer@cpse.local')).toBeInTheDocument();
-    // Shown, but not as an input: the backend rejects an email change with a 422
-    // rather than ignoring it, so offering the field would be a trap.
-    expect(screen.queryByLabelText(/^email/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/cannot be changed here/i)).toBeInTheDocument();
+    expect(screen.getByText('+919876543210')).toBeInTheDocument();
+
+    // No inputs until they are asked for.
+    expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument();
+
+    await openEditor(user);
+    expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+  });
+
+  it('shows the email in the editor, but not as an input', async () => {
+    const { user } = renderAccount();
+    const editor = await openEditor(user);
+
+    // The backend rejects an email change with a 422 rather than ignoring it,
+    // so offering the field would be a trap.
+    expect(editor.queryByLabelText(/^email/i)).not.toBeInTheDocument();
+    expect(editor.getByText(/cannot be changed here/i)).toBeInTheDocument();
   });
 
   it('pre-fills the editable fields from the profile', async () => {
-    renderAccount();
+    const { user } = renderAccount();
+    await openEditor(user);
 
-    expect(await screen.findByLabelText(/full name/i)).toHaveValue('Test Customer');
+    expect(screen.getByLabelText(/full name/i)).toHaveValue('Test Customer');
     expect(screen.getByLabelText(/phone/i)).toHaveValue('+919876543210');
   });
 
@@ -442,7 +463,9 @@ describe('the account screen', () => {
       ok({ customer: customerFixture({ fullName: 'Aditya Suresh' }) }),
     ]);
 
-    const name = await screen.findByLabelText(/full name/i);
+    await openEditor(user);
+
+    const name = screen.getByLabelText(/full name/i);
     await user.clear(name);
     await user.type(name, 'Aditya Suresh');
     await user.click(screen.getByRole('button', { name: /save changes/i }));
@@ -456,7 +479,9 @@ describe('the account screen', () => {
   it('sends null, not an empty string, to clear the phone', async () => {
     const { user } = renderAccount([ok({ customer: customerFixture({ phone: null }) })]);
 
-    await user.clear(await screen.findByLabelText(/phone/i));
+    await openEditor(user);
+
+    await user.clear(screen.getByLabelText(/phone/i));
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await screen.findByText('Saved.');
@@ -466,7 +491,7 @@ describe('the account screen', () => {
   it('does not call the server when nothing changed', async () => {
     const { user } = renderAccount();
 
-    await screen.findByRole('heading', { name: 'Account' });
+    await openEditor(user);
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     await screen.findByText('Saved.');
@@ -481,12 +506,32 @@ describe('the account screen', () => {
       ]),
     ]);
 
-    const phone = await screen.findByLabelText(/phone/i);
+    await openEditor(user);
+
+    const phone = screen.getByLabelText(/phone/i);
     await user.clear(phone);
     await user.type(phone, '12');
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
+    // The sheet stays open on a rejection — closing it would hide the reason.
     expect(await screen.findByText('Enter a valid phone number.')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Edit profile' })).toBeInTheDocument();
+  });
+
+  it('closes the editor on a save and confirms on the screen behind it', async () => {
+    const { user } = renderAccount([
+      ok({ customer: customerFixture({ fullName: 'Aditya Suresh' }) }),
+    ]);
+
+    await openEditor(user);
+    const name = screen.getByLabelText(/full name/i);
+    await user.clear(name);
+    await user.type(name, 'Aditya Suresh');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByText('Saved.')).toBeInTheDocument();
+    expect(screen.getByText('Aditya Suresh')).toBeInTheDocument();
   });
 
   it('links to everything the customer owns', async () => {
@@ -498,10 +543,13 @@ describe('the account screen', () => {
     // nothing about this screen.
     const links = within(screen.getByRole('navigation', { name: 'Your things' }));
 
+    // Notifications is deliberately absent: the bell in the header reaches it
+    // from every screen, so a second door here is only something to scan past.
+    expect(links.queryByRole('link', { name: /^notifications/i })).not.toBeInTheDocument();
+
     for (const [name, href] of [
-      ['Addresses', '/account/addresses'],
       ['Orders', '/orders'],
-      ['Notifications', '/notifications'],
+      ['Addresses', '/account/addresses'],
       ['Khata', '/khata'],
     ]) {
       // Anchored: each row's accessible name is "<label> <hint>", and the

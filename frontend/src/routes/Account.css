@@ -1,10 +1,51 @@
-.account__section-title {
-  font-size: var(--text-base);
+/* ── Who you are ────────────────────────────────────────────────────────── */
+
+.account__identity {
+  display: grid;
+  /* Avatar beside the name and contact lines; the edit button spans back under
+     both, where it does not fight the email for width. */
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+  align-items: center;
 }
 
-.account__email p {
-  color: var(--text-strong);
+.account__avatar {
+  width: 3.5rem;
+  border: 2px solid var(--bg-surface);
+  box-shadow: var(--shadow-sm);
 }
+
+.account__who {
+  min-width: 0;
+}
+
+.account__name {
+  color: var(--text-strong);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+}
+
+/* An email is long and unbreakable; it truncates rather than widening the card
+   or pushing the avatar off the row. */
+.account__contact {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.account__edit,
+.account__identity .notice {
+  grid-column: 1 / -1;
+}
+
+.account__edit {
+  justify-self: start;
+}
+
+/* ── The things you own ─────────────────────────────────────────────────── */
 
 .account__links {
   display: flex;
@@ -17,7 +58,6 @@
 .account__link {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
   min-height: var(--tap-target);
   padding: var(--space-3) var(--space-4);
@@ -35,9 +75,24 @@
   background: var(--bg-brand-subtle);
 }
 
+/* A tinted disc rather than a bare glyph: it gives the rows a common left edge
+   to scan down, which is the whole job of an icon in a settings list. */
+.account__link-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-brand-subtle);
+  color: var(--text-brand);
+}
+
 .account__link-text {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
 
 .account__link-label {
@@ -50,7 +105,31 @@
   color: var(--text-muted);
 }
 
-.account__link svg {
+.account__chevron {
   color: var(--ink-300);
   flex-shrink: 0;
+}
+
+/* ── The way out ────────────────────────────────────────────────────────── */
+
+/* Outlined and red rather than a filled primary: signing out is the one thing
+   on this screen you cannot undo with a tap, so it should not look like the
+   button you press on the way past.
+   Qualified with `.btn` because main.jsx imports global.css after the app, so
+   component CSS lands *before* it in the bundle and a single class loses. */
+.btn.account__signout {
+  margin-top: var(--space-2);
+  border-color: var(--red-200);
+  background: var(--bg-surface);
+  color: var(--danger-text);
+}
+
+.btn.account__signout:hover:not(:disabled) {
+  background: var(--red-50);
+}
+
+/* ── Inside the edit sheet ──────────────────────────────────────────────── */
+
+.account__email p {
+  color: var(--text-strong);
 }

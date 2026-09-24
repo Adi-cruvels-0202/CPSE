@@ -397,9 +397,8 @@ describe('11.18 — every screen offers a way onward', () => {
     const menu = within(screen.getByRole('navigation', { name: 'Your things' }));
 
     for (const [name, href] of [
-      ['Addresses', '/account/addresses'],
       ['Orders', '/orders'],
-      ['Notifications', '/notifications'],
+      ['Addresses', '/account/addresses'],
       ['Khata', '/khata'],
     ]) {
       expect(menu.getByRole('link', { name: new RegExp(`^${name}`, 'i') })).toHaveAttribute(
@@ -408,11 +407,15 @@ describe('11.18 — every screen offers a way onward', () => {
       );
     }
 
-    // Saved stores is the one that is not in this menu: it lives in the header,
-    // reachable from every screen rather than only from here.
-    expect(
-      within(screen.getByRole('banner')).getByRole('link', { name: 'Saved stores' }),
-    ).toHaveAttribute('href', '/saved');
+    // Saved stores and Notifications are the two that are not in this menu:
+    // both live in the header, reachable from every screen rather than only
+    // from here.
+    const header = within(screen.getByRole('banner'));
+    expect(header.getByRole('link', { name: 'Saved stores' })).toHaveAttribute('href', '/saved');
+    expect(header.getByRole('link', { name: 'Notifications' })).toHaveAttribute(
+      'href',
+      '/notifications',
+    );
   });
 });
 

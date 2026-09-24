@@ -91,9 +91,12 @@ describe('saved stores (11.13)', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Saved stores' });
     expect(screen.getByText('Sharma Kirana Store')).toBeInTheDocument();
-    // Open/closed, how it reaches you, and the minimum.
-    expect(screen.getByText(/open now/i)).toBeInTheDocument();
-    expect(screen.getByText(/pickup or delivery · ₹199 minimum/i)).toBeInTheDocument();
+    // Open/closed as a pill, then how it reaches you and the floor an order has
+    // to clear — the three things that decide whether the row is worth a tap.
+    expect(screen.getByText('Open')).toBeInTheDocument();
+    const row = screen.getByRole('link', { name: /sharma kirana store/i });
+    expect(row).toHaveTextContent('Pickup or Delivery');
+    expect(row).toHaveTextContent('₹199 min');
   });
 
   it('is one tap to the shop', async () => {
@@ -149,13 +152,30 @@ describe('saved stores (11.13)', () => {
 });
 
 describe('notifications (11.14)', () => {
-  it('lists them with their time, newest first as the server sends them', async () => {
+  it('lists them under a day heading, newest first as the server sends them', async () => {
     renderAt('/notifications');
 
     await screen.findByRole('heading', { level: 1, name: 'Notifications' });
     expect(screen.getByText(/accepted by the store/i)).toBeInTheDocument();
     expect(screen.getByText('The store has accepted your order.')).toBeInTheDocument();
-    expect(screen.getByText(/20 Sep/)).toBeInTheDocument();
+
+    // Grouped under the day it happened, rather than each row spelling out a
+    // date the reader has to compare against today's.
+    expect(screen.getByRole('heading', { level: 2, name: /20 Sep/ })).toBeInTheDocument();
+
+    // The exact time is kept for anyone who wants it, on the row itself.
+    const when = screen.getAllByText(/20 Sep/).find((node) => node.tagName === 'TIME');
+    expect(when).toHaveAttribute('title', expect.stringMatching(/20 Sep/));
+  });
+
+  it('leads with what happened, not with the order number', async () => {
+    renderAt('/notifications');
+
+    // The server writes "Order CPSE-…: accepted by the store"; a list is scanned,
+    // so the news goes first and the reference underneath it.
+    const title = await screen.findByText('Accepted by the store');
+    expect(title).toBeInTheDocument();
+    expect(screen.getByText('CPSE-260920-ABC123')).toBeInTheDocument();
   });
 
   it('deep-links a row to its order through the payload id', async () => {

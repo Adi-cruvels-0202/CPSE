@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { refreshUnreadCount } from '../../hooks/useUnreadCount.js';
-import { formatWhen } from '../../lib/orderStatus.js';
+import { formatDayGroup, formatSince, formatWhen } from '../../lib/orderStatus.js';
 import { EmptyState, ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { FormError } from '../../components/FormError.jsx';
 import './Notifications.css';
@@ -128,20 +128,29 @@ export function NotificationsPage() {
         )
       ) : (
         <>
-          <ul className="notifications" aria-busy={busy || refreshing || undefined}>
-            {notifications.map((notification) => (
-              <NotificationRow
-                key={notification.id}
-                notification={notification}
-                onOpen={() =>
-                  notification.isRead
-                    ? undefined
-                    : run(() => endpoints.notifications.markRead(notification.id))
-                }
-                busy={busy}
-              />
-            ))}
-          </ul>
+          {/* Grouped by day, the way every feed a customer already uses is.
+              An ungrouped run of rows makes "is any of this new?" a question
+              about timestamps rather than something the eye answers. */}
+          {groupByDay(notifications).map((group) => (
+            <section key={group.label} className="notifications__group">
+              <h2 className="notifications__day">{group.label}</h2>
+
+              <ul className="notifications" aria-busy={busy || refreshing || undefined}>
+                {group.items.map((notification) => (
+                  <NotificationRow
+                    key={notification.id}
+                    notification={notification}
+                    onOpen={() =>
+                      notification.isRead
+                        ? undefined
+                        : run(() => endpoints.notifications.markRead(notification.id))
+                    }
+                    busy={busy}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
 
           {meta?.hasNextPage ? (
             <button
@@ -182,11 +191,28 @@ function NotificationRow({ notification, onOpen, busy }) {
       </span>
 
       <span className="notification__body">
-        <span className="notification__title">{notification.title}</span>
+        <span className="notification__head">
+          <span className="notification__title">{headline(notification.title)}</span>
+          {/* Relative in the list, exact on hover — scanning and checking are
+              two different questions and only one of them is common. */}
+          <time
+            className="notification__when"
+            dateTime={notification.createdAt}
+            title={formatWhen(notification.createdAt)}
+          >
+            {formatSince(notification.createdAt)}
+          </time>
+        </span>
+
         {notification.body ? (
           <span className="notification__text">{notification.body}</span>
         ) : null}
-        <span className="notification__when">{formatWhen(notification.createdAt)}</span>
+
+        {/* The order number is reference, not headline: it is what you quote in
+            a complaint, never what tells you what happened. */}
+        {reference(notification.title) ? (
+          <span className="notification__ref numeric">{reference(notification.title)}</span>
+        ) : null}
       </span>
 
       {/* The dot is backed by text for a screen reader; colour alone is not a state. */}
@@ -288,4 +314,42 @@ function NotificationsSkeleton() {
       </div>
     </LoadingBlock>
   );
+}
+
+/**
+ * The server writes a title as "Order CPSE-260924-WTLXBY: accepted by the store"
+ * — the reference first and the news last, which is backwards for a list you
+ * scan. These two pull it apart for display only; the wording itself is still
+ * the server's, because it is written for the customer (backend docs/API.md)
+ * and re-phrasing it here would mean two copies drifting apart.
+ *
+ * Anything that does not match the pattern is left exactly as it came.
+ */
+const TITLE_PATTERN = /^Order\s+([A-Z0-9-]+)(?::\s*|\s+)(.+)$/;
+
+function headline(title) {
+  const match = TITLE_PATTERN.exec(title ?? '');
+  if (!match) return title;
+
+  const news = match[2];
+  return news.charAt(0).toUpperCase() + news.slice(1);
+}
+
+function reference(title) {
+  return TITLE_PATTERN.exec(title ?? '')?.[1] ?? null;
+}
+
+/** Consecutive days, in the order the server sent them (newest first). */
+function groupByDay(notifications) {
+  const groups = [];
+
+  for (const notification of notifications) {
+    const label = formatDayGroup(notification.createdAt);
+    const last = groups[groups.length - 1];
+
+    if (last?.label === label) last.items.push(notification);
+    else groups.push({ label, items: [notification] });
+  }
+
+  return groups;
 }

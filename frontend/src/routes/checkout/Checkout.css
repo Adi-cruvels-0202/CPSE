@@ -180,10 +180,45 @@
 
 /* ── Place ──────────────────────────────────────────────────────────────── */
 
+/*
+ * The one action on the screen, pinned to the bottom of it.
+ *
+ * Checkout is four sections tall, so the button that finishes it was two or
+ * three scrolls below the fold — and a customer who has just chosen how to pay
+ * has to go looking for the way to commit. Every checkout worth copying keeps it
+ * in reach with the total on it, so the amount and the commitment are never on
+ * different screens.
+ *
+ * `sticky`, not `fixed`: it stays in the flow, so it cannot cover the last
+ * section, and it stops being sticky naturally once the page ends.
+ */
 .checkout__place {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding-top: var(--space-2);
+  /* Pulled out to the gutter so the backdrop reaches the edges of the column
+     rather than leaving two slivers of page showing through. */
+  margin-inline: calc(var(--content-gutter) * -1);
+  padding: var(--space-3) var(--content-gutter)
+    calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-surface);
   border-top: 1px solid var(--border-subtle);
+}
+
+/* Clear of the bottom tab bar, which is fixed over everything on a phone. */
+@media (max-width: 47.999rem) {
+  .checkout__place {
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* "Back to cart" is a way out, not a second action — it sits below the bar
+   rather than riding along inside it. */
+.checkout__back {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-2);
 }

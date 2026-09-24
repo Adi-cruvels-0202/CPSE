@@ -1,33 +1,55 @@
-.notifications {
-  display: grid;
+/*
+ * A notification list is scanned, not read. The previous version gave every
+ * unread row its own tinted card with its own border, so five of them read as
+ * five competing panels and nothing stood out — which is the opposite of what
+ * an unread state is for.
+ *
+ * So: one surface per day, rows divided by a hairline, and unread carried by
+ * weight and a dot rather than by a second background colour. That is how every
+ * inbox a customer already uses behaves.
+ */
+
+.notifications__group {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
-  /* One per row on a phone, two or more once the column is wide enough to hold
-     them at full size. `auto-fill` with a `min()` floor needs no breakpoint:
-     below 24rem there is only ever one track. */
-  grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr));
+}
+
+.notifications__day {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.notifications {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  /* The dividers come from the rows, so the first and last sit flush. */
+  overflow: hidden;
 }
 
 .notification {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-3);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
   color: var(--text-body);
-  transition: border-color var(--transition-fast);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+}
+
+.notifications li:last-child .notification {
+  border-bottom: 0;
 }
 
 a.notification:hover {
   text-decoration: none;
-  border-color: var(--green-300);
-}
-
-/* Unread reads as unread in weight and fill, not only in the dot's colour. */
-.notification--unread {
   background: var(--bg-brand-subtle);
-  border-color: var(--green-200);
 }
 
 .notification__icon {
@@ -70,6 +92,15 @@ a.notification:hover {
   min-width: 0;
 }
 
+/* Headline and time on one line, the time pinned right — the shape an inbox
+   row has, and it stops a long title pushing the timestamp out of sight. */
+.notification__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .notification__title {
   font-size: var(--text-sm);
   color: var(--text-strong);
@@ -80,21 +111,28 @@ a.notification:hover {
   font-weight: var(--weight-semibold);
 }
 
+.notification__when {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
 .notification__text {
   font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
-.notification__when {
+.notification__ref {
   font-size: var(--text-xs);
   color: var(--ink-300);
+  letter-spacing: 0.02em;
 }
 
 .notification__unread {
   width: 0.5rem;
   height: 0.5rem;
   flex-shrink: 0;
-  margin-top: var(--space-2);
+  margin-top: 0.4rem;
   border-radius: var(--radius-full);
   background: var(--brand);
 }

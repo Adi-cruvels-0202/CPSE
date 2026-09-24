@@ -48,11 +48,25 @@
   grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
 }
 
-.order-row {
+.orders__group {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
+}
+
+.orders__heading {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.order-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -66,6 +80,19 @@
   box-shadow: var(--shadow-sm);
 }
 
+.order-row__mark {
+  width: 2.75rem;
+  flex-shrink: 0;
+}
+
+.order-row__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
 .order-row__top {
   display: flex;
   align-items: center;
@@ -73,17 +100,52 @@
   gap: var(--space-2);
 }
 
+/* The status pill is the server's wording and can be as long as "Accepted by
+   the store", so the shop name gives way rather than wrapping to a second line
+   and knocking every row out of alignment with its neighbours. */
 .order-row__store {
   font-weight: var(--weight-semibold);
   color: var(--text-strong);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.order-row__top .status {
+  flex-shrink: 0;
 }
 
 .order-row__meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--text-muted);
+}
+
+/*
+ * How far along, as a line rather than a sentence. It repeats what the status
+ * pill already says, which is the point: the pill is read, the line is glanced
+ * at, and a customer checking on lunch does the second one.
+ */
+.order-row__track {
+  position: relative;
+  display: block;
+  height: 3px;
+  margin: var(--space-1) 0;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.order-row__track::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--progress);
+  border-radius: inherit;
+  background: var(--brand);
 }
 
 .order-row__foot {
@@ -91,7 +153,13 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  font-size: var(--text-sm);
+}
+
+/* Reference, not headline — quoted in a complaint, never scanned for. */
+.order-row__number {
+  font-size: var(--text-xs);
+  color: var(--ink-300);
+  letter-spacing: 0.02em;
 }
 
 .order-row__total {

@@ -73,7 +73,32 @@ describe('the order list', () => {
     expect(screen.getByText('CPSE-260920-ABC123')).toBeInTheDocument();
     expect(screen.getByText('Order placed')).toBeInTheDocument();
     expect(screen.getByText('₹258.00')).toBeInTheDocument();
-    expect(screen.getByText(/1 item · Pickup/)).toBeInTheDocument();
+
+    // The meta line is separate elements now, so each piece is asserted on its
+    // own rather than as one run of text.
+    const row = screen.getByRole('link', { name: /sharma kirana store/i });
+    expect(row).toHaveTextContent('1 item');
+    expect(row).toHaveTextContent('Pickup');
+  });
+
+  it('draws a progress track on a live order and none on a finished one', async () => {
+    const { container } = renderAt('/orders');
+
+    await screen.findByRole('heading', { level: 1, name: 'Your orders' });
+    // 'placed' is step one of four, so the track is there and partly filled.
+    expect(container.querySelector('.order-row__track')).not.toBeNull();
+  });
+
+  it('draws no track once the order is over', async () => {
+    const { container } = renderAt('/orders', {
+      orders: [orderFixture({ status: 'completed', statusLabel: 'Completed' })],
+    });
+
+    // The filter chip is also called "Completed", so this is scoped to the row.
+    await screen.findByRole('link', { name: /sharma kirana store/i });
+    // A progress bar on a finished order is decoration; on a cancelled one it
+    // would be a lie.
+    expect(container.querySelector('.order-row__track')).toBeNull();
   });
 
   it('links each row to the order', async () => {

@@ -2,7 +2,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { formatPaise } from '../../lib/money.js';
-import { formatWhen, toneFor } from '../../lib/orderStatus.js';
+import { formatSince, formatWhen, isTerminal, progressFor, toneFor } from '../../lib/orderStatus.js';
+import { RemoteImage } from '../../components/RemoteImage.jsx';
 import { EmptyState, ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import './Orders.css';
 
@@ -84,11 +85,22 @@ export function OrdersPage() {
         )
       ) : (
         <>
-          <ul className="orders" aria-busy={refreshing || undefined}>
-            {orders.map((order) => (
-              <OrderRow key={order.id} order={order} />
-            ))}
-          </ul>
+          {/* Live orders first and under their own heading. Someone opening this
+              screen almost always wants the one that is happening right now, and
+              an undivided list makes them read statuses to find it. The split is
+              dropped while a status filter is on — the filter has already said
+              what the customer is looking at. */}
+          {split(orders, Boolean(status)).map((group) => (
+            <section key={group.label ?? 'all'} className="orders__group">
+              {group.label ? <h2 className="orders__heading">{group.label}</h2> : null}
+
+              <ul className="orders" aria-busy={refreshing || undefined}>
+                {group.items.map((order) => (
+                  <OrderRow key={order.id} order={order} />
+                ))}
+              </ul>
+            </section>
+          ))}
 
           {meta?.hasNextPage ? (
             <button
@@ -115,30 +127,75 @@ export function OrdersPage() {
  * cost, how many things, and where it has got to.
  */
 function OrderRow({ order }) {
+  const progress = progressFor(order.status, order.fulfilmentMode);
+
   return (
     <li>
       <Link to={`/orders/${order.id}`} className="order-row">
-        <div className="order-row__top">
-          <span className="order-row__store">{order.storeName}</span>
-          <span className={`status status--${toneFor(order.status)}`}>{order.statusLabel}</span>
-        </div>
+        {/* The list payload carries no logo, so this is always the initials
+            block. That is the point of it — a shop you recognise by its mark,
+            in the same place on every row. */}
+        <RemoteImage
+          src={null}
+          name={order.storeName}
+          alt=""
+          className="order-row__mark"
+          rounded="var(--radius-md)"
+        />
 
-        <div className="order-row__meta">
-          <span className="numeric">{order.orderNumber}</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatWhen(order.placedAt)}</span>
-        </div>
+        <div className="order-row__body">
+          <div className="order-row__top">
+            <span className="order-row__store">{order.storeName}</span>
+            <span className={`status status--${toneFor(order.status)}`}>{order.statusLabel}</span>
+          </div>
 
-        <div className="order-row__foot">
-          <span className="muted">
-            {order.itemCount} {order.itemCount === 1 ? 'item' : 'items'} ·{' '}
-            {order.fulfilmentMode === 'delivery' ? 'Delivery' : 'Pickup'}
-          </span>
-          <span className="numeric order-row__total">{formatPaise(order.totalPaise)}</span>
+          <div className="order-row__meta">
+            <span>
+              {order.itemCount} {order.itemCount === 1 ? 'item' : 'items'}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>{order.fulfilmentMode === 'delivery' ? 'Delivery' : 'Pickup'}</span>
+            <span aria-hidden="true">·</span>
+            <time dateTime={order.placedAt} title={formatWhen(order.placedAt)}>
+              {formatSince(order.placedAt)}
+            </time>
+          </div>
+
+          {/* Only while it is moving. On a finished order a progress track is
+              decoration, and on a cancelled one it is a lie. */}
+          {progress ? (
+            <span
+              className="order-row__track"
+              style={{ '--progress': `${(progress.step / progress.total) * 100}%` }}
+              aria-hidden="true"
+            />
+          ) : null}
+
+          <div className="order-row__foot">
+            <span className="numeric order-row__number">{order.orderNumber}</span>
+            <span className="numeric order-row__total">{formatPaise(order.totalPaise)}</span>
+          </div>
         </div>
       </Link>
     </li>
   );
+}
+
+/** Live orders, then finished ones — or one undivided list when filtered. */
+function split(orders, filtered) {
+  if (filtered) return [{ label: null, items: orders }];
+
+  const live = orders.filter((order) => !isTerminal(order.status));
+  const past = orders.filter((order) => isTerminal(order.status));
+
+  // No heading when there is only one kind: a lone "Past orders" heading over
+  // the only list on the screen is a label for nothing.
+  if (live.length === 0 || past.length === 0) return [{ label: null, items: orders }];
+
+  return [
+    { label: 'Happening now', items: live },
+    { label: 'Past orders', items: past },
+  ];
 }
 
 function OrdersSkeleton() {

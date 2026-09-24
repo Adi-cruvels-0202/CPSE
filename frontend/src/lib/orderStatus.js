@@ -39,6 +39,30 @@ export const meaningFor = (status) => MEANING[status] ?? null;
 
 export const isTerminal = (status) => ['completed', 'cancelled', 'rejected'].includes(status);
 
+/**
+ * The steps a live order walks through, for the progress track on an order card.
+ *
+ * Pickup and delivery diverge at the end — one becomes "Ready", the other "On
+ * its way" — so the track is built per order rather than being one fixed list.
+ * `pending_payment` is deliberately absent: an order that has not been paid for
+ * has not started, and drawing it as step one of five says it has.
+ */
+const TRACK = ['placed', 'accepted', 'preparing'];
+
+export function progressFor(status, fulfilmentMode) {
+  if (isTerminal(status) || status === 'pending_payment') return null;
+
+  const last = fulfilmentMode === 'delivery' ? 'out_for_delivery' : 'ready_for_pickup';
+  const steps = [...TRACK, last];
+  const index = steps.indexOf(status);
+
+  // A status the server added and this build does not know about: better to
+  // draw no track at all than to draw a wrong one.
+  if (index < 0) return null;
+
+  return { step: index + 1, total: steps.length };
+}
+
 /** Payment states worth saying out loud, and how. */
 const PAYMENT = {
   pending: { label: 'Payment pending', tone: 'waiting' },
@@ -78,6 +102,65 @@ export function formatWhen(iso) {
     minute: '2-digit',
     hour12: true,
   });
+}
+
+/**
+ * How long ago, the way a feed says it: "Just now", "12 min ago", "3 h ago",
+ * then the clock time for today and the date beyond that.
+ *
+ * A notification list is read by scanning, and "24 Sept, 11:21 pm" makes the
+ * reader do arithmetic to answer the only question they have — is this new? The
+ * absolute time is still there in the row's `title` attribute for anyone who
+ * wants it.
+ */
+export function formatSince(iso, now = Date.now()) {
+  if (!iso) return null;
+
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const seconds = Math.round((now - date.getTime()) / 1000);
+
+  // A clock a little behind the server's is ordinary; "in 3 seconds" is not.
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 21600) return `${Math.floor(seconds / 3600)} h ago`;
+
+  if (isSameDay(date, new Date(now))) {
+    return date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+/** "Today" / "Yesterday" / "24 Sept" — the heading a run of rows sits under. */
+export function formatDayGroup(iso, now = Date.now()) {
+  if (!iso) return 'Earlier';
+
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Earlier';
+
+  const today = new Date(now);
+  if (isSameDay(date, today)) return 'Today';
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) return 'Yesterday';
+
+  const sameYear = date.getFullYear() === today.getFullYear();
+  return date.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: sameYear ? undefined : 'numeric',
+  });
+}
+
+function isSameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 /** "20 Sep 2026" — for a receipt, where the year matters. */

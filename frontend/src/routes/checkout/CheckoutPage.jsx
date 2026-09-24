@@ -323,7 +323,12 @@ export function CheckoutPage() {
           </p>
         ) : null}
 
-        <Link to={`/cart/${storeId}`} className="btn btn--ghost btn--block">
+      </div>
+
+      {/* Below the bar, not inside it: going back is a way out, not the second
+          half of a pair of equal choices. */}
+      <div className="checkout__back">
+        <Link to={`/cart/${storeId}`} className="btn btn--ghost">
           Back to cart
         </Link>
       </div>

@@ -95,20 +95,32 @@ function SavedRow({ entry }) {
         />
 
         <div className="saved-row__body">
-          <span className="saved-row__name">{store.name}</span>
-
-          <span className={`saved-row__status${status.isOpen ? ' saved-row__status--open' : ''}`}>
-            <span className="store__dot" aria-hidden="true" />
-            {status.label}
-            {status.detail ? <span className="muted"> · {status.detail}</span> : null}
+          <span className="saved-row__top">
+            <span className="saved-row__name">{store.name}</span>
+            {/* Open or shut is the one fact that decides whether this row is
+                any use right now, so it is a pill at the end of the name rather
+                than a third line of grey text. */}
+            <span
+              className={`saved-row__pill${status.isOpen ? ' saved-row__pill--open' : ''}`}
+            >
+              {status.isOpen ? 'Open' : 'Closed'}
+            </span>
           </span>
 
-          <span className="muted saved-row__meta">
+          <span className="saved-row__meta">
             {modes.join(' or ') || 'Not taking orders'}
-            {store.fulfilment?.minOrderPaise > 0
-              ? ` · ${formatPaiseShort(store.fulfilment.minOrderPaise)} minimum`
-              : null}
+            {store.fulfilment?.minOrderPaise > 0 ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                <span className="numeric">
+                  {formatPaiseShort(store.fulfilment.minOrderPaise)} min
+                </span>
+              </>
+            ) : null}
           </span>
+
+          {/* "Closed" on its own is a dead end; the next question is always when. */}
+          {status.detail ? <span className="saved-row__when">{status.detail}</span> : null}
         </div>
 
         <ChevronRight />

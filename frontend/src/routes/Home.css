@@ -1,0 +1,133 @@
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.home__greeting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.home__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home__section-title {
+  font-size: var(--text-base);
+}
+
+.home__more {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+/* ── The live order ─────────────────────────────────────────────────────── */
+
+.home__order {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-lg);
+  /* Tinted rather than plain white: it is the one thing on this screen with a
+     clock running on it, and it should not look like the shop tiles. */
+  background: var(--bg-brand-subtle);
+  color: var(--text-body);
+}
+
+.home__order:hover {
+  text-decoration: none;
+  border-color: var(--green-300);
+}
+
+.home__order-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.home__order-store {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.home__order-meaning {
+  font-size: var(--text-sm);
+  color: var(--text-body);
+}
+
+.home__order-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* ── The shops ──────────────────────────────────────────────────────────── */
+
+/*
+ * Tiles, not rows. A saved shop is recognised by its mark and reached by
+ * habit — the Saved screen is where the opening hours and the minimum order
+ * belong, and repeating them here would make the home screen a worse copy of it.
+ */
+.home__shops {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(7rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.home__shop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  height: 100%;
+  padding: var(--space-3) var(--space-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-body);
+  text-align: center;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.home__shop:hover {
+  text-decoration: none;
+  border-color: var(--green-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.home__shop-mark {
+  width: 3rem;
+}
+
+.home__shop-name {
+  flex: 1;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.home__shop-state {
+  padding: 0.1rem var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--danger-bg);
+  color: var(--danger-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.home__shop-state--open {
+  background: var(--green-100);
+  color: var(--green-700);
+}

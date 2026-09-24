@@ -197,39 +197,82 @@ describe('what the shop will do', () => {
 });
 
 describe('finding the shop', () => {
-  it('shows the address and links to a map and a phone call', async () => {
+  /** The address row lives in the header now; the detail is behind it. */
+  async function openLocationSheet(user) {
+    await user.click(await screen.findByRole('button', { name: /14 Model Town Road/ }));
+    return within(await screen.findByRole('dialog', { name: 'Where to find them' }));
+  }
+
+  it('puts the address in the header, above the catalogue', async () => {
     renderStore();
 
-    await screen.findByRole('heading', { name: 'Where to find them' });
-    expect(screen.getByText(/14 Model Town Road/)).toBeInTheDocument();
+    const row = await screen.findByRole('button', { name: /14 Model Town Road/ });
+    // Inside the store's own header — not a card at the foot of the page, which
+    // is where it used to be.
+    expect(row.closest('header')).not.toBeNull();
+    // Street and locality are enough to answer "is this near me"; the rest is
+    // one tap away rather than a paragraph in the header.
+    expect(row).toHaveTextContent('Ludhiana');
+    expect(row).toHaveAttribute('aria-haspopup', 'dialog');
+  });
 
-    const map = screen.getByRole('link', { name: /open in maps/i });
+  it('opens a sheet with the full address, a map and a phone call', async () => {
+    const { user } = renderStore();
+    const sheet = await openLocationSheet(user);
+
+    expect(sheet.getByText(/14 Model Town Road.*141002/)).toBeInTheDocument();
+
+    const map = sheet.getByRole('link', { name: /open in maps/i });
     expect(map).toHaveAttribute('href', expect.stringContaining('30.900965,75.857276'));
     // A new tab, and not one that can reach back into this page.
     expect(map).toHaveAttribute('rel', expect.stringContaining('noopener'));
 
-    expect(screen.getByRole('link', { name: /call the shop/i })).toHaveAttribute(
+    expect(sheet.getByRole('link', { name: /call the shop/i })).toHaveAttribute(
       'href',
       'tel:+919812345601',
     );
   });
 
+  it('closes on Escape and gives focus back to the row', async () => {
+    const { user } = renderStore();
+    await openLocationSheet(user);
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    // Not the top of the document: back where the finger — or the caret — was.
+    expect(screen.getByRole('button', { name: /14 Model Town Road/ })).toHaveFocus();
+  });
+
+  it('copies the address for pasting into a message', async () => {
+    const { user } = renderStore();
+    const sheet = await openLocationSheet(user);
+
+    await user.click(sheet.getByRole('button', { name: /copy address/i }));
+
+    expect(await navigator.clipboard.readText()).toMatch(/14 Model Town Road/);
+    expect(await sheet.findByRole('button', { name: /copied/i })).toBeInTheDocument();
+  });
+
   it('falls back to searching the address when there are no coordinates', async () => {
-    renderStore({
+    const { user } = renderStore({
       store: storeFixture({
         location: { ...storeFixture().location, latitude: null, longitude: null },
       }),
     });
 
-    const map = await screen.findByRole('link', { name: /open in maps/i });
-    expect(map).toHaveAttribute('href', expect.stringContaining('Model%20Town'));
+    const sheet = await openLocationSheet(user);
+    expect(sheet.getByRole('link', { name: /open in maps/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('Model%20Town'),
+    );
   });
 
   it('offers no phone link when the shop has no number', async () => {
-    renderStore({ store: storeFixture({ contact: { phone: null, email: null } }) });
+    const { user } = renderStore({ store: storeFixture({ contact: { phone: null, email: null } }) });
 
-    await screen.findByRole('heading', { name: 'Where to find them' });
-    expect(screen.queryByRole('link', { name: /call the shop/i })).not.toBeInTheDocument();
+    const sheet = await openLocationSheet(user);
+    expect(sheet.queryByRole('link', { name: /call the shop/i })).not.toBeInTheDocument();
   });
 
   it('links into search for this store', async () => {

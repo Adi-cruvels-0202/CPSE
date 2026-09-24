@@ -11,6 +11,7 @@ import { RemoteImage } from '../../components/RemoteImage.jsx';
 import { SaveStoreButton } from '../../components/SaveStoreButton.jsx';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { Catalogue } from './Catalogue.jsx';
+import { StoreLocation } from './StoreLocation.jsx';
 import './StorePage.css';
 
 /**
@@ -117,8 +118,6 @@ export function StorePage() {
       <Fulfilment fulfilment={store.fulfilment} />
 
       <Hours hours={store.hours} />
-
-      <Contact store={store} />
     </article>
   );
 }
@@ -174,6 +173,10 @@ function StoreHeader({ store, status, onSaveChange }) {
           </p>
         </div>
       </div>
+
+      {/* Under the name, where a delivery app puts it — not in a card below the
+          catalogue and the week's hours, which is where it used to be. */}
+      <StoreLocation store={store} />
 
       {store.description ? <p className="store__description">{store.description}</p> : null}
     </header>
@@ -286,55 +289,6 @@ function Hours({ hours }) {
       {hours?.timezone ? (
         <p className="field__hint">All times are the shop's local time ({hours.timezone}).</p>
       ) : null}
-    </section>
-  );
-}
-
-function Contact({ store }) {
-  const { contact, location } = store;
-  const address = [
-    location?.addressLine1,
-    location?.addressLine2,
-    location?.city,
-    location?.state,
-    location?.postalCode,
-  ]
-    .filter(Boolean)
-    .join(', ');
-
-  const mapHref =
-    location?.latitude && location?.longitude
-      ? `https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`
-      : address
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
-        : null;
-
-  return (
-    <section className="card store__section" aria-labelledby="contact-heading">
-      <h2 id="contact-heading" className="store__section-title">
-        Where to find them
-      </h2>
-
-      {address ? <p className="store__address">{address}</p> : null}
-
-      <div className="store__contact-actions">
-        {mapHref ? (
-          <a
-            className="btn btn--secondary btn--sm"
-            href={mapHref}
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            Open in Maps
-          </a>
-        ) : null}
-
-        {contact?.phone ? (
-          <a className="btn btn--secondary btn--sm" href={`tel:${contact.phone}`}>
-            Call the shop
-          </a>
-        ) : null}
-      </div>
     </section>
   );
 }

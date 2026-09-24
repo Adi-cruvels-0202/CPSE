@@ -211,13 +211,3 @@
   font-weight: var(--weight-semibold);
 }
 
-.store__address {
-  font-size: var(--text-sm);
-  color: var(--text-body);
-}
-
-.store__contact-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}

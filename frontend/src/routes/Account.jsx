@@ -37,7 +37,7 @@ export function Account() {
   });
 
   return (
-    <div className="stack">
+    <div className="stack account">
       <h1>Account</h1>
 
       <section className="card account__identity" aria-labelledby="identity-heading">

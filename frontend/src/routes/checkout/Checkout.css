@@ -2,6 +2,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  /* A checkout is a single sequence of decisions, read top to bottom. Widening
+     it only stretches each row's two ends further apart; it stays a readable
+     measure while the column around it grows. */
+  width: 100%;
+  max-width: 42rem;
+  margin-inline: auto;
 }
 
 .checkout__head {

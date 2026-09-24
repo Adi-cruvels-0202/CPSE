@@ -2,12 +2,22 @@
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  max-width: var(--app-max-width);
-  margin: 0 auto;
+  /* Full bleed. The backgrounds and borders of the header and the nav run the
+     whole width of the screen; what is held to a column is the content inside
+     them, via --content-max-width. A fixed-width shell floating in the middle
+     of a desktop reads as a phone app someone forgot to finish. */
+  width: 100%;
   background: var(--bg-page);
-  /* On a wide screen the column is visibly a column rather than a page that
-     failed to fill. */
-  box-shadow: 0 0 0 1px var(--border-subtle);
+}
+
+/* The one rule that decides where every edge on the page lines up: the header
+   bar, the nav row and the page content all use it, so they share a margin. */
+.shell__bar,
+.shell__tabs-inner,
+.shell__content {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin-inline: auto;
 }
 
 /* Visible only once focused — the first Tab on any screen. */
@@ -33,14 +43,19 @@
   position: sticky;
   top: 0;
   z-index: var(--z-header);
+  height: var(--header-height);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.shell__bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  height: var(--header-height);
-  padding: 0 var(--space-2) 0 var(--space-4);
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border-subtle);
+  height: 100%;
+  /* Less on the right: the icon buttons carry their own padding. */
+  padding: 0 calc(var(--content-gutter) / 2) 0 var(--content-gutter);
 }
 
 /* Saved stores and the bell, top right. */
@@ -107,14 +122,16 @@
 
 .shell__main {
   flex: 1;
-  padding: var(--space-4) var(--space-4) var(--space-8);
+  padding: var(--space-4) var(--content-gutter) var(--space-8);
 }
 
 .shell__main:focus {
   outline: none;
 }
 
-/* Room for the fixed bar, plus the home-indicator inset on an iPhone. */
+/* Room for the fixed bar, plus the home-indicator inset on an iPhone. Only
+   while the bar is actually fixed — see the breakpoint at the foot of this
+   file, where it becomes a row in the flow and owes the page nothing. */
 .shell:has(.shell__tabs) .shell__main {
   padding-bottom: calc(var(--bottom-nav-height) + var(--space-6) + env(safe-area-inset-bottom));
 }
@@ -122,17 +139,19 @@
 .shell__tabs {
   position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
   z-index: var(--z-bottom-nav);
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
   width: 100%;
-  max-width: var(--app-max-width);
   height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--bg-surface);
   border-top: 1px solid var(--border-subtle);
+}
+
+.shell__tabs-inner {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  height: 100%;
 }
 
 .shell__tab {
@@ -172,4 +191,63 @@
   color: var(--white);
   font-size: var(--text-sm);
   text-align: center;
+}
+
+/* ── Wide screens ───────────────────────────────────────────────────────── */
+
+/*
+ * Past this width there is room for the nav beside the content rather than
+ * under the thumb, so the bottom bar becomes a row directly below the header:
+ * the same four links, laid out the way a desktop site lays them out.
+ *
+ * It is the same markup either way. The bar is `position: fixed` on a phone, so
+ * where it sits in the document never mattered; here it simply stops being
+ * fixed and lands where it already was — after the header, before the content.
+ */
+@media (min-width: 48rem) {
+  .shell__tabs {
+    position: sticky;
+    top: var(--header-height);
+    bottom: auto;
+    height: auto;
+    padding-bottom: 0;
+    border-top: 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .shell__tabs-inner {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--content-gutter);
+  }
+
+  /* No fixed bar to clear any more. */
+  .shell:has(.shell__tabs) .shell__main {
+    padding-bottom: var(--space-8);
+  }
+
+  /* Icon beside the label rather than above it — a 4rem-tall stack makes sense
+     as a thumb target and nowhere else. */
+  .shell__tab {
+    flex-direction: row;
+    gap: var(--space-2);
+    min-height: var(--tap-target-dense);
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+  }
+
+  .shell__tab:hover {
+    background: var(--bg-brand-subtle);
+  }
+
+  /* Colour alone said "you are here" when the bar was the only nav on screen.
+     In a row of links among other links it needs a shape too. */
+  .shell__tab--active {
+    background: var(--bg-brand-subtle);
+  }
+
+  .shell__main {
+    padding-top: var(--space-6);
+  }
 }

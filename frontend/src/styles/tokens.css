@@ -144,8 +144,22 @@
   --shadow-lg: 0 8px 24px rgba(17, 64, 43, 0.12);
 
   /* ── Layout ──────────────────────────────────────────────────────────── */
-  /* The app is a phone-width column even on a desktop: a grocery list does not
-     get better at 1400px, and one layout is one thing to get right. */
+  /**
+   * The content column. It is phone-width by default and widens in two steps,
+   * so the app fills a laptop instead of sitting as a 512px strip in the middle
+   * of it — but it still stops well short of the viewport, because a line of
+   * text 1600px wide is unreadable and a grocery list does not get better for
+   * being stretched.
+   *
+   * The steps are set here rather than per screen so the header, the nav and
+   * every page share one edge to line up against. Overridden per breakpoint at
+   * the foot of this file.
+   */
+  --content-max-width: 32rem;
+  --content-gutter: var(--space-4);
+  /* A form is read one line at a time; it never takes the wide column. */
+  --form-max-width: 26rem;
+
   --app-max-width: 32rem;
   --header-height: 3.5rem;
   --bottom-nav-height: 4rem;
@@ -181,5 +195,24 @@
   :root {
     --transition-fast: 0ms;
     --transition: 0ms;
+  }
+}
+
+/* ── Breakpoints ────────────────────────────────────────────────────────── */
+
+/* Tablet and small laptop: two cards fit side by side, so the column opens up
+   and the bottom bar becomes a row under the header (see AppShell.css). */
+@media (min-width: 48rem) {
+  :root {
+    --content-max-width: 45rem;
+    --content-gutter: var(--space-6);
+  }
+}
+
+/* Desktop. Past this the column stops growing — the catalogue grid is what
+   uses the extra width, and it has all it needs by here. */
+@media (min-width: 75rem) {
+  :root {
+    --content-max-width: 60rem;
   }
 }

@@ -1,7 +1,10 @@
 .saved {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: var(--space-3);
+  /* One per row on a phone, two or more once the column is wide enough to hold
+     them at full size. `auto-fill` with a `min()` floor needs no breakpoint:
+     below 22rem there is only ever one track. */
+  grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
 }
 
 .saved-row {

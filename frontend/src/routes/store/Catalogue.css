@@ -67,6 +67,16 @@
   gap: var(--space-3);
 }
 
+/* On a wide column the same 9.5rem floor would pack in six or seven thumbnails
+   the size of a postage stamp. The floor rises so the grid gets calmer as it
+   gets wider, rather than denser. */
+@media (min-width: 48rem) {
+  .catalogue__grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(12rem, 100%), 1fr));
+    gap: var(--space-4);
+  }
+}
+
 .catalogue__count {
   text-align: center;
 }

@@ -56,65 +56,71 @@ export function AppShell() {
       )}
 
       <header className="shell__header">
-        <NavLink to="/" className="shell__brand">
-          <LeafMark />
-          <span>CPSE</span>
-        </NavLink>
+        <div className="shell__bar">
+          <NavLink to="/" className="shell__brand">
+            <LeafMark />
+            <span>CPSE</span>
+          </NavLink>
 
-        {/* Top right, where a bell belongs — and out of the bottom bar, which is
-            for the places a customer goes rather than the things that happened.
-            Saved stores sits beside it: it is a shortcut back to the shops you
-            already chose, wanted from anywhere, and burying it one tap deep in
-            Account made it something you had to remember rather than see. */}
-        {isSignedIn ? (
-          <div className="shell__actions">
-            <NavLink to="/saved" className="shell__action" aria-label="Saved stores">
-              <HeartIcon />
-            </NavLink>
+          {/* Top right, where a bell belongs — and out of the bottom bar, which
+              is for the places a customer goes rather than the things that
+              happened. Saved stores sits beside it: it is a shortcut back to the
+              shops you already chose, wanted from anywhere, and burying it one
+              tap deep in Account made it something you had to remember. */}
+          {isSignedIn ? (
+            <div className="shell__actions">
+              <NavLink to="/saved" className="shell__action" aria-label="Saved stores">
+                <HeartIcon />
+              </NavLink>
 
-            <NavLink
-              to="/notifications"
-              className="shell__action"
-              aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-            >
-              <BellIcon />
-              {unread > 0 ? (
-                <span className="shell__bell-badge" aria-hidden="true">
-                  {unread > 9 ? '9+' : unread}
-                </span>
-              ) : null}
-            </NavLink>
-          </div>
-        ) : null}
+              <NavLink
+                to="/notifications"
+                className="shell__action"
+                aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+              >
+                <BellIcon />
+                {unread > 0 ? (
+                  <span className="shell__bell-badge" aria-hidden="true">
+                    {unread > 9 ? '9+' : unread}
+                  </span>
+                ) : null}
+              </NavLink>
+            </div>
+          ) : null}
+        </div>
       </header>
+
+      {showTabs ? (
+        <nav className="shell__tabs" aria-label="Main">
+          <div className="shell__tabs-inner">
+            {TABS.map(({ to, label, icon: Icon, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `shell__tab${isActive ? ' shell__tab--active' : ''}`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon filled={isActive} />
+                    <span className="shell__tab-label">{label}</span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      ) : null}
 
       {/* The landmark a screen reader jumps to, and the anchor the skip link
           targets. tabIndex -1 so the link can actually move focus here. */}
       <main className="shell__main" id="main" tabIndex={-1}>
-        <Outlet />
+        <div className="shell__content">
+          <Outlet />
+        </div>
       </main>
-
-      {showTabs ? (
-        <nav className="shell__tabs" aria-label="Main">
-          {TABS.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                `shell__tab${isActive ? ' shell__tab--active' : ''}`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon filled={isActive} />
-                  <span className="shell__tab-label">{label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-      ) : null}
     </div>
   );
 }

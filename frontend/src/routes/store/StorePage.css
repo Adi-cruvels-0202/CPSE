@@ -21,6 +21,22 @@
   border-radius: var(--radius-lg);
 }
 
+/* 16:9 of a phone's width is a banner; 16:9 of a 60rem column is half a laptop
+   screen of shop logo before a single product is in view.
+   The ceiling goes on the banner, not the cover: RemoteImage sets its
+   aspect-ratio inline, and capping the cover's own height makes it give back
+   width to keep the ratio — leaving a narrow image in a full-width banner with
+   the heart floating off to one side. Clipping the parent keeps the cover the
+   full width and simply crops the bottom off, which is what `object-fit: cover`
+   is already doing horizontally. */
+@media (min-width: 48rem) {
+  .store__banner {
+    max-height: 15rem;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+  }
+}
+
 .store__back,
 .store__save {
   position: absolute;

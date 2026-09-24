@@ -1,3 +1,12 @@
+/* A settings list is a single column of decisions. It does not get better for
+   being 60rem wide — it just puts each row's chevron a hand's width away from
+   its label. */
+.account {
+  width: 100%;
+  max-width: 42rem;
+  margin-inline: auto;
+}
+
 /* ── Who you are ────────────────────────────────────────────────────────── */
 
 .account__identity {

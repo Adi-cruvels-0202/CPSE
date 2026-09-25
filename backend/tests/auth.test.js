@@ -426,7 +426,9 @@ describe('POST /api/v1/auth/forgot-password (2.5)', () => {
     expect(res.status).toBe(200);
     expect(supabaseAnon.auth.resetPasswordForEmail).toHaveBeenCalledWith(
       'test.customer@cpse.local',
-      { redirectTo: 'http://localhost:5173/reset-password' },
+      // The app is served from the API's own port, so the default redirect
+      // points there rather than at a standalone Vite.
+      { redirectTo: 'http://localhost:4000/reset-password' },
     );
   });
 

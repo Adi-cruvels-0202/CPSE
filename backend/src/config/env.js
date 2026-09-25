@@ -16,19 +16,22 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 
-  // Comma-separated list of origins allowed to call the API.
+  // Comma-separated list of *other* origins allowed to call the API. The
+  // server's own origin is always allowed (see corsOptionsFor in app.js), so
+  // this is only needed when the app is served from somewhere else — a
+  // standalone `vite` on 5173, or a separate static host.
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
 
   // Where Supabase sends the customer after they click the password-reset link.
   // Must also be listed in the Supabase dashboard's redirect allowlist.
-  PASSWORD_RESET_REDIRECT_URL: z.string().url().default('http://localhost:5173/reset-password'),
+  PASSWORD_RESET_REDIRECT_URL: z.string().url().default('http://localhost:4000/reset-password'),
 
   // Payments (decision D7). The provider is swappable; `mock` is the only one
   // implemented until a real gateway is chosen.
   PAYMENT_PROVIDER: z.enum(['mock']).default('mock'),
   // Signs and verifies payment webhooks. Must match what the gateway holds.
   PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('dev-only-webhook-secret-change-me'),
-  PAYMENT_MOCK_CHECKOUT_URL: z.string().url().default('http://localhost:5173/mock-payment'),
+  PAYMENT_MOCK_CHECKOUT_URL: z.string().url().default('http://localhost:4000/mock-payment'),
 
   // Exposes the test-only endpoint that advances an order's status the way a
   // merchant dashboard would (checklist 8.8). MUST stay false in production.

@@ -1,7 +1,7 @@
 # Merge Mapping — CPSE (Customer) + Merchant-One (Shopkeeper)
 
-> **Status: PROPOSAL — awaiting sign-off from Aditya, Mohit and the lead.**
-> No code, schema or Git history is changed until the decisions in §5 are agreed.
+> **Status: DECISIONS AGREED (2026-09-29) — all of §5 decided by Aditya; awaiting review by Mohit and the lead.**
+> Integration starts with step 1 (§8) once this document is merged.
 > This is step 1 of the merge instructions: compare both projects, map every feature,
 > and decide what is kept, migrated or combined — before integrating anything.
 
@@ -111,8 +111,8 @@ behaviour, re-implemented in the common backend · **Combine**: one implementati
 | Product / variant model | see §4 | see §4 | Aditya's tables, + Mohit's columns | **Combine** (D-6) |
 | Order model | `orders` with `customer_id`, paise, payment status | `orders` with name/phone, rupees | Aditya's | **Keep A** (D-7) |
 | Order state machine | `order.state.js`, 9 states | `OrderStatus.java`, 7 states | Aditya's | **Keep A** (D-7) |
-| Stock model | single `stock` counter, decremented at order placement | `quantity_on_hand` + `reserved_quantity` + ledger | Mohit's model | **Combine** (D-5) |
-| Pricing / tax | tax-inclusive, `tax_paise = 0` | `tax_percent` added on top | **undecided** | **Decide** (D-4) |
+| Stock model | single `stock` counter, decremented at order placement | `quantity_on_hand` + `reserved_quantity` + ledger | Mohit's model, reserved at placement | **Combine** (D-5 = C) |
+| Pricing / tax | tax-inclusive, `tax_paise = 0` | `tax_percent` added on top | Mohit's rule inside Aditya's pricing engine | **Combine** (D-4 = B) |
 | Money representation | integer paise | decimal rupees | integer paise | **Keep A** (D-3) |
 | Payments | provider abstraction | method enum only | Aditya's abstraction + Mohit's per-store preferences | **Combine** |
 | Notifications | emitted from `transitionOrder` | ❌ | Aditya's | **Keep A** |
@@ -147,11 +147,11 @@ columns. The merged schema needs one of each.
 | price | `products.price_paise`, variant `price_paise` (absolute) | `products.price`, variant `price` (absolute) | paise, absolute — same rule both sides |
 | MRP | `mrp_paise` | `compare_at_price` | `mrp_paise` |
 | cost | — | `cost_price` (product + variant) | **add** `cost_paise` — merchant-only, never returned to customers |
-| tax | — | `tax_percent` | depends on D-4 |
+| tax | — | `tax_percent` | **add** `tax_percent` (D-4 = B) |
 | unit | — | `unit` (PCS, KG, L, …) | **add** |
 | variants required? | optional — a product can have none | every product has ≥1 variant | D-6 |
 | SKU / barcode / weight | — | ✅ | **add** to variants |
-| stock | `stock` (null = untracked) on product and variant | `quantity_on_hand`, `reserved_quantity` on variant; `track_inventory` on product | D-5 |
+| stock | `stock` (null = untracked) on product and variant | `quantity_on_hand`, `reserved_quantity` on variant; `track_inventory` on product | Mohit's columns; stock reserved at order placement (D-5 = C) |
 | low-stock threshold | — | ✅ | **add** |
 | optimistic lock | row locks inside `create_order` | `version` column | **add** `version`; keep the row locks |
 | slug | `products.slug` | — | keep |
@@ -200,18 +200,18 @@ rules rather than engineering choices.
 | # | Decision | Options | Recommendation | Why |
 |---|---|---|---|---|
 | — | **Database + auth platform** | Supabase · self-hosted Postgres + own JWT | **Supabase — ✅ agreed 2026-09-29** | Postgres, Auth and Storage in one place for both sides. Settles D-2 and D-10 below. |
-| D-1 | **Common backend** | Node/Express + Supabase · Spring Boot + Postgres | **Node/Express + Supabase** | The customer path carries the integrity-critical logic (idempotent order creation, a single-transaction `create_order`, payment webhooks, RLS, khata ledger). Supabase Auth is the shared auth the spec requires. It already has 749 backend tests. Mohit's Java logic is **ported, not discarded** — every merchant rule in §3.2 carries over. |
+| D-1 ✅ | **Common backend** | Node/Express + Supabase · Spring Boot + Postgres | **Node/Express + Supabase** — ✅ agreed 2026-09-29 | The customer path carries the integrity-critical logic (idempotent order creation, a single-transaction `create_order`, payment webhooks, RLS, khata ledger). Supabase Auth is the shared auth the spec requires. It already has 749 backend tests. Mohit's Java logic is **ported, not discarded** — every merchant rule in §3.2 carries over. |
 | D-2 ✅ | Auth and roles | one auth for both · separate auth per side | **Supabase Auth for both**; a `merchants` table (like `customers`) keyed by `auth.users.id`; role checked by `requireRole('merchant')`; store access by `requireStoreOwner` | One login system, one token format. A person could later be both a customer and a merchant with the same account. |
-| D-3 | Money | paise · decimal rupees | **Integer paise** | No floating/rounding drift; the order CHECK invariant depends on it. Java `BigDecimal` values convert ×100 on the way in. |
-| **D-4** | **Tax** | prices tax-inclusive (Aditya) · `tax_percent` added on top (Mohit — his storefront doc charges 18% extra) | **Needs the lead** | This changes what a customer pays. Engineering can do either; the pricing engine (`lib/pricing.js`) is the single place it lives. Suggested default: tax-inclusive selling price, store `tax_percent` only to split GST out on invoices. |
-| **D-5** | **Stock authority** | decrement at order placement (Aditya) · reserve on accept, deduct on complete, ledger (Mohit) | **Mohit's model** (`on_hand` / `reserved` / ledger), with **reservation at placement** instead of at accept | A ledger is needed for purchases, POS and audits. Reserving at placement (inside `create_order`) stops two customers buying the last unit while the merchant has not yet accepted. Reject/cancel releases; complete deducts. Needs Mohit's agreement. |
-| D-6 | Variants | optional (Aditya) · always ≥1 (Mohit) | **Always ≥1 variant**; a "simple" product gets one default variant | Stock, SKU and the ledger all key on `variant_id`. One rule is simpler than two code paths. The customer UI hides the selector when there is only one. |
-| D-7 | Order states | Aditya's 9 · Mohit's 7 | **Aditya's 9** (§4.4) | Superset; the customer UI, notifications and payment flow depend on it. |
-| D-8 | Opening hours storage | jsonb + timezone · `store_hours` rows | **jsonb + timezone**, holidays in `store_holidays` | Open/closed is computed server-side from it today (supports overnight and split shifts). Mohit's hours editor writes the jsonb. |
-| D-9 | Frontend standard | JS · TS | **React + TypeScript** | Mohit's merchant app is already TS and moves in as-is. The customer app stays JS for now and is converted file-by-file when touched (Vite runs both). No big-bang rewrite. |
+| D-3 ✅ | Money | paise · decimal rupees | **Integer paise** — ✅ agreed 2026-09-29 | No floating/rounding drift; the order CHECK invariant depends on it. Java `BigDecimal` values convert ×100 on the way in. |
+| **D-4 ✅** | **Tax** | A: prices tax-inclusive (Aditya) · B: `tax_percent` added on top (Mohit) · C: inclusive, GST shown on invoice | **B — tax added on top. ✅ Decided by Aditya 2026-09-29** | Each product carries `tax_percent`; tax is computed per order line in paise (round half up) and added to the total, on **item lines only** (not the delivery fee), exactly as Mohit's order code does. Applies identically to online orders and POS sales. Consequences: supersedes CPSE decision D27; `lib/pricing.js` gains the tax step; `order_items` gains `tax_percent` + `tax_paise`; cart, checkout, receipt and merchant invoice show a GST line; the product page must say “+ GST” so the checkout total is not a surprise. The existing CHECK `total = subtotal − discount + fee + tax` already covers it. |
+| **D-5 ✅** | **Stock authority** | A: decrement at placement (Aditya) · B: reserve on accept (Mohit) · C: reserve at placement + ledger | **C — reserve at placement, with Mohit's ledger. ✅ Decided by Aditya 2026-09-29** | Variant holds `quantity_on_hand` and `reserved_quantity`; available = on hand − reserved. Order placed (`create_order`) → reserve. Rejected / cancelled / unpaid-expired → release. Completed → deduct from on hand and release. POS sale → deduct on hand, may only sell *available* stock. Every movement writes an `inventory_ledger` row with its reason and reference. Fixes the current CPSE gap where a customer cancel or merchant reject never returns stock. |
+| D-6 ✅ | Variants | optional (Aditya) · always ≥1 (Mohit) | **Always ≥1 variant**; a "simple" product gets one default variant — ✅ agreed 2026-09-29 | Stock, SKU and the ledger all key on `variant_id`. One rule is simpler than two code paths. The customer UI hides the selector when there is only one. |
+| D-7 ✅ | Order states | Aditya's 9 · Mohit's 7 | **Aditya's 9** (§4.4) — ✅ agreed 2026-09-29 | Superset; the customer UI, notifications and payment flow depend on it. |
+| D-8 ✅ | Opening hours storage | jsonb + timezone · `store_hours` rows | **jsonb + timezone**, holidays in `store_holidays` — ✅ agreed 2026-09-29 | Open/closed is computed server-side from it today (supports overnight and split shifts). Mohit's hours editor writes the jsonb. |
+| D-9 ✅ | Frontend standard | JS · TS | **React + TypeScript** — ✅ agreed 2026-09-29 | Mohit's merchant app is already TS and moves in as-is. The customer app stays JS for now and is converted file-by-file when touched (Vite runs both). No big-bang rewrite. |
 | D-10 ✅ | Image storage | local disk · Supabase Storage | **Supabase Storage** | Local disk does not survive a redeploy or scale past one server. |
-| D-11 | API layout | — | Customer: `/api/v1/...` (unchanged). Merchant: `/api/v1/merchant/stores/:storeId/...` | Existing customer contract untouched; merchant routes grouped and role-gated in one place. |
-| D-12 | Repository | new repo · CPSE repo | **CPSE repo** (optionally renamed / moved to an org); Merchant-One archived read-only | See §7. |
+| D-11 ✅ | API layout | — | Customer: `/api/v1/...` (unchanged). Merchant: `/api/v1/merchant/stores/:storeId/...` — ✅ agreed 2026-09-29 | Existing customer contract untouched; merchant routes grouped and role-gated in one place. |
+| D-12 ✅ | Repository | new repo · CPSE repo | **CPSE repo** (optionally renamed / moved to an org); Merchant-One archived read-only — ✅ agreed 2026-09-29 | See §7. |
 
 ---
 
@@ -302,4 +302,4 @@ Mohit's 19 JUnit tests are re-written as vitest tests in the step that ports the
 |---|---|---|---|
 | Aditya | Customer side | | |
 | Mohit | Shopkeeper side | | |
-| Lead | | | D-4, D-5 answers |
+| Lead | | | D-4 = B, D-5 = C decided by Aditya 2026-09-29 — lead to confirm |

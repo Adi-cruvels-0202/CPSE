@@ -51,6 +51,10 @@ export const stores = [
     min_order_paise: rupees(199),
     delivery_fee_paise: rupees(29),
     is_active: true,
+    // Merchant fields (migration 0025). The seed shops are live and take both.
+    is_published: true,
+    accepts_cash: true,
+    accepts_online: true,
     categories: [
       {
         id: '21111111-1111-4111-8111-000000000001',
@@ -162,6 +166,10 @@ export const stores = [
     min_order_paise: 0,
     delivery_fee_paise: 0,
     is_active: true,
+    // Merchant fields (migration 0025). The seed shops are live and take both.
+    is_published: true,
+    accepts_cash: true,
+    accepts_online: true,
     categories: [
       {
         id: '21111111-1111-4111-8111-000000000003',
@@ -255,6 +263,10 @@ export const stores = [
     min_order_paise: rupees(99),
     delivery_fee_paise: rupees(19),
     is_active: true,
+    // Merchant fields (migration 0025). The seed shops are live and take both.
+    is_published: true,
+    accepts_cash: true,
+    accepts_online: true,
     categories: [
       {
         id: '21111111-1111-4111-8111-000000000005',

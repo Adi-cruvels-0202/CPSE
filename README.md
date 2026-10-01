@@ -13,7 +13,7 @@ one port. Run the backend and you have the whole thing.
 │    /api/v1/*   →  the API                │
 │    everything else →  the React app      │
 │         dev: Vite in middleware mode     │
-│         prod: frontend/dist              │
+│         prod: frontend/customer/dist     │
 └──────────────┬───────────────────────────┘
                │
         Supabase (Postgres + Auth)
@@ -26,7 +26,8 @@ one port. Run the backend and you have the whole thing.
 | | |
 |---|---|
 | `backend/` | Express 4 API, Node 20+, ESM. Supabase for data and auth, Zod for every request body. |
-| `frontend/` | React 18 + React Router, built with Vite. Plain JavaScript, no TypeScript. |
+| `frontend/customer/` | The customer app. React 18 + React Router, built with Vite. Plain JavaScript for now (moving to TypeScript gradually — see `docs/MERGE_MAPPING.md` D-9). |
+| `frontend/merchant/` | The shopkeeper app, being brought in from Merchant-One. React + TypeScript. See `docs/WORK_PLAN.md`. |
 | `backend/migrations/` | 23 numbered SQL files. The whole schema. |
 | `backend/docs/API.md` | Every endpoint, its body and its errors. |
 | `backend/docs/MERCHANT_INTEGRATION.md` | The contract with the merchant side, which this repo does **not** contain. |
@@ -97,7 +98,7 @@ login: **`test.customer@cpse.local`** / **`CpseTest!2026`**. Safe to re-run.
 ### 5. Install the frontend's dependencies
 
 ```bash
-npm install --prefix ../frontend
+npm install --prefix ../frontend/customer
 ```
 
 No `.env` needed. The app calls `/api/v1` on whatever origin served it, so
@@ -112,14 +113,14 @@ npm run dev          # from backend/
 Open **http://localhost:4000**. That is the app, not a JSON blob.
 
 Vite runs *inside* the API process in middleware mode, sharing its HTTP socket
-for hot reloads — so an edit under `frontend/src` appears without a rebuild, and
+for hot reloads — so an edit under `frontend/customer/src` appears without a rebuild, and
 an edit under `backend/src` restarts the server. Two halves, one terminal.
 
 <details>
 <summary>Running the frontend on its own instead</summary>
 
 ```bash
-npm run dev --prefix frontend   # http://localhost:5173
+npm run dev --prefix frontend/customer   # http://localhost:5173
 ```
 
 Vite proxies `/api` to port 4000, so the backend still has to be running. You
@@ -135,10 +136,10 @@ All from `backend/` unless noted.
 | Command | What it does |
 |---|---|
 | `npm run dev` | API + app with hot reload, on :4000 |
-| `npm start` | Production mode — serves `frontend/dist`, no Vite |
-| `npm run build` | Installs and builds the frontend into `frontend/dist` |
+| `npm start` | Production mode — serves `frontend/customer/dist`, no Vite |
+| `npm run build` | Installs and builds the customer app into `frontend/customer/dist` |
 | `npm test` | 749 backend tests (Vitest + supertest, no live database needed) |
-| `npm test --prefix ../frontend` | 575 frontend tests (Vitest + Testing Library) |
+| `npm test --prefix ../frontend/customer` | 575 frontend tests (Vitest + Testing Library) |
 | `npm run db:seed` | Dummy stores, catalogue and khata |
 | `npm run db:maintenance` | Expiry sweeps — stale carts, abandoned payments |
 
@@ -155,7 +156,7 @@ One web service on any Node host. On [Render](https://render.com), create a
 
 | Field | Value |
 |---|---|
-| Build Command | `cd frontend && npm ci --include=dev && npm run build && cd ../backend && npm ci` |
+| Build Command | `cd frontend/customer && npm ci --include=dev && npm run build && cd ../../backend && npm ci` |
 | Start Command | `cd backend && node src/server.js` |
 | Health Check Path | `/api/v1/health` |
 

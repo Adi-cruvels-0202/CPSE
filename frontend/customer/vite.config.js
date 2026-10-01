@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Only used when Vite is run standalone (`npm run dev` in frontend/). The
+    // Only used when Vite is run standalone (`npm run dev` in frontend/customer/). The
     // normal path is the backend running Vite in middleware mode on its own
     // port, where these are ignored — see backend/src/lib/frontendHost.js.
     //

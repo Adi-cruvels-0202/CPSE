@@ -36,7 +36,7 @@ describe('GET /api/v1/stores/:slug/products/:productId (4.1)', () => {
     seedProductImage({ product_id: product.id, url: 'https://img/b.jpg', sort_order: 2 });
     seedProductImage({ product_id: product.id, url: 'https://img/a.jpg', sort_order: 1, alt_text: 'Front' });
     seedProductVariant({ product_id: product.id, name: '5 kg', price_paise: 59900, sort_order: 2 });
-    seedProductVariant({ product_id: product.id, name: '1 kg', price_paise: 12900, sort_order: 1 });
+    seedProductVariant({ product_id: product.id, name: '1 kg', price_paise: 12900, mrp_paise: 15000, sort_order: 1 });
 
     const res = await api().get(detailUrl(product.id));
 
@@ -332,5 +332,58 @@ describe('GET /api/v1/stores/:slug/search (4.2, 4.3)', () => {
     const res = await api().get(searchUrl('q=rice&storeId=whatever'));
 
     expect(res.status).toBe(422);
+  });
+});
+
+describe('variants and stock on the product page (D-5, D-6)', () => {
+  it('hides the Default variant of a product sold without options', async () => {
+    seedStore();
+    const product = seedProduct();
+
+    const { body } = await api().get(detailUrl(product.id));
+
+    expect(body.data.product.variants).toEqual([]);
+  });
+
+  it('shows a single real option, so its name is not lost', async () => {
+    seedStore();
+    const product = seedProduct();
+    seedProductVariant({ product_id: product.id, name: '5 kg', price_paise: 59900 });
+
+    const { body } = await api().get(detailUrl(product.id));
+
+    expect(body.data.product.variants.map((variant) => variant.name)).toEqual(['5 kg']);
+  });
+
+  it('reports what can still be ordered, not what is on the shelf', async () => {
+    seedStore();
+    const product = seedProduct();
+    const small = seedProductVariant({ product_id: product.id, name: '1 kg', stock: 10 });
+    seedProductVariant({ product_id: product.id, name: '5 kg', stock: 4 });
+    small.reserved_quantity = 7;
+
+    const { body } = await api().get(detailUrl(product.id));
+
+    expect(body.data.product.variants.map((variant) => variant.stock)).toEqual([3, 4]);
+    expect(body.data.product.stock).toBe(7);
+  });
+
+  it('is out of stock when open orders hold everything left', async () => {
+    seedStore();
+    const product = seedProduct({ stock: 2 });
+    db.tables.get('product_variants').find((row) => row.product_id === product.id).reserved_quantity = 2;
+
+    const { body } = await api().get(detailUrl(product.id));
+
+    expect(body.data.product).toMatchObject({ stock: 0, outOfStock: true, isPurchasable: false });
+  });
+
+  it('carries the tax rate, so the page can say “+ GST”', async () => {
+    seedStore();
+    const product = seedProduct({ tax_percent: 5 });
+
+    const { body } = await api().get(detailUrl(product.id));
+
+    expect(body.data.product.taxPercent).toBe(5);
   });
 });

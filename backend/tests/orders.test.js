@@ -19,6 +19,7 @@ const {
   seedProduct,
   seedProductImage,
   seedProductVariant,
+  defaultVariantOf,
 } = await import('./helpers/supabaseMock.js');
 
 const OTHER_CUSTOMER_ID = '9f8a1c2e-5b3d-4a7f-9c1e-2d4b6a8c0e99';
@@ -167,13 +168,36 @@ describe('POST /api/v1/orders (7.4, 7.7, 7.9)', () => {
     expect(body.data.cart.lines).toHaveLength(1);
   });
 
-  it('decrements stock as part of the same transaction (7.6)', async () => {
+  it('reserves stock as part of the same transaction, leaving on hand alone (7.6, D-5)', async () => {
     const auth = signIn();
     const product = await readyCart(auth, { stock: 10 });
 
-    await placeOrder(auth, { storeId: STORE_ID });
+    const { body } = await placeOrder(auth, { storeId: STORE_ID });
 
-    expect(db.tables.get('products')[0].stock).toBe(8);
+    const variant = defaultVariantOf(product);
+    expect(variant).toMatchObject({ quantity_on_hand: 10, reserved_quantity: 2 });
+    expect(db.tables.get('inventory_ledger')).toEqual([
+      expect.objectContaining({
+        movement_type: 'order_reserved',
+        variant_id: variant.id,
+        reserved_change: 2,
+        reference_type: 'order',
+        reference_id: body.data.order.id,
+        performed_by_type: 'customer',
+      }),
+    ]);
+  });
+
+  it('will not sell what another order already holds (D-5)', async () => {
+    const auth = signIn();
+    const product = await readyCart(auth, { stock: 3 });
+    // Another customer's open order holds two of the three.
+    defaultVariantOf(product).reserved_quantity = 2;
+
+    const res = await placeOrder(auth, { storeId: STORE_ID });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('INSUFFICIENT_STOCK');
   });
 
   it('rejects an order under the store minimum (6.9)', async () => {
@@ -238,7 +262,7 @@ describe('POST /api/v1/orders (7.4, 7.7, 7.9)', () => {
   it('refuses when the total moved since the customer last saw it', async () => {
     const auth = signIn();
     const product = await readyCart(auth);
-    product.price_paise = 20000;
+    defaultVariantOf(product).price_paise = 20000;
 
     const res = await placeOrder(auth, { storeId: STORE_ID, expectedTotalPaise: 25000 });
 
@@ -296,14 +320,14 @@ describe('idempotency (7.5, D10)', () => {
     expect(db.tables.get('orders')).toHaveLength(1);
   });
 
-  it('does not decrement stock twice on a replay', async () => {
+  it('does not reserve stock twice on a replay', async () => {
     const auth = signIn();
-    await readyCart(auth, { stock: 10 });
+    const product = await readyCart(auth, { stock: 10 });
 
     await placeOrder(auth, { storeId: STORE_ID }, { idempotencyKey: 'key-002' });
     await placeOrder(auth, { storeId: STORE_ID }, { idempotencyKey: 'key-002' });
 
-    expect(db.tables.get('products')[0].stock).toBe(8);
+    expect(defaultVariantOf(product).reserved_quantity).toBe(2);
   });
 
   it('lets a different key place a genuinely new order', async () => {
@@ -506,5 +530,78 @@ describe('GET /api/v1/orders/:id (8.2, 8.5, 8.9)', () => {
       .set(auth);
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('tax (D-4)', () => {
+  it('is added on top, per line, and carried onto the order', async () => {
+    const auth = signIn();
+    const rice = seedProduct({ name: 'Rice', price_paise: 12900, tax_percent: 5 });
+    const soap = seedProduct({ name: 'Soap', slug: 'soap', price_paise: 4500, tax_percent: 18 });
+    await addToCart(auth, { storeId: STORE_ID, productId: rice.id, quantity: 2 });
+    await addToCart(auth, { storeId: STORE_ID, productId: soap.id, quantity: 1 });
+
+    const { body } = await placeOrder(auth, { storeId: STORE_ID });
+    const { order } = body.data;
+
+    // 25800 × 5 % = 1290; 4500 × 18 % = 810.
+    expect(order.totals).toEqual({
+      subtotalPaise: 30300,
+      discountPaise: 0,
+      deliveryFeePaise: 0,
+      taxPaise: 2100,
+      totalPaise: 32400,
+    });
+    expect(order.items.find((item) => item.name === 'Rice')).toMatchObject({
+      lineSubtotalPaise: 25800,
+      taxPercent: 5,
+      taxPaise: 1290,
+      lineTotalPaise: 27090,
+    });
+  });
+
+  it('is not charged on the delivery fee', async () => {
+    const auth = signIn();
+    const product = seedProduct({ price_paise: 20000, tax_percent: 18 });
+    await addToCart(auth, { storeId: STORE_ID, productId: product.id });
+    const address = await createAddress(auth);
+
+    const { body } = await placeOrder(auth, {
+      storeId: STORE_ID,
+      fulfilmentMode: 'delivery',
+      addressId: address.body.data.address.id,
+    });
+
+    expect(body.data.order.totals).toMatchObject({ taxPaise: 3600, deliveryFeePaise: 2900, totalPaise: 26500 });
+  });
+
+  it('keeps the rate it was charged at when the product’s rate changes later', async () => {
+    const auth = signIn();
+    const product = seedProduct({ price_paise: 20000, tax_percent: 5 });
+    await addToCart(auth, { storeId: STORE_ID, productId: product.id });
+    const { body: created } = await placeOrder(auth, { storeId: STORE_ID });
+
+    product.tax_percent = 28;
+    const { body } = await api().get(url(`/orders/${created.data.order.id}`)).set(auth);
+
+    expect(body.data.order.items[0]).toMatchObject({ taxPercent: 5, taxPaise: 1000 });
+  });
+});
+
+describe('free delivery (MERCHANT_RULES S-14)', () => {
+  it('drops the fee once the subtotal reaches the store’s threshold', async () => {
+    const auth = signIn();
+    db.tables.get('stores')[0].free_delivery_threshold_paise = 25000;
+    const product = seedProduct({ price_paise: 12500 });
+    await addToCart(auth, { storeId: STORE_ID, productId: product.id, quantity: 2 });
+    const address = await createAddress(auth);
+
+    const { body } = await placeOrder(auth, {
+      storeId: STORE_ID,
+      fulfilmentMode: 'delivery',
+      addressId: address.body.data.address.id,
+    });
+
+    expect(body.data.order.totals).toMatchObject({ subtotalPaise: 25000, deliveryFeePaise: 0, totalPaise: 25000 });
   });
 });

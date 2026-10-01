@@ -108,7 +108,7 @@ export function ReceiptPage() {
                   </span>
                 </td>
                 <td className="receipt__qty numeric">{item.quantity}</td>
-                <td className="receipt__amount numeric">{formatPaise(item.lineTotalPaise)}</td>
+                <td className="receipt__amount numeric">{formatPaise(item.lineSubtotalPaise ?? item.lineTotalPaise)}</td>
               </tr>
             ))}
           </tbody>

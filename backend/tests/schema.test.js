@@ -36,6 +36,18 @@ const EXPECTED_TABLES = [
   'inventory_ledger',
 ];
 
+/**
+ * The body of the LAST `create or replace function public.<name>` across all
+ * migrations — the one in force. A later migration may redefine a function, and
+ * a test reading the first definition would be checking code that no longer runs.
+ */
+async function latestFunction(name) {
+  const sql = await allSql();
+  const bodies = [...sql.matchAll(new RegExp(`create or replace function public\\.${name}\\b[\\s\\S]*?\\n\\$\\$;`, 'gi'))];
+  expect(bodies.length, `${name} is never defined`).toBeGreaterThan(0);
+  return bodies.at(-1)[0];
+}
+
 describe('migration files', () => {
   it('are numbered uniquely and sort into dependency order', async () => {
     const names = (await migrations).map((m) => m.name);
@@ -276,9 +288,10 @@ describe('money and integrity constraints', () => {
     );
   });
 
-  it('forces each order line to equal unit price times quantity', async () => {
+  it('forces each order line to equal unit price times quantity, plus its tax (O-16)', async () => {
     const sql = await allSql();
-    expect(sql).toMatch(/order_items_line_total_matches check \(line_total_paise = unit_price_paise \* quantity\)/i);
+    const definitions = [...sql.matchAll(/order_items_line_total_matches\s+check \(([^;]*?)\);/gi)];
+    expect(definitions.at(-1)[1]).toBe('line_total_paise = unit_price_paise * quantity + tax_paise');
   });
 
   it('rejects zero and negative quantities', async () => {
@@ -338,7 +351,7 @@ describe('create_order (checklist 7.4 – 7.9)', () => {
   });
 
   it('writes the order, its items, the history entry and the payment intent', async () => {
-    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+    const body = await latestFunction('create_order');
 
     for (const table of [
       'insert into public.orders',
@@ -351,27 +364,44 @@ describe('create_order (checklist 7.4 – 7.9)', () => {
   });
 
   it('returns the existing order for a replayed idempotency key (7.5)', async () => {
-    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+    const body = await latestFunction('create_order');
 
     expect(body).toMatch(/idempotency_key = v_idempotency_key/);
     expect(body).toContain("'replayed', true");
   });
 
-  it('decrements stock only while enough remains, and raises otherwise (7.6)', async () => {
-    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+  it('reserves only what is available, under a row lock, and raises otherwise (7.6, D-5)', async () => {
+    const body = await latestFunction('create_order');
 
-    expect(body).toMatch(/stock is null or stock >= v_quantity/);
+    expect(body).toMatch(/for update of v/);
+    expect(body).toMatch(/v_on_hand - v_reserved < v_quantity/);
+    expect(body).toMatch(/set reserved_quantity = reserved_quantity \+ v_quantity/);
+    expect(body).toContain("'order_reserved'");
     expect(body).toContain('ITEM_UNAVAILABLE');
+    // Reserving, never decrementing: on hand only moves when an order completes.
+    expect(body).not.toMatch(/quantity_on_hand\s*=\s*quantity_on_hand\s*-/);
+  });
+
+  it('locks variants in a fixed order, so two orders cannot deadlock', async () => {
+    expect(await latestFunction('create_order')).toMatch(/order by value ->> 'variant_id'/);
   });
 
   it('clears the cart inside the same transaction (7.9)', async () => {
-    const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
+    const body = await latestFunction('create_order');
 
     expect(body).toMatch(/update public\.carts set checked_out_at/);
     expect(body).toContain('delete from public.cart_items');
   });
 
   it('is not callable by anon or authenticated — only the service role', async () => {
+    // Re-stated after every redefinition, so the file that replaces it is safe
+    // on its own (the 0023 lesson).
+    for (const file of (await migrations).filter((m) => /function public\.create_order/.test(m.sql))) {
+      expect(file.sql, file.name).toMatch(/revoke all on function public\.create_order\(jsonb\) from public, anon, authenticated/);
+    }
+  });
+
+  it('keeps the original revoke too', async () => {
     const body = (await migrations).find((m) => m.name.includes('create_order')).sql;
 
     expect(body).toMatch(/revoke all on function public\.create_order\(jsonb\) from public, anon, authenticated/);
@@ -445,18 +475,16 @@ describe('no orphaned records (checklist 10.6)', () => {
     );
   });
 
-  it('expires stale unpaid orders and gives their stock back', async () => {
+  it('expires stale unpaid orders, and their stock comes back through the trigger', async () => {
     const sql = await allSql();
-    const fn = /create or replace function public\.expire_stale_pending_orders[\s\S]*?\n\$\$;/i.exec(sql);
-
-    expect(fn, 'expire_stale_pending_orders is missing').toBeTruthy();
-    const body = fn[0];
+    const body = await latestFunction('expire_stale_pending_orders');
 
     // Only ever touches an order nobody has paid for.
     expect(body).toMatch(/where o\.status = 'pending_payment'/i);
-    // Returns the stock it is cancelling.
-    expect(body).toMatch(/set stock = p\.stock \+ oi\.quantity/i);
-    expect(body).toMatch(/set stock = v\.stock \+ oi\.quantity/i);
+    // Cancelling is enough: orders_apply_stock_movement releases the stock, so
+    // the sweep must not also restock by hand and release it twice.
+    expect(body).not.toMatch(/quantity_on_hand|reserved_quantity|set stock/i);
+    expect(sql).toMatch(/create trigger orders_apply_stock_movement\s+after update of status on public\.orders/i);
     // Records the transition like any other status change, so history stays whole.
     expect(body).toMatch(/insert into public\.order_status_history/i);
     // Two overlapping runs cannot both cancel the same order.
@@ -753,5 +781,31 @@ describe('merchant schema (MERCHANT_RULES, D-2 – D-6)', () => {
   it('lets a merchant read only their own stores’ ledger', async () => {
     const sql = await allSql();
     expect(sql).toMatch(/create policy inventory_ledger_select_owner[\s\S]*?s\.owner_id = \(select auth\.uid\(\)\)/i);
+  });
+});
+
+describe('stock on the variant (migration 0030, D-5, D-6)', () => {
+  it('moves off the legacy stock columns exactly once', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/if exists \(\s*select 1 from information_schema\.columns[\s\S]*?column_name = 'stock'/i);
+    expect(sql).toMatch(/alter table public\.products drop column stock;/i);
+    expect(sql).toMatch(/alter table public\.product_variants drop column stock;/i);
+  });
+
+  it('requires every cart line to name a variant', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/alter table public\.cart_items alter column variant_id set not null;/i);
+  });
+
+  it('releases on rejected/cancelled and fulfils on completed, from what the ledger says is held', async () => {
+    const body = await latestFunction('apply_order_stock_movement');
+    expect(body).toMatch(/new\.status in \('cancelled', 'rejected'\)/);
+    expect(body).toMatch(/new\.status = 'completed'/);
+    expect(body).toMatch(/having sum\(l\.reserved_change\) > 0/);
+  });
+
+  it('keeps a product’s price equal to its cheapest variant’s (P-10)', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/create trigger product_variants_sync_product_price\s+after insert or delete or update of price_paise, mrp_paise, is_available, product_id/i);
   });
 });

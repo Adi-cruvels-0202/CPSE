@@ -19,7 +19,7 @@ export const orderRouter = Router();
 
 orderRouter.use(requireAuth);
 
-// Checklist 10.7: order creation runs a transaction, decrements stock and can
+// Checklist 10.7: order creation runs a transaction, reserves stock and can
 // open a payment intent. It is metered more tightly than a read.
 orderRouter.post('/', writeLimiter, validate({ body: createOrderSchema }), controller.createOrder);
 orderRouter.get('/', validate({ query: orderListQuery }), controller.listOrders);

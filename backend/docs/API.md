@@ -121,6 +121,8 @@ refused for a reason the customer can act on":
 | `CART_EMPTY` | Nothing to check out |
 | `MINIMUM_ORDER_NOT_MET` | Below the store's floor. `details.shortfallPaise` says by how much |
 | `ITEM_UNAVAILABLE` | An item sold out between the quote and the commit |
+| `VARIANT_REQUIRED` | Added a product that has several options without saying which |
+| `OUT_OF_STOCK` / `INSUFFICIENT_STOCK` | Nothing, or not enough, is **available** — on hand minus what open orders hold. `details.available` says how many |
 | `PRICE_CHANGED` | A line's price moved since the client last saw it |
 | `TOTAL_CHANGED` | `expectedTotalPaise` no longer matches. Nobody is charged a number they did not see |
 | `ADDRESS_REQUIRED` | Delivery was asked for without an address |
@@ -170,10 +172,10 @@ All five accept an optional bearer token and personalise when one is present.
 
 | | |
 |---|---|
-| `GET /stores/:slug` | **public.** The store page: contact, location, `hours` (with `isOpen` and `opensAt`, computed in the store's own timezone), `fulfilment`, `minOrderPaise`, `isSaved`. |
+| `GET /stores/:slug` | **public.** The store page: contact, location, `hours` (with `isOpen` and `opensAt`, computed in the store's own timezone), `fulfilment` (`minOrderPaise`, `deliveryFeePaise`, and `freeDeliveryThresholdPaise` — delivery is free once the subtotal reaches it; `null` = never), `isSaved`. |
 | `GET /stores/:slug/categories` | **public.** Active categories, in sort order. |
-| `GET /stores/:slug/products` | **public.** `?categoryId=&page=&limit=&availableOnly=`. Sold-out and withdrawn products are **listed**, with `isPurchasable: false`. `stock: null` means untracked. |
-| `GET /stores/:slug/products/:productId` | **public.** Full detail: images and variants. A product id from another store is **404**. |
+| `GET /stores/:slug/products` | **public.** `?categoryId=&page=&limit=&availableOnly=`. Sold-out and withdrawn products are **listed**, with `isPurchasable: false`. `stock` is what can still be ordered across the product's variants — on hand minus what open orders hold — and `null` means not counted. `pricePaise` is the cheapest variant's. `taxPercent` is added on top at checkout: show "+ GST" when it is above 0. |
+| `GET /stores/:slug/products/:productId` | **public.** Full detail: images and `variants` (each with its own `pricePaise`, `mrpPaise` and available `stock`). A product sold without options returns `variants: []` — it has one hidden Default variant, which the cart fills in. A product id from another store is **404**. |
 | `GET /stores/:slug/search` | **public.** `?q=&categoryId=&page=&limit=`. Store-scoped, name and description, minimum 2 characters. |
 
 An unknown slug, an inactive store, and a `categoryId` belonging to another
@@ -200,7 +202,7 @@ The cart is **store-scoped** — one active cart per customer per store — so
 | | |
 |---|---|
 | `GET /cart?storeId=` | `{ cart }`: `lines`, `totals`, per-line `issues`, `isCheckoutReady`. |
-| `POST /cart/items` | `{ storeId, productId, variantId?, quantity? }` → **201** with the updated cart. Same product with a different variant is a separate line; the same line again bumps the quantity. |
+| `POST /cart/items` | `{ storeId, productId, variantId?, quantity? }` → **201** with the updated cart. `variantId` may be left out when the product has only one variant; with several it is **422 `VARIANT_REQUIRED`**. Same product with a different variant is a separate line; the same line again bumps the quantity. |
 | `PATCH /cart/items/:itemId` | `{ quantity }`. Capped by stock and by 999. `quantity: 0` is a **422** — use DELETE. |
 | `DELETE /cart/items/:itemId` | Removes one line. |
 | `DELETE /cart?storeId=` | Empties the cart, keeps the cart row. |
@@ -208,6 +210,11 @@ The cart is **store-scoped** — one active cart per customer per store — so
 
 **The cart stores no prices.** Every read reprices from the catalogue, so a
 merchant's change is visible immediately rather than at the till.
+
+**A line** carries `unitPricePaise`, `quantity`, `lineSubtotalPaise` (price ×
+quantity), `taxPercent`, `taxPaise` and `lineTotalPaise` — **tax included**. The
+same shape is used on order lines and receipts. `variantName` is `null` for a
+product sold without options.
 
 ### Addresses
 
@@ -250,7 +257,13 @@ blocking would simply lose the order. It waits in `placed` until the store opens
 
 **Idempotency.** Send an `Idempotency-Key` header. A replay returns the original
 order with **200** (not 201) and `replayed: true` — no second charge, no second
-stock decrement. Keys are scoped per customer.
+stock reservation. Keys are scoped per customer.
+
+**Stock.** Placing an order **reserves** its items: they stop being available to
+anyone else, but stay on the shelf. Cancelling (by the customer or the store),
+rejecting, or an unpaid order expiring gives them back; completing the order
+takes them off the shelf. So two customers can never both buy the last unit, and
+a cancelled order always returns its stock.
 
 **Status machine.**
 
@@ -265,8 +278,8 @@ pending_payment ─▶ placed ─▶ accepted ─▶ preparing ─┬▶ ready_f
 The timeline is fulfilment-aware: a pickup order never shows
 `out_for_delivery`, and a delivery order never shows `ready_for_pickup`.
 
-**Snapshots.** Product name, price, variant, store contact and delivery address
-are copied onto the order at creation. Order history stays truthful even after a
+**Snapshots.** Product name, price, variant, SKU, tax rate and tax, store
+contact and delivery address are copied onto the order at creation. Order history stays truthful even after a
 merchant edits a product or the customer deletes the address.
 
 ### Payments
@@ -359,8 +372,8 @@ Request bodies are capped at `JSON_BODY_LIMIT` (32kb).
 These are the things a frontend can rely on without defensive code.
 
 1. **The number shown is the number charged.** One pricing engine serves the cart, the quote and order creation. `create_order` is handed the totals and does not recompute them.
-2. **Catalogue prices are tax-inclusive**, so `taxPaise` is always `0`. The field exists because the column does.
-3. **Order creation is one transaction.** Order, items, first history entry, payment intent, stock decrement and cart checkout commit together or not at all. A request that dies halfway leaves the cart exactly as it was.
+2. **Tax is added on top of the price.** Each line is taxed at its product's `taxPercent`, rounded half up to the paisa; the order's `taxPaise` is the sum of the lines'. The delivery fee is never taxed. `total = subtotal − discount + deliveryFee + tax`, always.
+3. **Order creation is one transaction.** Order, items, first history entry, payment intent, stock reservation and cart checkout commit together or not at all. A request that dies halfway leaves the cart exactly as it was.
 4. **404 means "not yours or not there".** Never probe for existence with status codes.
 5. **Public store pages need no token**, and personalise with one.
 6. **Ownership is enforced in application code**, with RLS on every table as defense in depth. The API uses the service-role key, which bypasses RLS by design.

@@ -93,9 +93,12 @@ describe('seed catalogue (checklist 1.21)', () => {
   it('covers the edge cases later phases need to test against', () => {
     // An unavailable product, for cart/checkout availability rules (spec §6).
     expect(productRows.some((p) => p.is_available === false)).toBe(true);
-    // A product with untracked stock (null) and one that is counted.
-    expect(productRows.some((p) => p.stock === null)).toBe(true);
-    expect(productRows.some((p) => typeof p.stock === 'number')).toBe(true);
+    // A product whose stock is not counted, and one that is.
+    expect(productRows.some((p) => p.track_inventory === false)).toBe(true);
+    expect(productRows.some((p) => p.track_inventory === true)).toBe(true);
+    // A product that charges GST and one that does not (D-4).
+    expect(productRows.some((p) => p.tax_percent > 0)).toBe(true);
+    expect(productRows.some((p) => p.tax_percent === 0)).toBe(true);
     // An unavailable variant.
     expect(variantRows.some((v) => v.is_available === false)).toBe(true);
     // A pickup-only store, for the "delivery not offered" branch.
@@ -162,7 +165,22 @@ describe('flattenSeed', () => {
     const nestedProducts = stores.flatMap((s) => s.categories.flatMap((c) => c.products));
     expect(productRows.length).toBe(nestedProducts.length);
     expect(imageRows.length).toBe(nestedProducts.flatMap((p) => p.images ?? []).length);
-    expect(variantRows.length).toBe(nestedProducts.flatMap((p) => p.variants ?? []).length);
+    // Every product has at least one variant (D-6): its own, or a Default.
+    const expectedVariants = nestedProducts.reduce((sum, p) => sum + Math.max(1, (p.variants ?? []).length), 0);
+    expect(variantRows.length).toBe(expectedVariants);
+  });
+
+  it('gives a product without options exactly one Default variant (D-6)', () => {
+    for (const product of productRows) {
+      const own = variantRows.filter((v) => v.product_id === product.id);
+      expect(own.length, product.slug).toBeGreaterThan(0);
+      if (own.some((v) => v.name === 'Default')) expect(own).toHaveLength(1);
+    }
+  });
+
+  it('writes stock to the variant, never the legacy columns dropped in 0030', () => {
+    for (const row of [...productRows, ...variantRows]) expect(row).not.toHaveProperty('stock');
+    for (const variant of variantRows) expect(Number.isInteger(variant.quantity_on_hand)).toBe(true);
   });
 
   it('strips the nested keys, leaving rows the tables can accept', () => {

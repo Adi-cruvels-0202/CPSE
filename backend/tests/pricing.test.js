@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  unitPriceOf,
   lineTotal,
+  taxFor,
+  priceLine,
   deliveryFeeFor,
   priceTotals,
   meetsMinimumOrder,
@@ -12,23 +13,59 @@ import {
 
 const store = { min_order_paise: 19900, delivery_fee_paise: 2900 };
 
-describe('unit price (5.9, D15)', () => {
-  it("uses the product's price when there is no variant", () => {
-    expect(unitPriceOf({ price_paise: 12900 }, null)).toBe(12900);
-  });
-
-  it("uses the variant's absolute price, not a delta, when there is one", () => {
-    expect(unitPriceOf({ price_paise: 12900 }, { price_paise: 59900 })).toBe(59900);
-  });
-
-  it('multiplies out the line total', () => {
+describe('line price (5.9)', () => {
+  it('multiplies out the line subtotal', () => {
     expect(lineTotal(12900, 3)).toBe(38700);
+  });
+});
+
+describe('tax (D-4, MERCHANT_RULES §7)', () => {
+  it('is added on top of the line subtotal at the product’s rate', () => {
+    expect(taxFor(25800, 5)).toBe(1290);
+  });
+
+  it('rounds half up to the paisa', () => {
+    expect(taxFor(30, 5)).toBe(2); // 1.5 → 2
+    expect(taxFor(25, 5)).toBe(1); // 1.25 → 1
+    expect(taxFor(999, 18)).toBe(180); // 179.82 → 180
+  });
+
+  it('handles a rate with decimals without floating-point drift', () => {
+    // 12.5 % of ₹10.10 is 126.25 paise → 126; 0.1 + 0.2 style errors would not round cleanly.
+    expect(taxFor(1010, 12.5)).toBe(126);
+    expect(taxFor(1010, '12.50')).toBe(126);
+  });
+
+  it('is zero for a zero or missing rate', () => {
+    expect(taxFor(25800, 0)).toBe(0);
+    expect(taxFor(25800, null)).toBe(0);
+  });
+
+  it('prices a whole line, with tax inside the line total (O-16)', () => {
+    expect(priceLine(12900, 2, 5)).toEqual({
+      unitPricePaise: 12900,
+      quantity: 2,
+      lineSubtotalPaise: 25800,
+      taxPercent: 5,
+      taxPaise: 1290,
+      lineTotalPaise: 27090,
+    });
   });
 });
 
 describe('delivery fee (5.9, 6.8)', () => {
   it("charges the store's fee for delivery", () => {
     expect(deliveryFeeFor(store, 'delivery')).toBe(2900);
+  });
+
+  it('is free once the subtotal reaches the store’s threshold (S-14)', () => {
+    const generous = { ...store, free_delivery_threshold_paise: 99900 };
+    expect(deliveryFeeFor(generous, 'delivery', 99899)).toBe(2900);
+    expect(deliveryFeeFor(generous, 'delivery', 99900)).toBe(0);
+  });
+
+  it('is never free when the store sets no threshold', () => {
+    expect(deliveryFeeFor({ ...store, free_delivery_threshold_paise: null }, 'delivery', 10_000_000)).toBe(2900);
   });
 
   it('never charges a delivery fee on pickup', () => {
@@ -63,8 +100,21 @@ describe('priceTotals (5.9)', () => {
     expect(totals.totalPaise).toBe(50700 - 5000 + 2900);
   });
 
-  it('keeps tax at zero because catalogue prices are tax-inclusive (D27)', () => {
-    expect(priceTotals({ lines }).taxPaise).toBe(0);
+  it('sums each line’s own rounded tax, never re-taxing the total', () => {
+    const taxed = [priceLine(30, 1, 5), priceLine(30, 1, 5)];
+    // Each line rounds 1.5 → 2; taxing the ₹0.60 total would give 3.
+    expect(priceTotals({ lines: taxed })).toMatchObject({ subtotalPaise: 60, taxPaise: 4, totalPaise: 64 });
+  });
+
+  it('never taxes the delivery fee (D-4)', () => {
+    const totals = priceTotals({ lines: [priceLine(10000, 1, 18)], store, fulfilmentMode: 'delivery' });
+    expect(totals).toMatchObject({ subtotalPaise: 10000, taxPaise: 1800, deliveryFeePaise: 2900, totalPaise: 14700 });
+  });
+
+  it('applies the free-delivery threshold to the pre-tax subtotal', () => {
+    const generous = { ...store, free_delivery_threshold_paise: 10000 };
+    const totals = priceTotals({ lines: [priceLine(10000, 1, 18)], store: generous, fulfilmentMode: 'delivery' });
+    expect(totals.deliveryFeePaise).toBe(0);
   });
 
   it('never lets a discount exceed the subtotal — the constraint forbids it', () => {

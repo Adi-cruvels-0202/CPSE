@@ -68,7 +68,7 @@ export function CartLine({ line, storeSlug, onChangeQuantity, onRemove, busy }) 
           </div>
         </div>
 
-        <p className="cart-line__total numeric">{formatPaise(line.lineTotalPaise)}</p>
+        <p className="cart-line__total numeric">{formatPaise(line.lineSubtotalPaise ?? line.lineTotalPaise)}</p>
       </div>
 
       <LineIssues issues={line.issues} />

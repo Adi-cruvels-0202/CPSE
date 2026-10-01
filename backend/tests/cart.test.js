@@ -19,6 +19,8 @@ const {
   seedProduct,
   seedProductImage,
   seedProductVariant,
+  setStock,
+  defaultVariantOf,
 } = await import('./helpers/supabaseMock.js');
 
 const OTHER_CUSTOMER_ID = '9f8a1c2e-5b3d-4a7f-9c1e-2d4b6a8c0e99';
@@ -114,8 +116,9 @@ describe('GET /api/v1/cart (5.1)', () => {
     const product = seedProduct({ price_paise: 10000 });
     await addItem(auth, { storeId: STORE_ID, productId: product.id, quantity: 2 });
 
-    // The merchant reprices while the cart is open.
-    product.price_paise = 12000;
+    // The merchant reprices while the cart is open — on the variant, which is
+    // where the price lives (migration 0030).
+    defaultVariantOf(product).price_paise = 12000;
 
     const { body } = await api().get(cartUrl()).set(auth);
 
@@ -222,19 +225,43 @@ describe('POST /api/v1/cart/items (5.2, 5.7, 5.8)', () => {
     expect(body.data.cart.lines[1].unitPricePaise).toBe(59900);
   });
 
-  it('keeps the no-variant line separate from a variant line of the same product', async () => {
+  it('fills in a product’s only variant, and does not name it on the line (D-6)', async () => {
     const auth = signIn();
     const product = seedProduct();
-    const variant = seedProductVariant({ product_id: product.id, name: '1 kg' });
+
+    const { body } = await addItem(auth, { storeId: STORE_ID, productId: product.id });
+
+    expect(body.data.cart.lines[0]).toMatchObject({
+      variantId: defaultVariantOf(product).id,
+      variantName: null,
+    });
+  });
+
+  it('treats the only variant named or not as the same line', async () => {
+    const auth = signIn();
+    const product = seedProduct();
 
     await addItem(auth, { storeId: STORE_ID, productId: product.id });
     const { body } = await addItem(auth, {
       storeId: STORE_ID,
       productId: product.id,
-      variantId: variant.id,
+      variantId: defaultVariantOf(product).id,
     });
 
-    expect(body.data.cart.lines).toHaveLength(2);
+    expect(body.data.cart.lines).toHaveLength(1);
+    expect(body.data.cart.lines[0].quantity).toBe(2);
+  });
+
+  it('asks which option when a product has more than one (D-6)', async () => {
+    const auth = signIn();
+    const product = seedProduct({ name: 'Basmati Rice' });
+    seedProductVariant({ product_id: product.id, name: '1 kg' });
+    seedProductVariant({ product_id: product.id, name: '5 kg', price_paise: 59900 });
+
+    const res = await addItem(auth, { storeId: STORE_ID, productId: product.id });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error).toMatchObject({ code: 'VARIANT_REQUIRED', message: 'Choose an option for Basmati Rice.' });
   });
 
   it('rejects a quantity of zero, a negative and a fraction (5.8)', async () => {
@@ -547,7 +574,7 @@ describe('POST /api/v1/cart/validate (5.10, 5.12)', () => {
     const auth = signIn();
     const product = seedProduct({ stock: 10 });
     await addItem(auth, { storeId: STORE_ID, productId: product.id, quantity: 5 });
-    product.stock = 2;
+    setStock(product, 2);
 
     const { body } = await validateCart(auth, { storeId: STORE_ID });
 
@@ -558,7 +585,7 @@ describe('POST /api/v1/cart/validate (5.10, 5.12)', () => {
     const auth = signIn();
     const product = seedProduct({ stock: 10 });
     await addItem(auth, { storeId: STORE_ID, productId: product.id });
-    product.stock = 0;
+    setStock(product, 0);
 
     const { body } = await validateCart(auth, { storeId: STORE_ID });
 
@@ -570,7 +597,7 @@ describe('POST /api/v1/cart/validate (5.10, 5.12)', () => {
     const product = seedProduct({ price_paise: 10000 });
     const { body: added } = await addItem(auth, { storeId: STORE_ID, productId: product.id });
     const itemId = added.data.cart.lines[0].id;
-    product.price_paise = 11000;
+    defaultVariantOf(product).price_paise = 11000;
 
     const { body } = await validateCart(auth, {
       storeId: STORE_ID,
@@ -607,7 +634,7 @@ describe('POST /api/v1/cart/validate (5.10, 5.12)', () => {
     await addItem(auth, { storeId: STORE_ID, productId: first.id });
     await addItem(auth, { storeId: STORE_ID, productId: second.id, quantity: 3 });
     first.is_available = false;
-    second.stock = 1;
+    setStock(second, 1);
 
     const { body } = await validateCart(auth, { storeId: STORE_ID });
 

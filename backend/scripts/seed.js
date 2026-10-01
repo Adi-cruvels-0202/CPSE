@@ -21,6 +21,29 @@ async function upsert(table, rows) {
 }
 
 /**
+ * A Default variant that migration 0030 already created on this database has a
+ * random id. Upserting the seed's fixed id beside it would add a second
+ * 'Default' to the product and trip the unique variant name, so the existing
+ * row's id is reused instead.
+ */
+async function adoptExistingDefaultVariants(variantRows) {
+  const defaults = variantRows.filter((row) => row.name === 'Default');
+  if (defaults.length === 0) return variantRows;
+
+  const { data, error } = await supabaseAdmin
+    .from('product_variants')
+    .select('id, product_id')
+    .eq('name', 'Default')
+    .in('product_id', defaults.map((row) => row.product_id));
+  if (error) throw new Error(`product_variants: ${error.message}`);
+
+  const existing = new Map((data ?? []).map((row) => [row.product_id, row.id]));
+  return variantRows.map((row) =>
+    row.name === 'Default' && existing.has(row.product_id) ? { ...row, id: existing.get(row.product_id) } : row,
+  );
+}
+
+/**
  * Creates the test customer if missing, otherwise reuses it. The customers row
  * itself comes from the on_auth_user_created trigger (migration 0003), so this
  * only touches auth.
@@ -84,7 +107,9 @@ async function seed() {
   await upsert('categories', categoryRows);
   await upsert('products', productRows);
   await upsert('product_images', imageRows);
-  await upsert('product_variants', variantRows);
+  // Stock is reset to the seed's numbers; reserved_quantity is left alone, so
+  // a re-seed never forgets what open orders hold.
+  await upsert('product_variants', await adoptExistingDefaultVariants(variantRows));
 
   const customerId = await ensureTestCustomer();
   await seedKhata(customerId);

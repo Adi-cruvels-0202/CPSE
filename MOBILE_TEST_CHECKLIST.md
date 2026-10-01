@@ -9,14 +9,14 @@ Run both servers, then open the app on a real phone and a real desktop browser.
 
 ```bash
 cd backend  && npm run dev              # :4000
-cd frontend && npm run dev -- --host    # --host makes it reachable from your phone
+cd frontend/customer && npm run dev -- --host    # --host makes it reachable from your phone
 ```
 
 Browse to `http://<your-computer's-LAN-IP>:5173` from the phone. Two things must
 change for that to work:
 
 - `backend/.env` → `CORS_ORIGINS=http://localhost:5173,http://<LAN-IP>:5173`
-- `frontend/.env` → `VITE_API_BASE_URL=http://<LAN-IP>:4000/api/v1`
+- `frontend/customer/.env` → `VITE_API_BASE_URL=http://<LAN-IP>:4000/api/v1`
 
 Sign in as `test.customer@cpse.local` / `CpseTest!2026`.
 

@@ -5,7 +5,7 @@ Customer Portal & Shopping Experience — React + Vite, mobile-first.
 ## Setup
 
 ```bash
-cd frontend
+cd frontend/customer
 npm install
 cp .env.example .env
 npm run dev          # http://localhost:5173

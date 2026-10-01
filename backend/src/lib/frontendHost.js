@@ -10,7 +10,7 @@ import { API_PREFIX } from '../app.js';
 import { logger } from './logger.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const FRONTEND_DIR = path.resolve(HERE, '../../../frontend');
+const FRONTEND_DIR = path.resolve(HERE, '../../../frontend/customer');
 const DIST_DIR = path.join(FRONTEND_DIR, 'dist');
 
 /** Kept so shutdown can close Vite's watchers and HMR socket. */
@@ -30,7 +30,7 @@ function apiRequestsPassThrough(req, res, next) {
 /**
  * Development: run Vite inside this process, in middleware mode.
  *
- * Vite is resolved out of `frontend/node_modules` rather than being a backend
+ * Vite is resolved out of `frontend/customer/node_modules` rather than being a backend
  * dependency — it is the frontend's build tool and stays versioned with the
  * frontend. Nothing is built ahead of time: Vite transforms each module as the
  * browser asks for it and pushes HMR updates over the API server's own HTTP

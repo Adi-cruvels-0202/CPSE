@@ -32,6 +32,8 @@ const EXPECTED_TABLES = [
   'notifications',
   'khata_accounts',
   'khata_transactions',
+  'merchants',
+  'inventory_ledger',
 ];
 
 describe('migration files', () => {
@@ -48,19 +50,21 @@ describe('migration files', () => {
     expect(names[1]).toMatch(/^0002_/);
   });
 
-  it('applies the RLS policies after every table has been created', async () => {
+  it('enables RLS on every table in the migration that creates it, or a later one', async () => {
+    // A table with RLS switched on only in an EARLIER file would sit open in
+    // between. 0018 covers the tables before it; each later table carries its
+    // own `enable row level security`.
     const all = await migrations;
-    const rlsIndex = all.findIndex((m) => m.name.endsWith('_rls.sql'));
-    expect(rlsIndex).toBeGreaterThan(-1);
-
-    // A table created in a later migration would have no policy, so the RLS
-    // file must stay after the last `create table`.
-    const lastTableIndex = all.reduce(
-      (last, migration, index) =>
-        /create table if not exists/i.test(migration.sql) ? index : last,
-      -1,
-    );
-    expect(rlsIndex).toBeGreaterThan(lastTableIndex);
+    const wrong = [];
+    all.forEach((migration, index) => {
+      for (const [, table] of migration.sql.matchAll(/create table if not exists public\.(\w+)/gi)) {
+        const enabled = all
+          .slice(index)
+          .some((later) => new RegExp(`alter table public\\.${table}\\s+enable row level security`, 'i').test(later.sql));
+        if (!enabled) wrong.push(`${table} (${migration.name})`);
+      }
+    });
+    expect(wrong).toEqual([]);
   });
 
   it('creates every table the checklist requires', async () => {
@@ -72,7 +76,15 @@ describe('migration files', () => {
 
   it('declares every enum before it is used', async () => {
     const sql = await allSql();
-    for (const type of ['order_status', 'payment_status', 'fulfilment_mode', 'khata_txn_type']) {
+    for (const type of [
+      'order_status',
+      'payment_status',
+      'fulfilment_mode',
+      'khata_txn_type',
+      'shop_category',
+      'product_unit',
+      'inventory_movement',
+    ]) {
       expect(sql).toContain(`create type ${type} as enum`);
     }
   });
@@ -172,6 +184,8 @@ describe('row level security (checklist 1.19)', () => {
       'notifications',
       'khata_accounts',
       'khata_transactions',
+      'merchants',
+      'inventory_ledger',
     ];
     for (const table of owned) {
       expect(sql, `no policy on ${table}`).toMatch(
@@ -612,5 +626,132 @@ describe('function privileges (checklist 10.1)', () => {
     for (const name of ['khata_statement', 'expire_stale_pending_orders', 'purge_abandoned_carts']) {
       expect(repair.sql).toContain(name);
     }
+  });
+});
+
+/**
+ * The merchant merge (migrations 0024+). Checks the rules from
+ * docs/MERCHANT_RULES.md that the schema itself must hold, whatever the API does.
+ */
+describe('merchant schema (MERCHANT_RULES, D-2 – D-6)', () => {
+  /** Every `alter table … add column if not exists X type`, as { table, column, type }. */
+  async function addedColumns() {
+    const sql = await allSql();
+    return [
+      ...sql.matchAll(/alter table public\.(\w+)\s+add column if not exists (\w+) ([\w]+)/gi),
+    ].map(([, table, column, type]) => ({ table, column, type: type.toLowerCase() }));
+  }
+
+  it('keys a merchant on the auth user, like a customer (D-2)', async () => {
+    const body = (await tableBlocks()).get('merchants');
+    expect(body).toMatch(/id\s+uuid primary key references auth\.users \(id\) on delete cascade/);
+  });
+
+  it('does not make every signup a merchant', async () => {
+    const sql = await allSql();
+    // Only the customers trigger runs on signup; becoming a merchant is an API call.
+    expect(sql).not.toMatch(/insert into public\.merchants/i);
+  });
+
+  it('stores added money columns as integer paise too (D-3)', async () => {
+    const offenders = (await addedColumns()).filter(
+      ({ column, type }) =>
+        /price|amount|fee|total|subtotal|discount|cost|threshold_paise|_paise$/.test(column) &&
+        (type !== 'integer' || !column.endsWith('_paise')),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('indexes every foreign key added by alter table', async () => {
+    const sql = await allSql();
+    const idx = await indexes();
+    const added = [
+      ...sql.matchAll(/alter table public\.(\w+)\s+add column if not exists (\w+) uuid references/gi),
+    ].map(([, table, column]) => ({ table, column }));
+
+    expect(added.length).toBeGreaterThan(0);
+    const missing = added.filter(
+      ({ table, column }) => !(idx.get(table) ?? []).some((i) => i.columns.split(',')[0].trim() === column),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('keeps existing stores visible and starts new ones unpublished (S-6)', async () => {
+    const sql = await allSql();
+    // Added as true so today's stores stay up, then the default flips. A
+    // re-run is a no-op, so it never republishes a store a merchant took down.
+    expect(sql).toMatch(/add column if not exists is_published boolean not null default true;/i);
+    expect(sql).toMatch(/alter column is_published set default false;/i);
+    expect(sql).not.toMatch(/update public\.stores\s+set is_published/i);
+  });
+
+  it('shows customers only stores that are both active and published', async () => {
+    const sql = await allSql();
+    const policies = (sql.match(/create policy (?:stores|categories|products|product_images|product_variants)_public_read[\s\S]*?;/gi) ?? []);
+    // The last definition of each policy is the one in force.
+    const latest = new Map(policies.map((p) => [/create policy (\w+)/i.exec(p)[1], p]));
+    expect(latest.size).toBe(5);
+    for (const [name, policy] of latest) {
+      expect(policy, name).toMatch(/is_published/);
+    }
+  });
+
+  it('requires at least one payment method on a store', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/stores_one_payment_method check \(accepts_cash or accepts_online\)/i);
+  });
+
+  it('makes category names unique per store, ignoring case (C-2)', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/unique index if not exists categories_store_name_key\s+on public\.categories \(store_id, lower\(name\)\)/i);
+  });
+
+  it('makes SKUs unique per store, not globally (P-5)', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/unique index if not exists product_variants_store_sku_key\s+on public\.product_variants \(store_id, sku\)/i);
+  });
+
+  it('ties a variant’s store to its product’s store', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/foreign key \(product_id, store_id\)\s+references public\.products \(id, store_id\)/i);
+    expect(sql).toMatch(/create trigger product_variants_set_store_id\s+before insert or update of product_id on public\.product_variants/i);
+  });
+
+  it('never lets reserved stock exceed what is on hand (D-5, I-2, I-3, I-8)', async () => {
+    const sql = await allSql();
+    expect(sql).toContain('product_variants_on_hand_nonneg check (quantity_on_hand >= 0)');
+    expect(sql).toContain('product_variants_reserved_nonneg check (reserved_quantity >= 0)');
+    expect(sql).toContain('product_variants_reserved_lte_on_hand check (reserved_quantity <= quantity_on_hand)');
+  });
+
+  it('bounds the tax rate and snapshots it onto order lines (D-4)', async () => {
+    const sql = await allSql();
+    expect(sql).toContain('products_tax_percent_range check (tax_percent between 0 and 100)');
+    expect(sql).toContain('order_items_tax_percent_range check (tax_percent between 0 and 100)');
+    expect(sql).toMatch(/alter table public\.order_items\s+add column if not exists tax_paise integer not null default 0/i);
+  });
+
+  it('records both stock numbers on every ledger row (I-5, I-6)', async () => {
+    const body = (await tableBlocks()).get('inventory_ledger');
+    for (const column of ['on_hand_change', 'reserved_change', 'on_hand_after', 'reserved_after']) {
+      expect(body).toMatch(new RegExp(`\\b${column}\\s+integer not null`));
+    }
+    expect(body).toMatch(/inventory_ledger_after_valid\s+check \(reserved_after <= on_hand_after\)/);
+    expect(body).toMatch(/inventory_ledger_moves_something\s+check \(on_hand_change <> 0 or reserved_change <> 0\)/);
+  });
+
+  it('keeps the inventory ledger immutable', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/create trigger inventory_ledger_immutable\s+before update or delete on public\.inventory_ledger/i);
+  });
+
+  it('never lets the audit trail disappear with what it audits', async () => {
+    const fks = (await foreignKeys()).get('inventory_ledger');
+    expect(fks.map((fk) => fk.onDelete)).toEqual(['restrict', 'restrict', 'restrict']);
+  });
+
+  it('lets a merchant read only their own stores’ ledger', async () => {
+    const sql = await allSql();
+    expect(sql).toMatch(/create policy inventory_ledger_select_owner[\s\S]*?s\.owner_id = \(select auth\.uid\(\)\)/i);
   });
 });

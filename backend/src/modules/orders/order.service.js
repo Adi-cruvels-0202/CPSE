@@ -17,9 +17,11 @@ import {
 /**
  * Orders — checklist 7.4 – 7.9 and 8.1 – 8.9.
  *
- * Creation is one call to the `create_order` Postgres function (migration
- * 0020): order, items, first history entry, payment intent, stock decrement
- * and cart checkout all commit together or not at all. This module's job is
+ * Creation is one call to the `create_order` Postgres function (migrations
+ * 0020, 0030): order, items, first history entry, payment intent, stock
+ * reservation and cart checkout all commit together or not at all. Ending an
+ * order — cancelled, rejected, completed — releases or fulfils that
+ * reservation in a trigger on orders.status, so nothing here has to. This module's job is
  * everything around that — pricing through the shared quote, idempotency,
  * mapping the function's errors to customer-facing ones, and every read.
  *
@@ -40,8 +42,8 @@ const ORDER_COLUMNS = `
 `;
 
 const ORDER_ITEM_COLUMNS = `
-  id, order_id, product_id, variant_id, product_name, variant_name, image_url,
-  unit_price_paise, quantity, line_total_paise, created_at
+  id, order_id, product_id, variant_id, product_name, variant_name, sku, image_url,
+  unit_price_paise, quantity, tax_percent, tax_paise, line_total_paise, created_at
 `;
 
 // ── Creation ────────────────────────────────────────────────────────────────
@@ -108,9 +110,13 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
       variant_id: line.variantId,
       product_name: line.name,
       variant_name: line.variantName,
+      sku: line.sku,
       image_url: line.imageUrl,
       unit_price_paise: line.unitPricePaise,
       quantity: line.quantity,
+      // Snapshotted, so changing a product's rate never rewrites this bill (D-4).
+      tax_percent: line.taxPercent,
+      tax_paise: line.taxPaise,
       line_total_paise: line.lineTotalPaise,
     })),
     payment: isOnline
@@ -123,7 +129,7 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
   if (error) throw translateCreateError(error);
 
   // Checklist 7.5. A replay returns the original order untouched — same id,
-  // same number, no second charge and no second stock decrement.
+  // same number, no second charge and no second stock reservation.
   const result = Array.isArray(data) ? data[0] : data;
   const order = await getOrder(customerId, result.order_id);
   const replayed = Boolean(result.replayed);
@@ -239,9 +245,14 @@ export const toPublicOrderItem = (row) => ({
   // The snapshot, not a live lookup — this is what the customer actually bought.
   name: row.product_name,
   variantName: row.variant_name ?? null,
+  sku: row.sku ?? null,
   imageUrl: row.image_url ?? null,
   unitPricePaise: row.unit_price_paise,
   quantity: row.quantity,
+  lineSubtotalPaise: row.unit_price_paise * row.quantity,
+  taxPercent: Number(row.tax_percent ?? 0),
+  taxPaise: row.tax_paise ?? 0,
+  // Tax included (MERCHANT_RULES O-16).
   lineTotalPaise: row.line_total_paise,
 });
 
@@ -524,7 +535,8 @@ export async function getReceipt(customerId, orderId) {
           paidAt: order.payment.paidAt,
         }
       : { method: 'cash', status: order.paymentStatus, reference: null, paidAt: null },
-    // Not a tax invoice: prices are tax-inclusive and no GSTIN is collected (D27).
+    // GST is itemised on every line (D-4), but this is still not a tax invoice:
+    // no GSTIN is collected for the store or the customer.
     isTaxInvoice: false,
   };
 }

@@ -66,6 +66,8 @@ const KNOWN_TABLES = [
   'notifications',
   'khata_accounts',
   'khata_transactions',
+  'merchants',
+  'inventory_ledger',
 ];
 
 /** A row as the wire would deliver it: a snapshot, not a live reference. */
@@ -79,6 +81,8 @@ function rowsOf(table) {
 export function resetDb() {
   db.customers.clear();
   db.tables.clear();
+  autoDefaultVariants.clear();
+  defaultVariantCounter = 0;
   db.failNextQuery = null;
   db.failQueryOnTable = null;
   db.failNextUpdate = null;
@@ -157,7 +161,15 @@ export function storeRow(overrides = {}) {
     delivery_enabled: true,
     min_order_paise: 19900,
     delivery_fee_paise: 2900,
+    free_delivery_threshold_paise: null,
     is_active: true,
+    // Migration 0025
+    owner_id: null,
+    is_published: true,
+    shop_category: null,
+    delivery_radius_km: null,
+    accepts_cash: true,
+    accepts_online: true,
     created_at: '2026-09-01T10:00:00.000Z',
     updated_at: '2026-09-01T10:00:00.000Z',
     ...overrides,
@@ -178,8 +190,20 @@ export function seedCategory(overrides = {}) {
   });
 }
 
+/**
+ * Every product has at least one variant (D-6, migration 0030). seedProduct
+ * adds a 'Default' one carrying the product's price and stock, exactly as the
+ * backfill does; the first seedProductVariant for that product replaces it.
+ *
+ * `stock` is accepted in the old shape — a number, or null for "not counted" —
+ * and becomes track_inventory plus the variant's quantity_on_hand.
+ */
+const autoDefaultVariants = new Map();
+let defaultVariantCounter = 0;
+
 export function seedProduct(overrides = {}) {
-  return insert('products', {
+  const { stock = 40, ...rest } = overrides;
+  const product = insert('products', {
     id: `31111111-1111-4111-8111-${String(rowsOf('products').length + 1).padStart(12, '0')}`,
     store_id: STORE_ID,
     category_id: CATEGORY_ID,
@@ -188,11 +212,64 @@ export function seedProduct(overrides = {}) {
     description: 'Aged long-grain basmati.',
     price_paise: 12900,
     mrp_paise: 15000,
+    tax_percent: 0,
+    unit: 'pcs',
+    track_inventory: stock !== null,
+    low_stock_threshold: null,
     is_available: true,
-    stock: 40,
     sort_order: rowsOf('products').length + 1,
-    ...overrides,
+    ...rest,
   });
+
+  defaultVariantCounter += 1;
+  const variant = insert('product_variants', {
+    // Own id range, so adding these does not shift any nextId() a test expects.
+    id: `51111111-1111-4111-8111-9${String(defaultVariantCounter).padStart(11, '0')}`,
+    product_id: product.id,
+    store_id: product.store_id,
+    name: 'Default',
+    sku: null,
+    price_paise: product.price_paise,
+    mrp_paise: product.mrp_paise ?? null,
+    cost_paise: null,
+    quantity_on_hand: stock ?? 0,
+    reserved_quantity: 0,
+    is_available: true,
+    sort_order: 0,
+  });
+  autoDefaultVariants.set(product.id, variant.id);
+  return product;
+}
+
+/** The variant a single-variant product sells — its Default. */
+export const defaultVariantOf = (product) =>
+  rowsOf('product_variants').find((row) => row.product_id === product.id);
+
+/**
+ * Sets what is on the shelf. Takes a product (its only variant is changed) or
+ * a variant row. Replaces the old `product.stock = n`.
+ */
+export function setStock(row, quantity) {
+  const variants = rowsOf('product_variants');
+  const variant = variants.find((v) => v.id === row.id) ?? variants.find((v) => v.product_id === row.id);
+  variant.quantity_on_hand = quantity;
+  return variant;
+}
+
+/** Migration 0030's sync_product_price: the product shows its cheapest variant. */
+function syncProductPrice(product) {
+  const [cheapest] = rowsOf('product_variants')
+    .filter((variant) => variant.product_id === product.id)
+    .sort(
+      (a, b) =>
+        Number(b.is_available) - Number(a.is_available) ||
+        a.price_paise - b.price_paise ||
+        a.sort_order - b.sort_order,
+    );
+  if (cheapest) {
+    product.price_paise = cheapest.price_paise;
+    product.mrp_paise = cheapest.mrp_paise ?? null;
+  }
 }
 
 export function seedProductImage(overrides = {}) {
@@ -207,16 +284,35 @@ export function seedProductImage(overrides = {}) {
 }
 
 export function seedProductVariant(overrides = {}) {
-  return insert('product_variants', {
+  const { stock = 10, ...rest } = overrides;
+  const product = rowsOf('products').find((row) => row.id === rest.product_id) ?? null;
+
+  // A product given real variants no longer has its placeholder Default.
+  if (product && autoDefaultVariants.has(product.id)) {
+    const placeholder = autoDefaultVariants.get(product.id);
+    db.tables.set('product_variants', rowsOf('product_variants').filter((row) => row.id !== placeholder));
+    autoDefaultVariants.delete(product.id);
+  }
+  // Counting is per product now; an uncounted variant means an uncounted product.
+  if (product && stock === null) product.track_inventory = false;
+
+  const variant = insert('product_variants', {
     id: nextId('5'),
     product_id: null,
+    store_id: product?.store_id ?? STORE_ID,
     name: '1 kg',
+    sku: null,
     price_paise: 12900,
-    stock: 10,
+    mrp_paise: null,
+    cost_paise: null,
+    quantity_on_hand: stock ?? 0,
+    reserved_quantity: 0,
     is_available: true,
     sort_order: rowsOf('product_variants').length + 1,
-    ...overrides,
+    ...rest,
   });
+  if (product) syncProductPrice(product);
+  return variant;
 }
 
 export function seedNotification(overrides = {}) {
@@ -391,7 +487,15 @@ function queryBuilder(table) {
     let rows = rowsOf(table).filter(matches);
 
     if (state.mode === 'update') {
+      const before = new Map(rows.map((row) => [row.id, row.status]));
       const updated = rows.map(applyPatch);
+      // Migration 0030's trigger: an order reaching an end state releases or
+      // fulfils its reservation in the same statement.
+      if (table === 'orders') {
+        for (const row of updated) {
+          if (before.get(row.id) !== row.status) applyOrderStockMovement(row);
+        }
+      }
       if (single) return { data: copy(updated[0] ?? null), error: null, count: null };
       return { data: state.returning ? updated.map(copy) : null, error: null, count: null };
     }
@@ -492,13 +596,12 @@ function queryBuilder(table) {
 
 /**
  * An in-memory stand-in for the `create_order` Postgres function
- * (migration 0020), mirroring its behaviour step for step: idempotent replay,
- * order + items + history + payment intent, the stock decrement, the
- * unavailable-item failure, and the cart being checked out.
+ * (migrations 0020, 0030), mirroring its behaviour step for step: idempotent
+ * replay, order + items + history + payment intent, the stock reservation and
+ * its ledger row, the unavailable-item failure, and the cart being checked out.
  *
- * The SQL itself lives in migrations/0020_create_order.sql and is verified
- * against the real database by running the seeded journey in Supabase; this
- * stand-in is what lets the API-level tests exercise the contract offline.
+ * The SQL itself is tested against real Postgres in tests/stockSql.test.js;
+ * this stand-in is what lets the API-level tests exercise the contract.
  */
 export function createOrderRpc({ payload }) {
   const rows = (table) => {
@@ -548,20 +651,25 @@ export function createOrderRpc({ payload }) {
   };
 
   // The function raises before committing anything, so nothing is written
-  // until every line has passed its availability and stock check.
+  // until every line has passed its availability and stock check. Lines are
+  // checked and reserved in variant order, as the SQL does.
   const items = [];
-  for (const item of payload.items) {
-    const variant = item.variant_id
-      ? rows('product_variants').find((row) => row.id === item.variant_id)
-      : null;
-    const product = rows('products').find((row) => row.id === item.product_id);
-    const source = variant ?? product;
+  const reservations = [];
+  const lines = [...payload.items].sort((a, b) => String(a.variant_id).localeCompare(String(b.variant_id)));
+  for (const item of lines) {
+    const variant = rows('product_variants').find((row) => row.id === item.variant_id) ?? null;
+    const product = rows('products').find((row) => row.id === item.product_id) ?? null;
 
+    const available =
+      variant && product ? variant.quantity_on_hand - variant.reserved_quantity : 0;
     const unavailable =
-      !source ||
-      !source.is_available ||
-      (product && product.store_id !== payload.store_id) ||
-      (source.stock !== null && source.stock !== undefined && source.stock < item.quantity);
+      !variant ||
+      !product ||
+      variant.product_id !== product.id ||
+      product.store_id !== payload.store_id ||
+      !product.is_available ||
+      !variant.is_available ||
+      (product.track_inventory && available < item.quantity);
 
     if (unavailable) {
       return {
@@ -570,20 +678,51 @@ export function createOrderRpc({ payload }) {
       };
     }
 
-    if (source.stock !== null && source.stock !== undefined) source.stock -= item.quantity;
+    // The order_items_line_total_matches CHECK (migration 0030).
+    if (item.line_total_paise !== item.unit_price_paise * item.quantity + (item.tax_paise ?? 0)) {
+      return {
+        data: null,
+        error: { code: '23514', message: 'violates check constraint "order_items_line_total_matches"' },
+      };
+    }
+
+    if (product.track_inventory) reservations.push({ variant, product, quantity: item.quantity });
 
     items.push({
       id: nextId('e'),
       order_id: order.id,
       product_id: item.product_id,
-      variant_id: item.variant_id ?? null,
+      variant_id: item.variant_id,
       product_name: item.product_name,
       variant_name: item.variant_name ?? null,
+      sku: item.sku ?? null,
       image_url: item.image_url ?? null,
       unit_price_paise: item.unit_price_paise,
       quantity: item.quantity,
+      tax_percent: item.tax_percent ?? 0,
+      tax_paise: item.tax_paise ?? 0,
       line_total_paise: item.line_total_paise,
       created_at: new Date().toISOString(),
+    });
+  }
+
+  for (const { variant, product, quantity } of reservations) {
+    variant.reserved_quantity += quantity;
+    rows('inventory_ledger').push({
+      id: nextId('9'),
+      store_id: payload.store_id,
+      product_id: product.id,
+      variant_id: variant.id,
+      movement_type: 'order_reserved',
+      on_hand_change: 0,
+      reserved_change: quantity,
+      on_hand_after: variant.quantity_on_hand,
+      reserved_after: variant.reserved_quantity,
+      reference_type: 'order',
+      reference_id: order.id,
+      performed_by_type: 'customer',
+      performed_by_id: payload.customer_id,
+      created_at: now,
     });
   }
 
@@ -629,6 +768,55 @@ export function createOrderRpc({ payload }) {
     data: { order_id: order.id, order_number: order.order_number, replayed: false },
     error: null,
   };
+}
+
+/**
+ * Stand-in for the orders_apply_stock_movement trigger (migration 0030). Reads
+ * what the order still holds from the ledger and releases it (rejected,
+ * cancelled) or takes it off the shelf (completed), logging each move.
+ */
+function applyOrderStockMovement(order) {
+  const movement =
+    order.status === 'cancelled' || order.status === 'rejected'
+      ? 'order_released'
+      : order.status === 'completed'
+        ? 'order_fulfilled'
+        : null;
+  if (!movement) return;
+
+  const ledger = db.tables.get('inventory_ledger') ?? [];
+  const held = new Map();
+  for (const entry of ledger) {
+    if (entry.reference_type !== 'order' || entry.reference_id !== order.id) continue;
+    held.set(entry.variant_id, {
+      productId: entry.product_id,
+      quantity: (held.get(entry.variant_id)?.quantity ?? 0) + entry.reserved_change,
+    });
+  }
+
+  for (const [variantId, { productId, quantity }] of held) {
+    if (quantity <= 0) continue;
+    const variant = rowsOf('product_variants').find((row) => row.id === variantId);
+    variant.reserved_quantity -= quantity;
+    if (movement === 'order_fulfilled') variant.quantity_on_hand -= quantity;
+    ledger.push({
+      id: nextId('9'),
+      store_id: order.store_id,
+      product_id: productId,
+      variant_id: variantId,
+      movement_type: movement,
+      on_hand_change: movement === 'order_fulfilled' ? -quantity : 0,
+      reserved_change: -quantity,
+      on_hand_after: variant.quantity_on_hand,
+      reserved_after: variant.reserved_quantity,
+      reference_type: 'order',
+      reference_id: order.id,
+      performed_by_type: 'system',
+      performed_by_id: null,
+      created_at: new Date().toISOString(),
+    });
+  }
+  db.tables.set('inventory_ledger', ledger);
 }
 
 /**

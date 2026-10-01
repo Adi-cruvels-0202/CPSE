@@ -19,12 +19,14 @@ export const STORE_COLUMNS = `
   address_line1, address_line2, city, state, postal_code, country,
   latitude, longitude, opening_hours, timezone,
   pickup_enabled, delivery_enabled, min_order_paise, delivery_fee_paise,
-  is_active, created_at, updated_at
+  free_delivery_threshold_paise, is_active, created_at, updated_at
 `;
 
+// price_paise / mrp_paise are the cheapest variant's, kept in step by a
+// trigger (migration 0030). Stock lives on the variants (D-5).
 const PRODUCT_COLUMNS = `
   id, store_id, category_id, name, slug, description,
-  price_paise, mrp_paise, is_available, stock, sort_order
+  price_paise, mrp_paise, tax_percent, unit, track_inventory, is_available, sort_order
 `;
 
 /**
@@ -100,6 +102,8 @@ export function toPublicStore(row, { isSaved = null, now = new Date() } = {}) {
       deliveryEnabled: row.delivery_enabled,
       minOrderPaise: row.min_order_paise,
       deliveryFeePaise: row.delivery_fee_paise,
+      // Delivery is free once the subtotal reaches this; null = never free.
+      freeDeliveryThresholdPaise: row.free_delivery_threshold_paise ?? null,
     },
     // Payment options are the same everywhere for now: the mock provider (D7)
     // plus cash on pickup/delivery. Declared here so the storefront can render
@@ -117,8 +121,38 @@ export const toPublicCategory = (row) => ({
   sortOrder: row.sort_order,
 });
 
-export function toPublicProduct(row, imageUrl = null) {
-  const outOfStock = row.stock !== null && row.stock <= 0;
+/**
+ * The variant migration 0030 gives a product sold without options (D-6). It
+ * is not a choice the customer made, so it is never shown to them: no picker
+ * on the product page and no name on a cart or order line.
+ */
+export const DEFAULT_VARIANT_NAME = 'Default';
+export const isDefaultVariant = (variant) => variant?.name === DEFAULT_VARIANT_NAME;
+
+/**
+ * What can still be sold of one variant: on hand minus what open orders hold
+ * (D-5). null when the product is not counted at all.
+ */
+export function availableQuantity(product, variant) {
+  if (!product.track_inventory) return null;
+  return Math.max(0, variant.quantity_on_hand - variant.reserved_quantity);
+}
+
+/**
+ * A product's stock is the sum over its sellable variants — what the customer
+ * could buy in total. `variants` are that product's rows; a product with none
+ * sellable is out of stock whether or not it is counted.
+ */
+export function productStock(product, variants) {
+  const sellable = variants.filter((variant) => variant.is_available);
+  if (!product.track_inventory) return { stock: null, outOfStock: sellable.length === 0 };
+
+  const stock = sellable.reduce((sum, variant) => sum + availableQuantity(product, variant), 0);
+  return { stock, outOfStock: stock <= 0 };
+}
+
+export function toPublicProduct(row, imageUrl = null, variants = []) {
+  const { stock, outOfStock } = productStock(row, variants);
   return {
     id: row.id,
     storeId: row.store_id,
@@ -128,9 +162,13 @@ export function toPublicProduct(row, imageUrl = null) {
     description: row.description ?? null,
     pricePaise: row.price_paise,
     mrpPaise: row.mrp_paise ?? null,
+    // Tax is added on top of pricePaise at checkout (D-4); the product page
+    // says "+ GST" when this is above zero.
+    taxPercent: Number(row.tax_percent ?? 0),
+    unit: row.unit ?? 'pcs',
     isAvailable: row.is_available,
-    // stock null means the store does not count this item (migration 0006).
-    stock: row.stock ?? null,
+    // What can still be ordered, across variants; null = not counted.
+    stock,
     outOfStock,
     // The single flag the storefront should gate "Add to cart" on.
     isPurchasable: row.is_available && !outOfStock,
@@ -158,6 +196,26 @@ export async function listCategories(slug) {
 
   fail(error, 'Could not load the categories.');
   return { store, categories: (data ?? []).map(toPublicCategory) };
+}
+
+/** Every variant of these products, grouped by product — for stock on listings. */
+async function variantsByProduct(productIds) {
+  if (productIds.length === 0) return new Map();
+
+  const { data, error } = await supabaseAdmin
+    .from('product_variants')
+    .select(VARIANT_COLUMNS)
+    .in('product_id', productIds)
+    .order('sort_order', { ascending: true });
+
+  fail(error, 'Could not load the product variants.');
+
+  const byProduct = new Map();
+  for (const variant of data ?? []) {
+    if (!byProduct.has(variant.product_id)) byProduct.set(variant.product_id, []);
+    byProduct.get(variant.product_id).push(variant);
+  }
+  return byProduct;
 }
 
 /** Primary image per product, for the listing thumbnails. */
@@ -206,28 +264,39 @@ export async function listProducts(slug, { categoryId, page, limit, availableOnl
   fail(error, 'Could not load the products.');
 
   const rows = data ?? [];
-  const images = await primaryImages(rows.map((row) => row.id));
+  const ids = rows.map((row) => row.id);
+  const [images, variants] = await Promise.all([primaryImages(ids), variantsByProduct(ids)]);
 
   return {
     store,
-    products: rows.map((row) => toPublicProduct(row, images.get(row.id) ?? null)),
+    products: rows.map((row) =>
+      toPublicProduct(row, images.get(row.id) ?? null, variants.get(row.id) ?? []),
+    ),
     total: count ?? rows.length,
   };
 }
 
 // ── Phase 4: product detail and store-scoped search ─────────────────────────
 
-const VARIANT_COLUMNS = 'id, product_id, name, price_paise, stock, is_available, sort_order';
+// Never cost_paise: what the merchant paid is not the customer's business
+// (MERCHANT_RULES P-11).
+const VARIANT_COLUMNS = `
+  id, product_id, name, sku, price_paise, mrp_paise,
+  quantity_on_hand, reserved_quantity, is_available, sort_order
+`;
 
-export function toPublicVariant(row) {
-  const outOfStock = row.stock !== null && row.stock <= 0;
+export function toPublicVariant(row, product) {
+  const stock = availableQuantity(product, row);
+  const outOfStock = stock !== null && stock <= 0;
   return {
     id: row.id,
     productId: row.product_id,
     name: row.name,
     // Absolute, never a delta (decision D15) — the order snapshot copies it.
     pricePaise: row.price_paise,
-    stock: row.stock ?? null,
+    mrpPaise: row.mrp_paise ?? null,
+    // Available (on hand − reserved), never on hand: customer API change 3.
+    stock,
     isAvailable: row.is_available,
     outOfStock,
     isPurchasable: row.is_available && !outOfStock,
@@ -250,17 +319,22 @@ export async function getProductDetail(slug, productId) {
   const store = await findActiveStoreBySlug(slug);
   const product = await findStoreProduct(store.id, productId);
 
-  const [images, variants] = await Promise.all([
+  const [images, variantRows] = await Promise.all([
     listProductImages(product.id),
-    listProductVariants(product.id),
+    listVariantRows(product.id),
   ]);
 
   return {
     store,
     product: {
-      ...toPublicProduct(product, images[0]?.url ?? null),
+      ...toPublicProduct(product, images[0]?.url ?? null, variantRows),
       images,
-      variants,
+      // A product sold without options has only its Default variant, which is
+      // left out: the page shows no picker and the cart fills it in
+      // (cart.service resolveVariant). Real options, even a single one, show.
+      variants: variantRows
+        .filter((row) => !isDefaultVariant(row))
+        .map((row) => toPublicVariant(row, product)),
     },
   };
 }
@@ -290,7 +364,8 @@ export async function listProductImages(productId) {
   return (data ?? []).map(toPublicImage);
 }
 
-export async function listProductVariants(productId) {
+/** Raw variant rows of one product, in display order. */
+export async function listVariantRows(productId) {
   const { data, error } = await supabaseAdmin
     .from('product_variants')
     .select(VARIANT_COLUMNS)
@@ -299,7 +374,7 @@ export async function listProductVariants(productId) {
     .order('name', { ascending: true });
 
   fail(error, 'Could not load the product variants.');
-  return (data ?? []).map(toPublicVariant);
+  return data ?? [];
 }
 
 /**
@@ -342,14 +417,17 @@ export async function searchProducts(slug, { q, categoryId, page, limit }) {
   fail(error, 'Could not run the search.');
 
   const rows = data ?? [];
-  const images = await primaryImages(rows.map((row) => row.id));
+  const ids = rows.map((row) => row.id);
+  const [images, variants] = await Promise.all([primaryImages(ids), variantsByProduct(ids)]);
 
   return {
     store,
     query: q,
     // Checklist 4.4: an unavailable match is still returned, flagged by
     // toPublicProduct's isPurchasable rather than hidden.
-    products: rows.map((row) => toPublicProduct(row, images.get(row.id) ?? null)),
+    products: rows.map((row) =>
+      toPublicProduct(row, images.get(row.id) ?? null, variants.get(row.id) ?? []),
+    ),
     total: count ?? rows.length,
   };
 }

@@ -160,7 +160,7 @@ export function OrderPage() {
                   {item.quantity} × {formatPaise(item.unitPricePaise)}
                 </span>
               </span>
-              <span className="numeric">{formatPaise(item.lineTotalPaise)}</span>
+              <span className="numeric">{formatPaise(item.lineSubtotalPaise ?? item.lineTotalPaise)}</span>
             </li>
           ))}
         </ul>

@@ -1,10 +1,13 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { internal, notFound, unprocessable, conflict } from '../../lib/errors.js';
-import { priceTotals, unitPriceOf, lineTotal } from '../../lib/pricing.js';
+import { priceTotals, priceLine } from '../../lib/pricing.js';
 import {
   findActiveStoreById,
   findStoreProduct,
   findProductVariant,
+  listVariantRows,
+  availableQuantity,
+  isDefaultVariant,
 } from '../stores/store.service.js';
 import { MAX_QUANTITY } from './cart.schemas.js';
 
@@ -19,6 +22,10 @@ import { MAX_QUANTITY } from './cart.schemas.js';
  *  - The cart stores NO prices (migration 0010). Every read reprices from the
  *    live product row, so a merchant's price change is visible in the cart
  *    immediately; the snapshot happens at order time (D11).
+ *
+ * Every line names a variant (D-6, migration 0030). Adding a product with
+ * only one variant needs no variantId; a product sold without options has a
+ * Default variant the customer never sees named.
  */
 
 const fail = (error, message) => {
@@ -77,7 +84,7 @@ async function loadProducts(productIds) {
 
   const { data, error } = await supabaseAdmin
     .from('products')
-    .select('id, store_id, name, price_paise, mrp_paise, is_available, stock')
+    .select('id, store_id, name, tax_percent, track_inventory, is_available')
     .in('id', productIds);
 
   fail(error, 'Could not load the products in your cart.');
@@ -89,7 +96,7 @@ async function loadVariants(variantIds) {
 
   const { data, error } = await supabaseAdmin
     .from('product_variants')
-    .select('id, product_id, name, price_paise, stock, is_available')
+    .select('id, product_id, name, sku, price_paise, mrp_paise, quantity_on_hand, reserved_quantity, is_available')
     .in('id', variantIds);
 
   fail(error, 'Could not load the product variants in your cart.');
@@ -114,10 +121,12 @@ async function loadImages(productIds) {
   return byProduct;
 }
 
-/** How many units of this line the store can actually supply; null = untracked. */
+/**
+ * How many units of this line the store can actually supply — on hand minus
+ * what other orders already hold (D-5). null = the product is not counted.
+ */
 export function availableStock(product, variant) {
-  const source = variant ?? product;
-  return source.stock ?? null;
+  return variant ? availableQuantity(product, variant) : null;
 }
 
 /**
@@ -136,9 +145,13 @@ export function buildLine(item, product, variant, imageUrl) {
       variantId: item.variant_id ?? null,
       name: 'Unavailable item',
       variantName: null,
+      sku: null,
       imageUrl: null,
       unitPricePaise: 0,
       quantity: item.quantity,
+      lineSubtotalPaise: 0,
+      taxPercent: 0,
+      taxPaise: 0,
       lineTotalPaise: 0,
       stock: 0,
       isPurchasable: false,
@@ -150,7 +163,7 @@ export function buildLine(item, product, variant, imageUrl) {
     issues.push({ code: 'PRODUCT_UNAVAILABLE', message: `${product.name} is currently unavailable.` });
   }
 
-  if (item.variant_id && !variant) {
+  if (!variant) {
     issues.push({
       code: 'VARIANT_REMOVED',
       message: `The selected option for ${product.name} is no longer offered.`,
@@ -173,19 +186,21 @@ export function buildLine(item, product, variant, imageUrl) {
     });
   }
 
-  const unitPricePaise = unitPriceOf(product, variant ?? null);
+  const priced = priceLine(variant?.price_paise ?? 0, item.quantity, product.tax_percent);
 
   return {
     id: item.id,
     productId: product.id,
     variantId: variant?.id ?? null,
     name: product.name,
-    variantName: variant?.name ?? null,
+    // "Toor Dal", not "Toor Dal (Default)".
+    variantName: variant && !isDefaultVariant(variant) ? variant.name : null,
+    sku: variant?.sku ?? null,
     imageUrl: imageUrl ?? null,
-    unitPricePaise,
-    mrpPaise: variant ? null : product.mrp_paise ?? null,
-    quantity: item.quantity,
-    lineTotalPaise: lineTotal(unitPricePaise, item.quantity),
+    mrpPaise: variant?.mrp_paise ?? null,
+    // unitPricePaise, quantity, lineSubtotalPaise, taxPercent, taxPaise and
+    // lineTotalPaise (tax included) — the one line shape everywhere.
+    ...priced,
     stock,
     isPurchasable: issues.length === 0,
     issues,
@@ -213,7 +228,7 @@ export async function loadCart(customerId, storeId) {
 
   const items = await listCartItems(cart.id);
   const productIds = [...new Set(items.map((item) => item.product_id))];
-  const variantIds = [...new Set(items.map((item) => item.variant_id).filter(Boolean))];
+  const variantIds = [...new Set(items.map((item) => item.variant_id))];
 
   const [products, variants, images] = await Promise.all([
     loadProducts(productIds),
@@ -226,8 +241,9 @@ export async function loadCart(customerId, storeId) {
     // A product that has been moved to another store is as gone as a deleted
     // one, as far as this store's cart is concerned.
     const scoped = product && product.store_id === storeId ? product : null;
-    const variant = item.variant_id ? variants.get(item.variant_id) ?? null : null;
-    return buildLine(item, scoped, variant, images.get(item.product_id));
+    const variant = variants.get(item.variant_id) ?? null;
+    const sameProduct = variant && variant.product_id === item.product_id ? variant : null;
+    return buildLine(item, scoped, sameProduct, images.get(item.product_id));
   });
 
   return {
@@ -271,15 +287,29 @@ export async function getCart(customerId, storeId) {
  * null variant as its own value — while the same product+variant bumps the
  * existing line's quantity instead of creating a duplicate.
  */
+/**
+ * The variant a cart line buys. Named → that one (404 if it belongs to another
+ * product). Not named → the product's only variant; a product with a real
+ * choice has to be told which (D-6).
+ */
+async function resolveVariant(product, variantId) {
+  if (variantId) return findProductVariant(product.id, variantId);
+
+  const variants = await listVariantRows(product.id);
+  if (variants.length === 1) return variants[0];
+  throw unprocessable('VARIANT_REQUIRED', `Choose an option for ${product.name}.`);
+}
+
 export async function addItem(customerId, { storeId, productId, variantId, quantity }) {
   const store = await findActiveStoreById(storeId);
   const product = await findStoreProduct(store.id, productId);
-  const variant = variantId ? await findProductVariant(product.id, variantId) : null;
 
   if (!product.is_available) {
     throw unprocessable('PRODUCT_UNAVAILABLE', `${product.name} is currently unavailable.`);
   }
-  if (variant && !variant.is_available) {
+
+  const variant = await resolveVariant(product, variantId);
+  if (!variant.is_available) {
     throw unprocessable(
       'VARIANT_UNAVAILABLE',
       `${product.name} (${variant.name}) is currently unavailable.`,
@@ -287,7 +317,7 @@ export async function addItem(customerId, { storeId, productId, variantId, quant
   }
 
   const cart = await getOrCreateCart(customerId, storeId);
-  const existing = await findLine(cart.id, productId, variantId ?? null);
+  const existing = await findLine(cart.id, productId, variant.id);
   const nextQuantity = (existing?.quantity ?? 0) + quantity;
 
   assertQuantityAllowed(product, variant, nextQuantity);
@@ -298,7 +328,7 @@ export async function addItem(customerId, { storeId, productId, variantId, quant
     const { error } = await supabaseAdmin.from('cart_items').insert({
       cart_id: cart.id,
       product_id: productId,
-      variant_id: variantId ?? null,
+      variant_id: variant.id,
       quantity,
     });
     fail(error, 'Could not add the item to your cart.');
@@ -332,15 +362,13 @@ function assertQuantityAllowed(product, variant, quantity) {
 }
 
 async function findLine(cartId, productId, variantId) {
-  let query = supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('cart_items')
     .select(CART_ITEM_COLUMNS)
     .eq('cart_id', cartId)
-    .eq('product_id', productId);
-
-  query = variantId ? query.eq('variant_id', variantId) : query.is('variant_id', null);
-
-  const { data, error } = await query.maybeSingle();
+    .eq('product_id', productId)
+    .eq('variant_id', variantId)
+    .maybeSingle();
   fail(error, 'Could not load your cart.');
   return data ?? null;
 }
@@ -388,7 +416,7 @@ export async function updateItem(customerId, itemId, quantity) {
   const { item, cart } = await findOwnedItem(customerId, itemId);
 
   const product = await findStoreProduct(cart.store_id, item.product_id);
-  const variant = item.variant_id ? await findProductVariant(item.product_id, item.variant_id) : null;
+  const variant = await findProductVariant(item.product_id, item.variant_id);
 
   assertQuantityAllowed(product, variant, quantity);
   await updateQuantity(itemId, quantity);

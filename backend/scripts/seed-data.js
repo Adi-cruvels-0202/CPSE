@@ -65,6 +65,7 @@ export const stores = [
           {
             id: '31111111-1111-4111-8111-000000000001',
             slug: 'basmati-rice',
+            tax_percent: 5,
             name: 'Basmati Rice',
             description: 'Aged long-grain basmati, loose.',
             price_paise: rupees(129),
@@ -84,6 +85,7 @@ export const stores = [
           {
             id: '31111111-1111-4111-8111-000000000002',
             slug: 'toor-dal',
+            tax_percent: 5,
             name: 'Toor Dal',
             description: 'Unpolished split pigeon peas.',
             price_paise: rupees(165),
@@ -104,6 +106,7 @@ export const stores = [
           {
             id: '31111111-1111-4111-8111-000000000003',
             slug: 'aloo-bhujia',
+            tax_percent: 12,
             name: 'Aloo Bhujia',
             description: 'Crisp potato sev, made fresh weekly.',
             price_paise: rupees(55),
@@ -121,6 +124,7 @@ export const stores = [
             // in cart and checkout tests (spec §6).
             id: '31111111-1111-4111-8111-000000000004',
             slug: 'soan-papdi',
+            tax_percent: 5,
             name: 'Soan Papdi',
             description: 'Seasonal. Currently sold out.',
             price_paise: rupees(120),
@@ -180,6 +184,7 @@ export const stores = [
           {
             id: '31111111-1111-4111-8111-000000000005',
             slug: 'sourdough-loaf',
+            tax_percent: 0,
             name: 'Sourdough Loaf',
             description: '48-hour ferment, baked at 6am.',
             price_paise: rupees(180),
@@ -192,6 +197,7 @@ export const stores = [
           {
             id: '31111111-1111-4111-8111-000000000006',
             slug: 'multigrain-bread',
+            tax_percent: 0,
             name: 'Multigrain Bread',
             description: 'Five grains, no refined flour.',
             price_paise: rupees(95),
@@ -213,6 +219,7 @@ export const stores = [
           {
             id: '31111111-1111-4111-8111-000000000007',
             slug: 'chocolate-truffle',
+            tax_percent: 18,
             name: 'Chocolate Truffle Cake',
             description: 'Eggless available on request.',
             price_paise: rupees(450),
@@ -277,6 +284,7 @@ export const stores = [
           {
             id: '31111111-1111-4111-8111-000000000008',
             slug: 'antiseptic-liquid',
+            tax_percent: 18,
             name: 'Antiseptic Liquid',
             description: 'For first aid and general hygiene.',
             price_paise: rupees(145),
@@ -327,10 +335,17 @@ export function flattenSeed(source = stores) {
     for (const { products = [], ...category } of categories) {
       categoryRows.push({ ...category, store_id: store.id });
 
-      for (const { images = [], variants = [], ...product } of products) {
+      for (const { images = [], variants = [], stock = null, ...product } of products) {
+        // `stock` is authored the old way — a number, or null for "not
+        // counted" — and stored the migration-0030 way: track_inventory on the
+        // product, quantity_on_hand on each variant.
+        const tracked = variants.length > 0 ? variants.some((v) => v.stock != null) : stock !== null;
+
         productRows.push({
           is_available: true,
+          tax_percent: 0,
           ...product,
+          track_inventory: tracked,
           store_id: store.id,
           category_id: category.id,
         });
@@ -345,10 +360,24 @@ export function flattenSeed(source = stores) {
           });
         });
 
-        variants.forEach((variant, index) => {
+        // D-6: a product sold without options gets one Default variant with
+        // its price, MRP and stock — exactly what migration 0030 backfills.
+        const authored = variants.length > 0
+          ? variants
+          : [{
+              id: `41111111-1111-4111-8111-9${product.id.slice(-11)}`,
+              name: 'Default',
+              price_paise: product.price_paise,
+              mrp_paise: product.mrp_paise ?? null,
+              stock,
+              sort_order: 1,
+            }];
+
+        authored.forEach(({ stock: variantStock = null, ...variant }, index) => {
           variantRows.push({
             is_available: true,
             ...variant,
+            quantity_on_hand: variantStock ?? 0,
             product_id: product.id,
             sort_order: variant.sort_order ?? index + 1,
           });

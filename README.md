@@ -28,7 +28,7 @@ one port. Run the backend and you have the whole thing.
 | `backend/` | Express 4 API, Node 20+, ESM. Supabase for data and auth, Zod for every request body. |
 | `frontend/customer/` | The customer app. React 18 + React Router, built with Vite. Plain JavaScript for now (moving to TypeScript gradually — see `docs/MERGE_MAPPING.md` D-9). |
 | `frontend/merchant/` | The shopkeeper app, being brought in from Merchant-One. React + TypeScript. See `docs/WORK_PLAN.md`. |
-| `backend/migrations/` | 29 numbered SQL files. The whole schema. |
+| `backend/migrations/` | 30 numbered SQL files. The whole schema. |
 | `backend/docs/API.md` | Every endpoint, its body and its errors. |
 | `backend/docs/MERCHANT_INTEGRATION.md` | The contract with the merchant side, which this repo does **not** contain. |
 
@@ -50,7 +50,7 @@ development. See `MERCHANT_INTEGRATION.md` before wiring the two together.
 ### 2. Create the database
 
 In the Supabase dashboard, open the **SQL editor** and apply
-`backend/migrations/` in filename order — `0001` first, `0029` last. Each file is
+`backend/migrations/` in filename order — `0001` first, `0030` last. Each file is
 idempotent, so re-running one is harmless. To do it in one paste:
 
 ```bash
@@ -138,7 +138,7 @@ All from `backend/` unless noted.
 | `npm run dev` | API + app with hot reload, on :4000 |
 | `npm start` | Production mode — serves `frontend/customer/dist`, no Vite |
 | `npm run build` | Installs and builds the customer app into `frontend/customer/dist` |
-| `npm test` | 765 backend tests (Vitest + supertest, no live database needed) |
+| `npm test` | 820 backend tests (Vitest + supertest, plus the stock SQL run on PGlite — no live database needed) |
 | `npm test --prefix ../frontend/customer` | 575 frontend tests (Vitest + Testing Library) |
 | `npm run db:seed` | Dummy stores, catalogue and khata |
 | `npm run db:maintenance` | Expiry sweeps — stale carts, abandoned payments |

@@ -18,6 +18,8 @@ const {
   seedCategory,
   seedProduct,
   seedProductVariant,
+  setStock,
+  defaultVariantOf,
 } = await import('./helpers/supabaseMock.js');
 
 const OTHER_CUSTOMER_ID = '9f8a1c2e-5b3d-4a7f-9c1e-2d4b6a8c0e99';
@@ -381,7 +383,8 @@ describe('POST /api/v1/orders/:id/reorder (8.7)', () => {
   it('reports a line whose stock no longer covers the original quantity', async () => {
     const auth = signIn();
     const { order, product } = await placedOrder(auth);
-    product.stock = 1;
+    // One more on the shelf than the open order holds: one can still be sold.
+    setStock(product, defaultVariantOf(product).reserved_quantity + 1);
 
     const { body } = await reorder(auth, order.id);
 
@@ -431,5 +434,63 @@ describe('POST /api/v1/orders/:id/reorder (8.7)', () => {
 
     // 1 already in the cart + 2 from the order.
     expect(body.data.cart.lines[0].quantity).toBe(3);
+  });
+});
+
+describe('stock follows the order (D-5, migration 0030)', () => {
+  const held = (product) => {
+    const { quantity_on_hand: onHand, reserved_quantity: reserved } = defaultVariantOf(product);
+    return { onHand, reserved };
+  };
+  const ledgerTypes = () => (db.tables.get('inventory_ledger') ?? []).map((row) => row.movement_type);
+
+  it('holds the stock while the order is open', async () => {
+    const auth = signIn();
+    const { product } = await placedOrder(auth);
+
+    expect(held(product)).toEqual({ onHand: 50, reserved: 2 });
+  });
+
+  it('gives it back when the customer cancels', async () => {
+    const auth = signIn();
+    const { order, product } = await placedOrder(auth);
+
+    await cancel(auth, order.id, 'Ordered by mistake');
+
+    expect(held(product)).toEqual({ onHand: 50, reserved: 0 });
+    expect(ledgerTypes()).toEqual(['order_reserved', 'order_released']);
+  });
+
+  it('gives it back when the store rejects', async () => {
+    const auth = signIn();
+    const { order, product } = await placedOrder(auth);
+
+    await advance(auth, order.id, 'rejected', 'Out of rice');
+
+    expect(held(product)).toEqual({ onHand: 50, reserved: 0 });
+  });
+
+  it('takes it off the shelf only when the order completes', async () => {
+    const auth = signIn();
+    const { order, product } = await placedOrder(auth);
+
+    for (const status of ['accepted', 'preparing', 'ready_for_pickup']) {
+      await advance(auth, order.id, status);
+      expect(held(product), status).toEqual({ onHand: 50, reserved: 2 });
+    }
+    await advance(auth, order.id, 'completed');
+
+    expect(held(product)).toEqual({ onHand: 48, reserved: 0 });
+    expect(ledgerTypes()).toEqual(['order_reserved', 'order_fulfilled']);
+  });
+
+  it('never touches an uncounted product', async () => {
+    const auth = signIn();
+    const { order, product } = await placedOrder(auth, { stock: null });
+
+    await cancel(auth, order.id);
+
+    expect(held(product)).toEqual({ onHand: 0, reserved: 0 });
+    expect(ledgerTypes()).toEqual([]);
   });
 });

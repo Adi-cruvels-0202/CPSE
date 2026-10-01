@@ -118,7 +118,7 @@ export function Review({ quote }) {
               {line.variantName ? <span className="muted"> · {line.variantName}</span> : null}
               <span className="muted"> × {line.quantity}</span>
             </span>
-            <span className="numeric">{formatPaise(line.lineTotalPaise)}</span>
+            <span className="numeric">{formatPaise(line.lineSubtotalPaise ?? line.lineTotalPaise)}</span>
           </li>
         ))}
       </ul>

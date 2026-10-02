@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import crypto from 'node:crypto';
 import { api, url } from './helpers/app.js';
-import { ALWAYS_OPEN } from './helpers/shopping.js';
+import { ALWAYS_OPEN, advance } from './helpers/shopping.js';
 
 vi.mock('../src/lib/supabase.js', async () => {
   const { createSupabaseMock } = await import('./helpers/supabaseMock.js');
@@ -128,10 +128,7 @@ describe('the customer journey', () => {
 
     // 10. Order status, all the way to completed.
     for (const status of ['accepted', 'preparing', 'ready_for_pickup', 'completed']) {
-      const advanced = await api()
-        .post(url(`/orders/${orderId}/test-advance`))
-        .set(auth)
-        .send({ status });
+      const advanced = await advance(auth, orderId, status);
       expect(advanced.status, status).toBe(200);
     }
 
@@ -228,7 +225,7 @@ describe('the customer journey', () => {
 
     // 8. Through to the rider.
     for (const status of ['accepted', 'preparing', 'out_for_delivery']) {
-      await api().post(url(`/orders/${orderId}/test-advance`)).set(auth).send({ status });
+      await advance(auth, orderId, status);
     }
 
     const enRoute = await api().get(url(`/orders/${orderId}`)).set(auth);
@@ -281,7 +278,7 @@ describe('the customer journey', () => {
     const orderId = placed.body.data.order.id;
     const orderNumber = placed.body.data.order.orderNumber;
 
-    await api().post(url(`/orders/${orderId}/test-advance`)).set(auth).send({ status: 'accepted' });
+    await advance(auth, orderId, 'accepted');
 
     const inbox = await api().get(url('/notifications')).set(auth);
     expect(inbox.body.data.unreadCount).toBe(2);

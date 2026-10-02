@@ -6,6 +6,7 @@ import { requireMerchant } from '../../middleware/requireMerchant.js';
 import { merchantStoreRouter } from '../merchantStores/merchantStore.routes.js';
 import { catalogueRouter } from '../merchantCatalogue/catalogue.routes.js';
 import { inventoryRouter } from '../merchantInventory/inventory.routes.js';
+import { merchantOrderRouter } from '../merchantOrders/merchantOrder.routes.js';
 import * as controller from './merchant.controller.js';
 import {
   registerMerchantSchema,
@@ -57,3 +58,4 @@ merchantRouter.patch(
 merchantRouter.use('/stores', merchantStoreRouter);
 merchantRouter.use('/stores', catalogueRouter);
 merchantRouter.use('/stores', inventoryRouter);
+merchantRouter.use('/stores', merchantOrderRouter);

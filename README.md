@@ -93,7 +93,8 @@ npm run db:seed
 ```
 
 Three dummy stores with a catalogue, variants and opening hours, plus a test
-login: **`test.customer@cpse.local`** / **`CpseTest!2026`**. Safe to re-run.
+login: **`test.customer@cpse.local`** / **`CpseTest!2026`**, and the shopkeeper who owns every
+seeded store: **`demo.merchant@cpse.local`** / **`CpseMerchant!2026`**. Safe to re-run.
 
 ### 5. Install the frontend's dependencies
 
@@ -138,7 +139,7 @@ All from `backend/` unless noted.
 | `npm run dev` | API + app with hot reload, on :4000 |
 | `npm start` | Production mode — serves `frontend/customer/dist`, no Vite |
 | `npm run build` | Installs and builds the customer app into `frontend/customer/dist` |
-| `npm test` | 1126 backend tests (Vitest + supertest, plus the stock SQL run on PGlite — no live database needed) |
+| `npm test` | 1169 backend tests (Vitest + supertest, plus the stock SQL run on PGlite — no live database needed) |
 | `npm test --prefix ../frontend/customer` | 575 frontend tests (Vitest + Testing Library) |
 | `npm run db:seed` | Dummy stores, catalogue and khata |
 | `npm run db:maintenance` | Expiry sweeps — stale carts, abandoned payments |
@@ -166,9 +167,7 @@ one.
 
 Set `NODE_ENV=production`, the three Supabase values, and point
 `PASSWORD_RESET_REDIRECT_URL` and `PAYMENT_MOCK_CHECKOUT_URL` at your deployed
-URL. Leave `PORT` alone — the host injects it. Leave `ENABLE_TEST_ENDPOINTS`
-off; the app refuses to boot in production if it is on, because it exposes an
-endpoint that can march anyone's order to `completed`.
+URL. Leave `PORT` alone — the host injects it.
 
 ---
 

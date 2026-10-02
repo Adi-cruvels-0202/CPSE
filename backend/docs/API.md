@@ -27,6 +27,7 @@ identifiers, and answers with the envelope described below.
   - [Merchant stores](#merchant-stores)
   - [Merchant catalogue](#merchant-catalogue)
   - [Merchant inventory](#merchant-inventory)
+  - [Merchant orders](#merchant-orders)
 - [Rate limits](#rate-limits)
 - [Invariants worth knowing](#invariants-worth-knowing)
 
@@ -270,7 +271,6 @@ blocking would simply lose the order. It waits in `placed` until the store opens
 | `POST /orders/:id/cancel` | `{ reason? }`. Only from `pending_payment`, `placed` or `accepted`; anything later is **409** — the goods may already be packed. |
 | `GET /orders/:id/receipt` | Derived from the order's own snapshot, never recalculated. |
 | `POST /orders/:id/reorder` | No body. Rebuilds the cart and reports what could not be added, per item. |
-| `POST /orders/:id/test-advance` | ⚠️ **Test-only.** `{ status, note? }`. Stands in for the merchant dashboard. Mounted only when `ENABLE_TEST_ENDPOINTS=true`; the app refuses to boot in production with it on. Still goes through the state machine, so it cannot manufacture an illegal transition. |
 
 **Idempotency.** Send an `Idempotency-Key` header. A replay returns the original
 order with **200** (not 201) and `replayed: true` — no second charge, no second
@@ -555,6 +555,59 @@ variant's on hand, reserved and available.
 `null` for the merchant's own movements. `performedBy.type` is `merchant`,
 `customer` or `system`; releases and completions are `system`, and the order's
 own history says who changed its status.
+
+
+### Merchant orders
+
+Bearer, merchant, on the caller's own store. An order of another store is
+**404**, whichever store path it is asked through. The states are the ones in
+*Orders* above, and every action goes through the same single writer as the
+customer's cancel — so **the customer is notified of every merchant action**,
+and stock is released or taken off the shelf with it (see *Stock*).
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/orders` | Bearer, merchant. `?status=&fulfilmentMode=&from=&to=&page=&limit=` → `{ orders, counts }` with pagination `meta`, newest first. `status` takes a comma list (`placed,accepted`). Orders still waiting for online payment are left out unless asked for by name. `counts` is per status, for tab badges. |
+| `GET /merchant/stores/:storeId/orders/:orderId` | Bearer, merchant. `{ order }` |
+| `POST /merchant/stores/:storeId/orders/:orderId/accept` | Bearer, merchant. No body. `placed → accepted`. |
+| `POST /merchant/stores/:storeId/orders/:orderId/reject` | Bearer, merchant. `{ reason? }` (≤ 300). `placed` or `accepted → rejected`; the stock comes back and the customer sees the reason. |
+| `POST /merchant/stores/:storeId/orders/:orderId/status` | Bearer, merchant. `{ status }`: `preparing` (from accepted), then `ready_for_pickup` for a pickup order or `out_for_delivery` for a delivery order — never the other one. |
+| `POST /merchant/stores/:storeId/orders/:orderId/complete` | Bearer, merchant. No body. `ready_for_pickup` or `out_for_delivery → completed`; the stock leaves the shelf. |
+| `POST /merchant/stores/:storeId/orders/:orderId/cancel` | Bearer, merchant. `{ reason }`, 3–300 characters. From `accepted` onwards — a `placed` order is rejected instead. The stock comes back. |
+
+All actions answer `{ order }`. Anything not in the order's `allowedActions` is
+**409 `CONFLICT`** with `details: { status, action }`. An order in
+`pending_payment` has no actions — only a confirmed payment moves it.
+
+**Show the buttons `allowedActions` lists**; the server works them out from the
+state and the fulfilment mode, so the screen never re-implements the rules.
+Values: `accept`, `reject`, `cancel`, `complete`, `status:preparing`,
+`status:ready_for_pickup`, `status:out_for_delivery`.
+
+```json
+"order": {
+  "id": "o1…", "orderNumber": "CPSE-261002-65U5NC",
+  "status": "accepted", "statusLabel": "Accepted by the store", "paymentStatus": "pending", "paymentMethod": "cash",
+  "fulfilmentMode": "delivery",
+  "allowedActions": ["status:preparing", "reject", "cancel"],
+  "customer": { "id": "u1…", "name": "Jane Doe", "phone": "+919812345678" },
+  "customerNote": "Ring the bell twice", "cancellationReason": null,
+  "totals": { "subtotalPaise": 25800, "discountPaise": 0, "deliveryFeePaise": 3000, "taxPaise": 1290, "totalPaise": 30090 },
+  "itemCount": 1,
+  "deliveryAddress": { "recipientName": "Jane Doe", "phone": "+919812345678", "line1": "…", "city": "Pune", "postalCode": "411001" },
+  "items": [{
+    "id": "oi1…", "productId": "p1…", "variantId": "v1…", "productName": "India Gate Basmati Rice", "variantName": "1 kg", "sku": "RICE-1KG",
+    "quantity": 2, "unitPricePaise": 12900, "lineSubtotalPaise": 25800, "taxPercent": 5, "taxPaise": 1290, "lineTotalPaise": 27090
+  }],
+  "history": [
+    { "status": "placed", "changedBy": "customer", "note": null, "at": "…" },
+    { "status": "accepted", "changedBy": "store", "note": null, "at": "…" }
+  ],
+  "placedAt": "…", "acceptedAt": "…", "completedAt": null, "cancelledAt": null, "updatedAt": "…"
+}
+```
+
+List rows are the same object without `deliveryAddress`, `items` and `history`.
 
 ---
 

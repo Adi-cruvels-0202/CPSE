@@ -19,6 +19,18 @@ export const testCustomer = {
   phone: '+919876543210',
 };
 
+/**
+ * The shopkeeper who owns every seeded store, so the merchant side can be
+ * walked end to end with the same catalogue the customer sees (WORK_PLAN Day 5).
+ * Also a customer, like every account (D-2).
+ */
+export const demoMerchant = {
+  email: 'demo.merchant@cpse.local',
+  password: 'CpseMerchant!2026',
+  full_name: 'Demo Merchant',
+  phone: '+919812300000',
+};
+
 export const stores = [
   {
     id: '11111111-1111-4111-8111-000000000001',

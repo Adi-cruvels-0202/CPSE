@@ -11,7 +11,7 @@
  */
 import { supabaseAdmin } from '../src/lib/supabase.js';
 import { env } from '../src/config/env.js';
-import { stores, flattenSeed, testCustomer, khataSeed } from './seed-data.js';
+import { stores, flattenSeed, testCustomer, demoMerchant, khataSeed } from './seed-data.js';
 
 async function upsert(table, rows) {
   if (rows.length === 0) return;
@@ -48,16 +48,16 @@ async function adoptExistingDefaultVariants(variantRows) {
  * itself comes from the on_auth_user_created trigger (migration 0003), so this
  * only touches auth.
  */
-async function ensureTestCustomer() {
+async function ensureAuthUser(account) {
   const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
-    email: testCustomer.email,
-    password: testCustomer.password,
+    email: account.email,
+    password: account.password,
     email_confirm: true,
-    user_metadata: { full_name: testCustomer.full_name, phone: testCustomer.phone },
+    user_metadata: { full_name: account.full_name, phone: account.phone },
   });
 
   if (!error) {
-    console.log(`  auth user          created ${testCustomer.email}`);
+    console.log(`  auth user          created ${account.email}`);
     return created.user.id;
   }
 
@@ -68,11 +68,25 @@ async function ensureTestCustomer() {
   const { data: list, error: listError } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
   if (listError) throw new Error(`auth: ${listError.message}`);
 
-  const existing = list.users.find((user) => user.email?.toLowerCase() === testCustomer.email);
-  if (!existing) throw new Error(`auth: ${testCustomer.email} exists but could not be located`);
+  const existing = list.users.find((user) => user.email?.toLowerCase() === account.email);
+  if (!existing) throw new Error(`auth: ${account.email} exists but could not be located`);
 
-  console.log(`  auth user          reused ${testCustomer.email}`);
+  console.log(`  auth user          reused ${account.email}`);
   return existing.id;
+}
+
+const ensureTestCustomer = () => ensureAuthUser(testCustomer);
+
+/**
+ * The demo shopkeeper: an auth user (the signup trigger gives them a customers
+ * row) plus the merchants row that makes them a merchant (D-2).
+ */
+async function ensureDemoMerchant() {
+  const id = await ensureAuthUser(demoMerchant);
+  await upsert('merchants', [
+    { id, email: demoMerchant.email, full_name: demoMerchant.full_name, phone: demoMerchant.phone },
+  ]);
+  return id;
 }
 
 async function seedKhata(customerId) {
@@ -103,7 +117,9 @@ async function seed() {
   const { storeRows, categoryRows, productRows, imageRows, variantRows } = flattenSeed(stores);
 
   console.log(`Seeding ${env.SUPABASE_URL}`);
-  await upsert('stores', storeRows);
+  // First, so the seeded stores can name their owner (stores.owner_id → merchants).
+  const merchantId = await ensureDemoMerchant();
+  await upsert('stores', storeRows.map((store) => ({ ...store, owner_id: merchantId })));
   await upsert('categories', categoryRows);
   await upsert('products', productRows);
   await upsert('product_images', imageRows);
@@ -121,6 +137,7 @@ async function seed() {
     .single();
 
   console.log(`\nDone. Test login: ${testCustomer.email} / ${testCustomer.password}`);
+  console.log(`Merchant login: ${demoMerchant.email} / ${demoMerchant.password} (owns every seeded store)`);
   console.log(`Khata balance: ${account?.balance_paise ?? '?'} paise owed.`);
 }
 

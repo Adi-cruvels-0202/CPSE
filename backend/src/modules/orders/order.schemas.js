@@ -34,14 +34,3 @@ export const orderParams = z.object({ id: z.string().uuid('Not a valid order.') 
 export const cancelOrderSchema = z
   .object({ reason: z.string().trim().max(300).nullish() })
   .strict();
-
-/**
- * Checklist 8.8. The test-only merchant endpoint. Kept in this file rather
- * than hidden away so it is obvious in review what it accepts.
- */
-export const advanceOrderSchema = z
-  .object({
-    status: z.enum(ORDER_STATUSES),
-    note: z.string().trim().max(300).nullish(),
-  })
-  .strict();

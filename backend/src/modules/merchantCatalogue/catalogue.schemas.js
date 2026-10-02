@@ -169,3 +169,10 @@ export const productListQuery = z
     limit: z.coerce.number().int().positive().max(100).default(20),
   })
   .strict();
+
+export const imageParams = z
+  .object({ storeId: uuid('store'), productId: uuid('product'), imageId: uuid('image') })
+  .strict();
+
+/** Photos a product may carry, whether uploaded or linked (`images` above). */
+export const MAX_PRODUCT_IMAGES = 10;

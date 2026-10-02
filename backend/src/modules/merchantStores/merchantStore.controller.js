@@ -1,5 +1,5 @@
 import { asyncHandler } from '../../lib/asyncHandler.js';
-import { sendSuccess, sendCreated } from '../../lib/response.js';
+import { sendSuccess, sendCreated, sendNoContent } from '../../lib/response.js';
 import * as storeService from './merchantStore.service.js';
 
 /** requireStoreOwner has put the caller's own store on `req.store`. */
@@ -13,7 +13,7 @@ export const createStore = asyncHandler(async (req, res) => {
 });
 
 export const getStore = asyncHandler(async (req, res) => {
-  sendSuccess(res, { store: storeService.toMerchantStore(req.store) });
+  sendSuccess(res, { store: await storeService.getStore(req.store) });
 });
 
 export const updateStore = asyncHandler(async (req, res) => {
@@ -38,4 +38,25 @@ export const setDelivery = asyncHandler(async (req, res) => {
 
 export const setPayments = asyncHandler(async (req, res) => {
   sendSuccess(res, { store: await storeService.setPayments(req.store, req.body) });
+});
+
+export const uploadLogo = asyncHandler(async (req, res) => {
+  sendSuccess(res, { store: await storeService.setStorePhoto(req.store, 'logo', req.file) });
+});
+
+export const uploadCover = asyncHandler(async (req, res) => {
+  sendSuccess(res, { store: await storeService.setStorePhoto(req.store, 'cover', req.file) });
+});
+
+export const listHolidays = asyncHandler(async (req, res) => {
+  sendSuccess(res, { holidays: await storeService.listHolidays(req.store) });
+});
+
+export const addHoliday = asyncHandler(async (req, res) => {
+  sendCreated(res, { holiday: await storeService.addHoliday(req.store, req.body) });
+});
+
+export const removeHoliday = asyncHandler(async (req, res) => {
+  await storeService.removeHoliday(req.store, req.params.holidayId);
+  sendNoContent(res);
 });

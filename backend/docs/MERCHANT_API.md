@@ -432,6 +432,12 @@ These land in `docs/API.md` with the code that causes them:
 
 ## P1 endpoints — draft
 
+> ✅ **Built** (`backend/p1`). The authoritative description is now `docs/API.md` →
+> *Merchant photos, holidays, sales and dashboard*. Settled while building:
+> holidays take `date` and answer only today's and later ones; a sale answers
+> `{ sale, replayed }` like an order; the dashboard is under a `dashboard` key and
+> its recent orders are summaries; upload refusals have their own codes.
+
 Shapes to be confirmed on Day 5, and built on Day 6 only if P0 is merged (WORK_PLAN §1).
 
 | | |

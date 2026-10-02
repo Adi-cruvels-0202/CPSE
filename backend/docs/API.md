@@ -28,6 +28,7 @@ identifiers, and answers with the envelope described below.
   - [Merchant catalogue](#merchant-catalogue)
   - [Merchant inventory](#merchant-inventory)
   - [Merchant orders](#merchant-orders)
+  - [Merchant photos, holidays, sales and dashboard](#merchant-photos-holidays-sales-and-dashboard)
 - [Rate limits](#rate-limits)
 - [Invariants worth knowing](#invariants-worth-knowing)
 
@@ -134,6 +135,10 @@ refused for a reason the customer can act on":
 | `PAYMENT_METHOD_UNAVAILABLE` | The store does not take that payment method. `details.accepts` says what it does take |
 | `NOT_TRACKED` | A stock movement on a product whose stock is not counted (`trackInventory: false`) |
 | `BELOW_RESERVED` | A stock count lower than what open orders hold. `details.reservedQuantity` |
+| `IMAGE_REQUIRED` | An upload with no photo in a multipart field named `file` |
+| `IMAGE_INVALID` | The file is not really a JPEG, PNG or WebP — judged from its bytes, not its name |
+| `IMAGE_LIMIT` | A product already has 10 photos |
+| `DISCOUNT_TOO_LARGE` | A counter sale's discount is more than the bill. `details.maxDiscountPaise` |
 | `STORE_INCOMPLETE` | A merchant tried to publish a store that is missing something customers need. `details.missing[]`: `address`, `phone`, `openingHours`, `fulfilment` |
 | `OUT_OF_STOCK` / `INSUFFICIENT_STOCK` | Nothing, or not enough, is **available** — on hand minus what open orders hold. `details.available` says how many |
 | `PRICE_CHANGED` | A line's price moved since the client last saw it |
@@ -608,6 +613,79 @@ Values: `accept`, `reject`, `cancel`, `complete`, `status:preparing`,
 ```
 
 List rows are the same object without `deliveryAddress`, `items` and `history`.
+
+
+### Merchant photos, holidays, sales and dashboard
+
+Bearer, merchant, on the caller's own store.
+
+**Photos** are uploaded as `multipart/form-data` with one field named `file`:
+JPEG, PNG or WebP, at most 5 MB (**413** above). The type is read from the
+file's own bytes, so a renamed file is **422 `IMAGE_INVALID`**. Photos are
+stored in Supabase Storage under a fresh random name and served from a public
+URL; a replaced or removed photo the app stored is deleted.
+
+| | |
+|---|---|
+| `POST /merchant/stores/:storeId/logo` | Bearer, merchant. Multipart `file` → `{ store }` with the new `logoUrl`. |
+| `POST /merchant/stores/:storeId/cover` | Bearer, merchant. Multipart `file` → `{ store }` with the new `coverImageUrl`. |
+| `POST /merchant/stores/:storeId/products/:productId/images` | Bearer, merchant. Multipart `file` → **201** `{ product }`, the photo added last. At most 10 (**422 `IMAGE_LIMIT`**). The first photo is what customers see on the product card. |
+| `DELETE /merchant/stores/:storeId/products/:productId/images/:imageId` | Bearer, merchant. → `{ product }`. A photo of another product is **404**. |
+
+**Holidays** close the store for the whole day, in its own timezone, whatever
+its weekly hours say. The customer store page shows it closed, and `opensAt` /
+`opensOnDate` skip to the next working day.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/holidays` | Bearer, merchant. `{ holidays: [{ id, date, reason }] }` — today's and later, in date order. |
+| `POST /merchant/stores/:storeId/holidays` | Bearer, merchant. `{ date: "YYYY-MM-DD", reason? }` → **201** `{ holiday }`. Today or later; a date already listed is **409**. |
+| `DELETE /merchant/stores/:storeId/holidays/:holidayId` | Bearer, merchant. **204**. |
+
+**Counter (POS) sales** — a walk-in customer paying at the till. Priced by the
+same engine as an order (tax per line, on top), and it sells only what is
+**available**, so it never takes stock an online order holds. The stock leaves
+the shelf at once and the movement is in the stock history as `sale`.
+
+| | |
+|---|---|
+| `POST /merchant/stores/:storeId/sales` | Bearer, merchant. **Send `Idempotency-Key`.** `{ items: [{ variantId, quantity }], paymentMethod: cash\|upi\|card\|other, customerName?, customerPhone?, discountPaise?, notes? }` → **201** `{ sale, replayed: false }`; a replayed key is **200** with the first sale. Each variant once. Not enough available is **422 `INSUFFICIENT_STOCK`** with `details: { productName, availableQuantity }`; a discount above the bill is **422 `DISCOUNT_TOO_LARGE`**. |
+| `GET /merchant/stores/:storeId/sales` | Bearer, merchant. `?from=&to=&page=&limit=` → `{ sales }` with pagination `meta`, newest first, without `items`. |
+| `GET /merchant/stores/:storeId/sales/:saleId` | Bearer, merchant. `{ sale }` |
+
+```json
+"sale": {
+  "id": "s1…", "invoiceNumber": "INV-000001", "paymentMethod": "upi",
+  "customerName": "Walk-in", "customerPhone": null, "notes": null,
+  "totals": { "subtotalPaise": 20000, "discountPaise": 0, "taxPaise": 1000, "totalPaise": 21000 },
+  "itemCount": 1,
+  "items": [{ "productName": "Basmati Rice", "variantName": null, "sku": "RICE-1", "quantity": 2, "unitPricePaise": 10000, "lineSubtotalPaise": 20000, "taxPercent": 5, "taxPaise": 1000, "lineTotalPaise": 21000 }],
+  "createdAt": "…"
+}
+```
+
+Invoice numbers count up per store: `INV-000001`, `INV-000002`, …
+
+**Dashboard**
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/dashboard` | Bearer, merchant. `{ dashboard }` below. |
+
+```json
+"dashboard": {
+  "date": "2026-10-02",
+  "today": { "ordersCount": 4, "ordersRevenuePaise": 120500, "salesCount": 6, "salesRevenuePaise": 84000 },
+  "openOrders": { "placed": 2, "accepted": 1, "preparing": 0, "ready": 1 },
+  "lowStock": [{ "productId": "p1…", "productName": "Basmati Rice", "variantId": "v1…", "variantName": "1 kg", "sku": "RICE-1", "availableQuantity": 3, "lowStockThreshold": 5 }],
+  "recentOrders": [{ "id": "o1…", "orderNumber": "CPSE-…", "status": "placed", "statusLabel": "Order placed", "fulfilmentMode": "pickup", "totalPaise": 30090, "placedAt": "…" }]
+}
+```
+
+"Today" is the store's own local day. Orders count when placed today and not
+cancelled, rejected or still unpaid. `ready` covers ready for pickup and out for
+delivery. Low stock lists variants of counted, active products that can sell no
+more than their product's threshold, fewest first.
 
 ---
 

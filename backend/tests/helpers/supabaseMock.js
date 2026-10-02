@@ -27,6 +27,10 @@ export const db = {
   customers: new Map(),
   /** table name -> rows */
   tables: new Map(),
+  /** Supabase Storage stand-in: "bucket/path" → { body, contentType }. */
+  storage: new Map(),
+  /** Set to make the next storage upload fail. */
+  failNextUpload: null,
   /** Set to force the next read to fail. */
   failNextQuery: null,
   /**
@@ -68,6 +72,9 @@ const KNOWN_TABLES = [
   'khata_transactions',
   'merchants',
   'inventory_ledger',
+  'store_holidays',
+  'sales',
+  'sale_items',
 ];
 
 /**
@@ -121,6 +128,8 @@ function rowsOf(table) {
 export function resetDb() {
   db.customers.clear();
   db.tables.clear();
+  db.storage.clear();
+  db.failNextUpload = null;
   autoDefaultVariants.clear();
   defaultVariantCounter = 0;
   db.failNextQuery = null;
@@ -226,6 +235,7 @@ export function storeRow(overrides = {}) {
     delivery_radius_km: null,
     accepts_cash: true,
     accepts_online: true,
+    next_invoice_number: 1,
     created_at: '2026-09-01T10:00:00.000Z',
     updated_at: '2026-09-01T10:00:00.000Z',
     ...overrides,
@@ -1022,6 +1032,119 @@ export function recordStockMovementRpc({ payload }) {
 }
 
 /**
+ * Stand-in for create_sale (migration 0033): idempotent replay, invoice number
+ * from the store's counter, available-stock check, deduction and ledger rows.
+ * tests/salesSql.test.js tests the SQL itself.
+ */
+export function createSaleRpc({ payload }) {
+  const existing = tableRows('sales').find(
+    (row) => payload.idempotency_key && row.store_id === payload.store_id && row.idempotency_key === payload.idempotency_key,
+  );
+  if (existing) return { data: { sale_id: existing.id, replayed: true }, error: null };
+
+  const lines = [...payload.items].sort((a, b) => String(a.variant_id).localeCompare(String(b.variant_id)));
+  const checked = [];
+  for (const item of lines) {
+    const variant = tableRows('product_variants').find((row) => row.id === item.variant_id);
+    const product = variant && tableRows('products').find((row) => row.id === variant.product_id);
+    if (!variant || !product || product.store_id !== payload.store_id) {
+      return { data: null, error: { code: 'P0002', message: 'VARIANT_NOT_FOUND' } };
+    }
+    const available = variant.quantity_on_hand - variant.reserved_quantity;
+    if (product.track_inventory && available < item.quantity) {
+      return { data: null, error: { code: 'P0001', message: `INSUFFICIENT_STOCK:${item.product_name}:${available}` } };
+    }
+    checked.push({ item, variant, product });
+  }
+
+  const store = tableRows('stores').find((row) => row.id === payload.store_id);
+  const invoice = store.next_invoice_number ?? 1;
+  store.next_invoice_number = invoice + 1;
+
+  const now = new Date().toISOString();
+  const sale = {
+    id: nextId('8'),
+    store_id: payload.store_id,
+    invoice_number: `INV-${String(invoice).padStart(6, '0')}`,
+    idempotency_key: payload.idempotency_key ?? null,
+    payment_method: payload.payment_method,
+    customer_name: payload.customer_name ?? null,
+    customer_phone: payload.customer_phone ?? null,
+    notes: payload.notes ?? null,
+    subtotal_paise: payload.subtotal_paise,
+    discount_paise: payload.discount_paise,
+    tax_paise: payload.tax_paise,
+    total_paise: payload.total_paise,
+    performed_by: payload.merchant_id,
+    created_at: now,
+  };
+  tableRows('sales').push(sale);
+
+  for (const { item, variant, product } of checked) {
+    tableRows('sale_items').push({
+      id: nextId('e'),
+      sale_id: sale.id,
+      product_id: product.id,
+      variant_id: variant.id,
+      product_name: item.product_name,
+      variant_name: item.variant_name ?? null,
+      sku: item.sku ?? null,
+      quantity: item.quantity,
+      unit_price_paise: item.unit_price_paise,
+      tax_percent: item.tax_percent ?? 0,
+      tax_paise: item.tax_paise ?? 0,
+      line_total_paise: item.line_total_paise,
+      created_at: now,
+    });
+    if (product.track_inventory) {
+      variant.quantity_on_hand -= item.quantity;
+      tableRows('inventory_ledger').push({
+        id: nextId('9'),
+        store_id: payload.store_id,
+        product_id: product.id,
+        variant_id: variant.id,
+        movement_type: 'sale',
+        on_hand_change: -item.quantity,
+        reserved_change: 0,
+        on_hand_after: variant.quantity_on_hand,
+        reserved_after: variant.reserved_quantity,
+        unit_cost_paise: null,
+        reason: null,
+        notes: null,
+        reference_type: 'sale',
+        reference_id: sale.id,
+        performed_by_type: 'merchant',
+        performed_by_id: payload.merchant_id,
+        created_at: now,
+      });
+    }
+  }
+  return { data: { sale_id: sale.id, replayed: false }, error: null };
+}
+
+/** Supabase Storage, in memory: enough of the client for lib/imageUpload.js. */
+function storageBucket(bucket) {
+  return {
+    upload: vi.fn(async (path, body, options = {}) => {
+      if (db.failNextUpload) {
+        const error = db.failNextUpload;
+        db.failNextUpload = null;
+        return { data: null, error };
+      }
+      db.storage.set(`${bucket}/${path}`, { body, contentType: options.contentType ?? null });
+      return { data: { path }, error: null };
+    }),
+    remove: vi.fn(async (paths) => {
+      for (const path of paths) db.storage.delete(`${bucket}/${path}`);
+      return { data: paths.map((name) => ({ name })), error: null };
+    }),
+    getPublicUrl: (path) => ({
+      data: { publicUrl: `https://storage.test/storage/v1/object/public/${bucket}/${path}` },
+    }),
+  };
+}
+
+/**
  * Stand-in for the orders_apply_stock_movement trigger (migration 0030). Reads
  * what the order still holds from the ledger and releases it (rejected,
  * cancelled) or takes it off the shelf (completed), logging each move.
@@ -1120,6 +1243,7 @@ export function createSupabaseMock() {
         getUser: vi.fn(),
         admin: { signOut: vi.fn().mockResolvedValue({ error: null }) },
       },
+      storage: { from: (bucket) => storageBucket(bucket) },
       from: vi.fn((table) => {
         if (!KNOWN_TABLES.includes(table)) throw new Error(`No mock for table "${table}"`);
         return queryBuilder(table);
@@ -1135,6 +1259,7 @@ export function createSupabaseMock() {
         if (name === 'add_product_variants') return addProductVariantsRpc(args);
         if (name === 'replace_product_images') return replaceProductImagesRpc(args);
         if (name === 'record_stock_movement') return recordStockMovementRpc(args);
+        if (name === 'create_sale') return createSaleRpc(args);
         throw new Error(`No mock for RPC "${name}"`);
       }),
     },

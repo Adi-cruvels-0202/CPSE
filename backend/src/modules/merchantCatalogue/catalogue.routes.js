@@ -4,6 +4,7 @@ import { writeLimiter } from '../../middleware/rateLimit.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { requireMerchant, requireStoreOwner } from '../../middleware/requireMerchant.js';
 import { emptyBody } from '../../lib/schemas.js';
+import { receiveImage } from '../../lib/imageUpload.js';
 import { storeParams } from '../merchantStores/merchantStore.schemas.js';
 import * as controller from './catalogue.controller.js';
 import {
@@ -17,6 +18,7 @@ import {
   variantSchema,
   updateVariantSchema,
   productListQuery,
+  imageParams,
 } from './catalogue.schemas.js';
 
 /**
@@ -103,4 +105,20 @@ catalogueRouter.post(
   '/:storeId/products/:productId/variants/:variantId/deactivate',
   ...write(variantParams, emptyBody),
   controller.deactivateVariant,
+);
+
+// ── Photos (P1): multipart, one field named "file", JPEG/PNG/WebP ≤ 5 MB ─────
+
+catalogueRouter.post(
+  '/:storeId/products/:productId/images',
+  writeLimiter,
+  ...own(productParams),
+  receiveImage,
+  controller.uploadProductImage,
+);
+catalogueRouter.delete(
+  '/:storeId/products/:productId/images/:imageId',
+  writeLimiter,
+  ...own(imageParams),
+  controller.deleteProductImage,
 );

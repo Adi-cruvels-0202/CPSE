@@ -2,6 +2,7 @@ import { unprocessable } from '../../lib/errors.js';
 import { priceTotals, meetsMinimumOrder, formatPaise } from '../../lib/pricing.js';
 import { resolveOpenState } from '../../lib/openingHours.js';
 import { loadCart } from '../cart/cart.service.js';
+import { holidaysFor } from '../stores/store.service.js';
 import { findOwnedAddress, toPublicAddress } from '../addresses/address.service.js';
 
 /**
@@ -120,7 +121,9 @@ export async function buildQuote(customerId, { storeId, fulfilmentMode, addressI
 
   // A closed store is a warning, not a blocker (D29): the order simply waits in
   // 'placed' until the merchant opens and accepts it.
-  const openState = resolveOpenState(store.opening_hours, store.timezone);
+  const openState = resolveOpenState(store.opening_hours, store.timezone, new Date(), {
+    holidays: await holidaysFor(store.id),
+  });
   if (!openState.isOpen) {
     warnings.push({
       code: 'STORE_CLOSED',

@@ -400,3 +400,36 @@ export function flattenSeed(source = stores) {
 
   return { storeRows, categoryRows, productRows, imageRows, variantRows };
 }
+
+/**
+ * Real product photos, if someone has put them in `backend/catlog photos/`
+ * (git-ignored: they are megabytes each). A file is matched to the product
+ * whose slug is its name with underscores as hyphens — `toor_dal.png` is the
+ * Toor Dal photo. Anything else in the folder is ignored.
+ */
+export const CATALOGUE_PHOTOS_DIR = 'catlog photos';
+
+export function photoSlug(fileName) {
+  const match = /^(.+)\.(png|jpe?g|webp)$/i.exec(fileName);
+  return match ? match[1].trim().toLowerCase().replace(/[_\s]+/g, '-') : null;
+}
+
+/**
+ * The image rows with uploaded photos in place of the placeholders: a product
+ * that has a photo keeps one row — its first, so the id stays stable across
+ * re-seeds — pointing at the photo. `photoUrls` maps product id → public URL.
+ */
+export function applyPhotos(imageRows, photoUrls) {
+  const kept = new Set();
+  const result = [];
+  for (const row of [...imageRows].sort((a, b) => a.sort_order - b.sort_order)) {
+    const url = photoUrls.get(row.product_id);
+    if (!url) {
+      result.push(row);
+    } else if (!kept.has(row.product_id)) {
+      kept.add(row.product_id);
+      result.push({ ...row, url, alt_text: row.alt_text ?? null });
+    }
+  }
+  return result;
+}

@@ -4,6 +4,7 @@ import { writeLimiter } from '../../middleware/rateLimit.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { requireMerchant, requireStoreOwner } from '../../middleware/requireMerchant.js';
 import { emptyBody } from '../../lib/schemas.js';
+import { receiveImage } from '../../lib/imageUpload.js';
 import * as controller from './merchantStore.controller.js';
 import {
   createStoreSchema,
@@ -12,6 +13,8 @@ import {
   deliverySchema,
   paymentsSchema,
   storeParams,
+  holidayParams,
+  holidaySchema,
 } from './merchantStore.schemas.js';
 
 /**
@@ -72,4 +75,21 @@ merchantStoreRouter.put(
   ...ownStore,
   validate({ body: paymentsSchema }),
   controller.setPayments,
+);
+
+// ── Photos (P1): multipart, one field named "file", JPEG/PNG/WebP ≤ 5 MB ─────
+merchantStoreRouter.post('/:storeId/logo', writeLimiter, ...ownStore, receiveImage, controller.uploadLogo);
+merchantStoreRouter.post('/:storeId/cover', writeLimiter, ...ownStore, receiveImage, controller.uploadCover);
+
+// ── Holidays (P1) ────────────────────────────────────────────────────────────
+merchantStoreRouter.get('/:storeId/holidays', ...ownStore, controller.listHolidays);
+merchantStoreRouter.post('/:storeId/holidays', writeLimiter, ...ownStore, validate({ body: holidaySchema }), controller.addHoliday);
+merchantStoreRouter.delete(
+  '/:storeId/holidays/:holidayId',
+  writeLimiter,
+  requireAuth,
+  validate({ params: holidayParams }),
+  requireMerchant,
+  requireStoreOwner,
+  controller.removeHoliday,
 );

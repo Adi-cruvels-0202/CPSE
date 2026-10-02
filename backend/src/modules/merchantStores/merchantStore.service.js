@@ -1,7 +1,9 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
-import { conflict, internal, unprocessable, slugTaken } from '../../lib/errors.js';
-import { resolveOpenState } from '../../lib/openingHours.js';
+import { conflict, internal, notFound, unprocessable, slugTaken, validationFailed } from '../../lib/errors.js';
+import { resolveOpenState, localNow } from '../../lib/openingHours.js';
+import { storeImage, removeStoredImage } from '../../lib/imageUpload.js';
 import { slugify as slugifyBase, firstFreeSlug } from '../../lib/slug.js';
+import { holidaysFor, holidaysByStore } from '../stores/store.service.js';
 import { DAYS } from './merchantStore.schemas.js';
 
 /**
@@ -13,8 +15,8 @@ import { DAYS } from './merchantStore.schemas.js';
  */
 
 /** The merchant's view of a store — includes what customers never see. */
-export function toMerchantStore(row, now = new Date()) {
-  const open = resolveOpenState(row.opening_hours, row.timezone, now);
+export function toMerchantStore(row, { now = new Date(), holidays = [] } = {}) {
+  const open = resolveOpenState(row.opening_hours, row.timezone, now, { holidays });
   return {
     id: row.id,
     slug: row.slug,
@@ -97,6 +99,11 @@ async function slugExists(slug) {
 
 const freeSlug = (base) => firstFreeSlug(base, slugExists);
 
+/** `GET …/:storeId` — the store as it stands, with its holidays applied. */
+export async function getStore(store) {
+  return toMerchantStore(store, { holidays: await holidaysFor(store.id) });
+}
+
 /** `GET /merchant/stores` — the caller's stores, newest first. */
 export async function listStores(merchant, now = new Date()) {
   const { data, error } = await supabaseAdmin
@@ -106,7 +113,9 @@ export async function listStores(merchant, now = new Date()) {
     .order('created_at', { ascending: false });
 
   if (error) throw internal('Could not load your stores.');
-  return (data ?? []).map((row) => toMerchantStore(row, now));
+  const rows = data ?? [];
+  const holidays = await holidaysByStore(rows.map((row) => row.id), now);
+  return rows.map((row) => toMerchantStore(row, { now, holidays: holidays.get(row.id) }));
 }
 
 /**
@@ -130,7 +139,7 @@ export async function createStore(merchant, input) {
       .select('*')
       .single();
 
-    if (!error) return toMerchantStore(data);
+    if (!error) return toMerchantStore(data);  // a new store has no holidays yet
     if (error.code !== UNIQUE_VIOLATION) throw internal('Could not create the store.');
     if (requested) throw slugTaken(requested);
   }
@@ -147,7 +156,7 @@ async function writeStore(store, patch, message = 'Could not update the store.')
 
   if (error?.code === UNIQUE_VIOLATION && patch.slug) throw slugTaken(patch.slug);
   if (error) throw internal(message);
-  return toMerchantStore(data);
+  return toMerchantStore(data, { holidays: await holidaysFor(store.id) });
 }
 
 /**
@@ -223,4 +232,68 @@ export function setDelivery(store, input) {
 /** `PUT …/payments` */
 export function setPayments(store, { cash, online }) {
   return writeStore(store, { accepts_cash: cash, accepts_online: online });
+}
+
+// ── Photos (P1, D-10) ────────────────────────────────────────────────────────
+
+/**
+ * `POST …/logo` and `…/cover`. The new photo is stored first and the row then
+ * points at it; the photo it replaces is deleted afterwards, so a failure part
+ * way never leaves the store pointing at nothing.
+ */
+export async function setStorePhoto(store, kind, file) {
+  const column = kind === 'logo' ? 'logo_url' : 'cover_image_url';
+  const url = await storeImage(file, `stores/${store.id}/${kind}`);
+  const updated = await writeStore(store, { [column]: url }, 'Could not save the photo.');
+  await removeStoredImage(store[column]);
+  return updated;
+}
+
+// ── Holidays (P1, MERCHANT_RULES S-12) ──────────────────────────────────────
+
+const toHoliday = (row) => ({ id: row.id, date: row.holiday_date, reason: row.reason ?? null, createdAt: row.created_at });
+
+/** `GET …/holidays` — today's and later, in date order. Past ones are history. */
+export async function listHolidays(store) {
+  const today = localNow(store.timezone).date;
+  const { data, error } = await supabaseAdmin
+    .from('store_holidays')
+    .select('id, holiday_date, reason, created_at')
+    .eq('store_id', store.id)
+    .gte('holiday_date', today)
+    .order('holiday_date', { ascending: true });
+
+  if (error) throw internal('Could not load the holidays.');
+  return (data ?? []).map(toHoliday);
+}
+
+/** `POST …/holidays` — the store shows closed all that day. */
+export async function addHoliday(store, { date, reason }) {
+  if (date < localNow(store.timezone).date) {
+    throw validationFailed({ issues: [{ source: 'body', field: 'date', message: 'Choose today or a later date.' }] });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('store_holidays')
+    .insert({ store_id: store.id, holiday_date: date, reason: reason ?? null })
+    .select('id, holiday_date, reason, created_at')
+    .single();
+
+  if (error?.code === UNIQUE_VIOLATION) throw conflict('That date is already a holiday.', { date });
+  if (error) throw internal('Could not add the holiday.');
+  return toHoliday(data);
+}
+
+/** `DELETE …/holidays/:holidayId` — another store's holiday is a 404 (S-18's lesson). */
+export async function removeHoliday(store, holidayId) {
+  const { data, error } = await supabaseAdmin
+    .from('store_holidays')
+    .delete()
+    .eq('id', holidayId)
+    .eq('store_id', store.id)
+    .select('id')
+    .maybeSingle();
+
+  if (error) throw internal('Could not remove the holiday.');
+  if (!data) throw notFound('Holiday');
 }

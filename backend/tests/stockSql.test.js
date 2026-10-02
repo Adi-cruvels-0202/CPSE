@@ -1,9 +1,5 @@
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { freshDatabase, migrate, one } from './helpers/pgdb.js';
-
-// Real Postgres in WebAssembly is CPU-heavy; when the whole suite runs in
-// parallel a test here can take far longer than it does alone.
-vi.setConfig({ testTimeout: 60_000 });
 
 /**
  * Migration 0030 run against real Postgres (PGlite). The API tests use a

@@ -140,3 +140,20 @@ export const paymentsSchema = z
   });
 
 export const storeParams = z.object({ storeId: z.string().uuid('Not a valid store.') }).strict();
+
+// ── Holidays (P1, MERCHANT_RULES S-12) ──────────────────────────────────────
+
+export const holidayParams = z
+  .object({ storeId: z.string().uuid('Not a valid store.'), holidayId: z.string().uuid('Not a valid holiday.') })
+  .strict();
+
+export const holidaySchema = z
+  .object({
+    // A calendar date in the store's own timezone.
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD.')
+      .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value), 'Not a real date.'),
+    reason: z.string().trim().min(1).max(200).nullish(),
+  })
+  .strict();

@@ -84,6 +84,9 @@ Everything in `docs/API.md` → *Errors* also applies.
 
 ### Merchant account
 
+> ✅ **Built** (`backend/merchant-auth`). The authoritative description is now
+> `docs/API.md` → *Merchant account*; the table below is kept as the agreed original.
+
 Login, refresh, logout, forgot and reset password are the **existing** `/auth/*` endpoints.
 
 | | |

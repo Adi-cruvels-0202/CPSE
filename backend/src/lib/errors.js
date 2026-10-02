@@ -32,6 +32,13 @@ export const unauthorized = (message = 'Authentication is required.') =>
   new AppError(401, 'UNAUTHORIZED', message);
 export const forbidden = (message = 'You are not allowed to perform this action.') =>
   new AppError(403, 'FORBIDDEN', message);
+/**
+ * A role check, not an ownership check — the caller is signed in but is not a
+ * merchant — so 403 is right here, and it tells the merchant app to offer
+ * onboarding (MERCHANT_API.md, Roles and ownership).
+ */
+export const merchantRequired = () =>
+  new AppError(403, 'MERCHANT_REQUIRED', 'This account is not set up as a merchant yet.');
 export const notFound = (resource = 'Resource') =>
   new AppError(404, 'NOT_FOUND', `${resource} was not found.`);
 export const conflict = (message, details) => new AppError(409, 'CONFLICT', message, details);

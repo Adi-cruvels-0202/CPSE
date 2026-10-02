@@ -121,7 +121,7 @@ export function ReceiptPage() {
               <TotalRow label="Delivery">{formatPaise(receipt.totals.deliveryFeePaise)}</TotalRow>
             ) : null}
             {receipt.totals.taxPaise > 0 ? (
-              <TotalRow label="Tax">{formatPaise(receipt.totals.taxPaise)}</TotalRow>
+              <TotalRow label="GST">{formatPaise(receipt.totals.taxPaise)}</TotalRow>
             ) : null}
             <TotalRow label="Total" strong>
               {formatPaise(receipt.totals.totalPaise)}

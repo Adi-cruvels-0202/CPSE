@@ -305,11 +305,11 @@ describe('the review', () => {
     expect(await screen.findByText(/collect from sharma kirana store/i)).toBeInTheDocument();
   });
 
-  it('hides the tax row, because prices are tax-inclusive', async () => {
+  it('hides the GST row when nothing in the order is taxed', async () => {
     renderCheckout();
 
     await screen.findByRole('heading', { name: /check it over/i });
-    expect(screen.queryByText(/^Tax$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^GST$/)).not.toBeInTheDocument();
   });
 });
 

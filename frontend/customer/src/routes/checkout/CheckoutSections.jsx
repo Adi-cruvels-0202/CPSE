@@ -133,7 +133,7 @@ export function Review({ quote }) {
             {totals.deliveryFeePaise > 0 ? formatPaise(totals.deliveryFeePaise) : 'Free'}
           </Row>
         ) : null}
-        {totals.taxPaise > 0 ? <Row label="Tax">{formatPaise(totals.taxPaise)}</Row> : null}
+        {totals.taxPaise > 0 ? <Row label="GST">{formatPaise(totals.taxPaise)}</Row> : null}
         <Row label="To pay" strong>
           {formatPaise(totals.totalPaise)}
         </Row>

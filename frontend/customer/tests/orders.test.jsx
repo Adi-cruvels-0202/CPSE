@@ -204,6 +204,17 @@ describe('the order detail', () => {
     expect(screen.getByText(/2 × ₹129\.00/)).toBeInTheDocument();
   });
 
+  it('shows GST as its own row, so the total adds up (D-4)', async () => {
+    const order = orderDetailFixture();
+    order.totals = { subtotalPaise: 59900, discountPaise: 0, deliveryFeePaise: 2900, taxPaise: 2995, totalPaise: 65795 };
+    renderAt('/orders/order-1', { routes: { '/orders/order-1': ok({ order }) } });
+
+    await screen.findByRole('heading', { level: 1, name: 'CPSE-260920-ABC123' });
+    expect(screen.getByText('GST').nextSibling).toHaveTextContent('₹29.95');
+    expect(screen.getByText('Delivery').nextSibling).toHaveTextContent('₹29.00');
+    expect(screen.getByText('Total').nextSibling).toHaveTextContent('₹657.95');
+  });
+
   it('shows the timeline this order actually takes', async () => {
     renderAt('/orders/order-1');
 

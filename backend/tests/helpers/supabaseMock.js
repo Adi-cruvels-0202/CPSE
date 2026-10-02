@@ -974,6 +974,54 @@ export function createProductRpc({ payload }) {
 }
 
 /**
+ * Stand-in for record_stock_movement (migration 0032): the same checks, in the
+ * same order, raising the same codes. tests/inventorySql.test.js tests the SQL.
+ */
+export function recordStockMovementRpc({ payload }) {
+  const fail = (message, code = 'P0001') => ({ data: null, error: { code, message } });
+
+  const variant = tableRows('product_variants').find((row) => row.id === payload.variant_id);
+  const product = variant && tableRows('products').find((row) => row.id === variant.product_id);
+  if (!variant || !product || product.store_id !== payload.store_id) return fail('VARIANT_NOT_FOUND', 'P0002');
+  if (!product.track_inventory) return fail('NOT_TRACKED');
+
+  const available = variant.quantity_on_hand - variant.reserved_quantity;
+  let change;
+  if (payload.kind === 'stock_in') change = payload.quantity;
+  else if (payload.kind === 'stock_out') {
+    if (payload.quantity > available) return fail(`INSUFFICIENT_STOCK:${available}`);
+    change = -payload.quantity;
+  } else {
+    if (payload.new_quantity < variant.reserved_quantity) return fail(`BELOW_RESERVED:${variant.reserved_quantity}`);
+    change = payload.new_quantity - variant.quantity_on_hand;
+    if (change === 0) return fail('NO_CHANGE');
+  }
+
+  variant.quantity_on_hand += change;
+  const entry = {
+    id: nextId('9'),
+    store_id: payload.store_id,
+    product_id: product.id,
+    variant_id: variant.id,
+    movement_type: payload.kind,
+    on_hand_change: change,
+    reserved_change: 0,
+    on_hand_after: variant.quantity_on_hand,
+    reserved_after: variant.reserved_quantity,
+    unit_cost_paise: payload.unit_cost_paise ?? null,
+    reason: payload.reason || null,
+    notes: payload.notes || null,
+    reference_type: null,
+    reference_id: null,
+    performed_by_type: 'merchant',
+    performed_by_id: payload.merchant_id,
+    created_at: new Date().toISOString(),
+  };
+  tableRows('inventory_ledger').push(entry);
+  return { data: { ledger_id: entry.id }, error: null };
+}
+
+/**
  * Stand-in for the orders_apply_stock_movement trigger (migration 0030). Reads
  * what the order still holds from the ledger and releases it (rejected,
  * cancelled) or takes it off the shelf (completed), logging each move.
@@ -1086,6 +1134,7 @@ export function createSupabaseMock() {
         if (name === 'create_product') return createProductRpc(args);
         if (name === 'add_product_variants') return addProductVariantsRpc(args);
         if (name === 'replace_product_images') return replaceProductImagesRpc(args);
+        if (name === 'record_stock_movement') return recordStockMovementRpc(args);
         throw new Error(`No mock for RPC "${name}"`);
       }),
     },

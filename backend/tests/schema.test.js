@@ -592,6 +592,7 @@ describe('function privileges (checklist 10.1)', () => {
       'generate_order_number',
       'khata_statement',
       'purge_abandoned_carts',
+      'record_stock_movement',
       'replace_product_images',
     ]);
   });

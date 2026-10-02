@@ -147,7 +147,7 @@
 }
 
 .input-field.input-error:focus {
-  box-shadow: 0 0 0 3px rgba(197, 48, 48, 0.1);
+  box-shadow: 0 0 0 3px rgba(196, 55, 42, 0.15);
 }
 
 .input-error-text {
@@ -288,7 +288,7 @@
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 41, 71, 0.35);
+  background: rgba(20, 33, 27, 0.4);
   z-index: var(--z-modal);
   display: flex;
   align-items: center;
@@ -384,8 +384,8 @@
 }
 
 .tab-active {
-  color: var(--brown);
-  border-bottom-color: var(--brown);
+  color: var(--green-700);
+  border-bottom-color: var(--green-600);
 }
 
 

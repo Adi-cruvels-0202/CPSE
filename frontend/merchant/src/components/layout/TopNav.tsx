@@ -202,7 +202,7 @@ export default function TopNav() {
 
         {/* CENTER: Logo */}
         <div className="topnav-center">
-          <NavLink to="/dashboard" className="topnav-logo-link" aria-label="Merchant One Home">
+          <NavLink to="/dashboard" className="topnav-logo-link" aria-label="CPSE for shops — home">
             <Logo size="md" />
           </NavLink>
         </div>

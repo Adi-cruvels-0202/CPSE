@@ -9,12 +9,11 @@ export function AuthBrand() {
   return (
     <div className="auth-brand">
       <div className="auth-brand-content">
-        <h1 className="auth-brand-heading" style={{ fontFamily: "'Stardom', sans-serif", fontSize: '4rem', marginBottom: '1rem' }}>
-          Merchant One
-        </h1>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'normal', opacity: 0.9, color: 'white' }}>
-          Your store, simplified — on CPSE.
-        </h2>
+        <div style={{ marginBottom: 'var(--space-8)' }}><Logo size="xl" variant="inverse" /></div>
+        <h1 className="auth-brand-heading">Your shop, online and at the counter.</h1>
+        <p className="auth-brand-text">
+          Take orders from your neighbourhood, keep stock straight and ring up walk-ins — with the same login you shop with.
+        </p>
       </div>
     </div>
   );

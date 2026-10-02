@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ToastProvider } from './hooks/useToast';
 import { StoreProvider } from './hooks/useStore';
-import LiquidGlass from './components/glass/LiquidGlass';
 import MerchantLayout from './components/layout/MerchantLayout';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
@@ -72,7 +71,6 @@ export default function App() {
         <AuthProvider>
           <ToastProvider>
             <StoreProvider>
-              <LiquidGlass />
               <Routes>
                 <Route path="/login" element={<SignedOutRoute><LoginPage /></SignedOutRoute>} />
                 <Route path="/register" element={<SignedOutRoute><RegisterPage /></SignedOutRoute>} />

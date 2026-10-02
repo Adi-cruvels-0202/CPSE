@@ -2,9 +2,6 @@
    SHOPFLOW GLOBAL STYLES
    ================================================================ */
 
-@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap');
-
 @import './reset.css';
 @import './tokens.css';
 @import './typography.css';
@@ -28,7 +25,7 @@ body {
 
 /* Focus visible for accessibility */
 :focus-visible {
-  outline: 2px solid var(--brown);
+  outline: 2px solid var(--green-600);
   outline-offset: 2px;
 }
 

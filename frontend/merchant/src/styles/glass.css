@@ -1,0 +1,109 @@
+/* ================================================================
+   SHOPFLOW LIQUID GLASS MATERIALS
+   Navy/cream-tinted translucent surfaces with SVG refraction
+   ================================================================ */
+
+/* --- Base glass surface --- */
+.glass-surface {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  position: relative;
+}
+
+.glass-surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  z-index: -1;
+}
+
+/* Chromium refraction enhancement */
+.glass-refraction .glass-surface::before {
+  backdrop-filter: url(#liquid-glass-filter) blur(var(--glass-blur)) saturate(1.4);
+  -webkit-backdrop-filter: url(#liquid-glass-filter) blur(var(--glass-blur)) saturate(1.4);
+}
+
+/* --- Top Navigation glass --- */
+.glass-topnav {
+  background: rgba(250, 250, 246, 0.78);
+  border-bottom: 1px solid rgba(10, 41, 71, 0.06);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+}
+
+.glass-refraction .glass-topnav {
+  backdrop-filter: url(#liquid-glass-filter) blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: url(#liquid-glass-filter) blur(24px) saturate(1.6);
+}
+
+/* --- Dropdown glass --- */
+.glass-dropdown {
+  background: #ffffff;
+  border: 1px solid rgba(10, 41, 71, 0.08);
+  box-shadow:
+    0 12px 40px rgba(10, 41, 71, 0.12),
+    0 4px 12px rgba(10, 41, 71, 0.06);
+  border-radius: var(--radius-xl);
+}
+
+.glass-refraction .glass-dropdown {
+  /* No refraction for opaque dropdowns */
+}
+
+/* --- Modal / Overlay glass --- */
+.glass-overlay {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(10, 41, 71, 0.06);
+  box-shadow: var(--shadow-2xl);
+  backdrop-filter: blur(32px) saturate(1.5);
+  -webkit-backdrop-filter: blur(32px) saturate(1.5);
+  border-radius: var(--radius-2xl);
+}
+
+/* --- Panel glass — floating controls --- */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(10, 41, 71, 0.06);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.3);
+  border-radius: var(--radius-xl);
+}
+
+/* --- Auth glass — cream-tinted for auth panels --- */
+.glass-auth {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(243, 228, 201, 0.4);
+  box-shadow:
+    0 24px 60px rgba(10, 41, 71, 0.10),
+    inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(30px) saturate(1.5);
+  -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  border-radius: var(--radius-2xl);
+}
+
+/* --- Text readability on all glass surfaces --- */
+.glass-surface,
+.glass-topnav,
+.glass-dropdown,
+.glass-overlay,
+.glass-panel,
+.glass-auth {
+  color: var(--color-text);
+}
+
+/* --- Reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .glass-surface,
+  .glass-topnav,
+  .glass-dropdown,
+  .glass-overlay,
+  .glass-panel,
+  .glass-auth {
+    transition: none;
+  }
+}

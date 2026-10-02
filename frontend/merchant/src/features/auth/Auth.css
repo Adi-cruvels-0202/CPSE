@@ -1,0 +1,207 @@
+/* ================================================================
+   SHOPFLOW AUTHENTICATION
+   Split-layout editorial design
+   ================================================================ */
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  background: var(--color-bg);
+}
+
+/* --- Left panel: Brand statement --- */
+.auth-brand {
+  flex: 1;
+  background: var(--navy);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-16) var(--space-12);
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+}
+
+.auth-brand::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  right: -30%;
+  width: 80%;
+  height: 140%;
+  background: radial-gradient(ellipse, rgba(139, 94, 60, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.auth-brand::after {
+  content: '';
+  position: absolute;
+  bottom: -10%;
+  left: -20%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(ellipse, rgba(243, 228, 201, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.auth-brand-content {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+}
+
+.auth-brand-logo {
+  margin-bottom: var(--space-12);
+}
+
+.auth-brand-heading {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-5xl);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.04em;
+  color: var(--cream);
+  margin-bottom: var(--space-6);
+}
+
+.auth-brand-text {
+  font-family: var(--font-body);
+  font-size: var(--text-md);
+  color: rgba(243, 228, 201, 0.6);
+  line-height: var(--leading-relaxed);
+  max-width: 360px;
+}
+
+.auth-brand-features {
+  margin-top: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.auth-brand-feature {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: rgba(243, 228, 201, 0.5);
+}
+
+.auth-brand-feature-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--brown);
+  flex-shrink: 0;
+}
+
+/* --- Right panel: Form --- */
+.auth-form-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  min-height: 100vh;
+}
+
+.auth-form-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.auth-form-header {
+  margin-bottom: var(--space-8);
+}
+
+.auth-form-title {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-2xl);
+  color: var(--color-text);
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-2);
+}
+
+.auth-form-subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.auth-error {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.auth-footer {
+  text-align: center;
+  margin-top: var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.auth-link {
+  color: var(--brown);
+  font-weight: var(--font-medium);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.auth-link:hover {
+  color: var(--brown-dark);
+}
+
+/* Mobile logo — only visible on mobile */
+.auth-mobile-logo {
+  display: none;
+  margin-bottom: var(--space-8);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1024px) {
+  .auth-brand {
+    display: none;
+  }
+
+  .auth-form-panel {
+    padding: var(--space-6);
+  }
+
+  .auth-mobile-logo {
+    display: block;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-form-panel {
+    padding: var(--space-4);
+    align-items: flex-start;
+    padding-top: var(--space-12);
+  }
+
+  .auth-form-title {
+    font-size: var(--text-xl);
+  }
+
+  .auth-brand-heading {
+    font-size: var(--text-3xl);
+  }
+}

@@ -1,0 +1,134 @@
+/* ================================================================
+   SHOPFLOW TYPOGRAPHY
+   Headings: Cabinet Grotesk 800
+   Body:     Satoshi 400
+   ================================================================ */
+
+.heading-1 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-4xl);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+
+.heading-2 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.heading-3 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  letter-spacing: -0.015em;
+  color: var(--color-text);
+}
+
+.heading-4 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
+/* Major numbers — dashboard metrics, totals */
+.metric {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-5xl);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--color-text);
+}
+
+.metric-md {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-3xl);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+
+.metric-sm {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  font-size: var(--text-2xl);
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  color: var(--color-text);
+}
+
+/* Body text — Satoshi */
+.body {
+  font-family: var(--font-body);
+  font-weight: var(--font-regular);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+}
+
+.body-sm {
+  font-family: var(--font-body);
+  font-weight: var(--font-regular);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--color-text-secondary);
+}
+
+.body-xs {
+  font-family: var(--font-body);
+  font-weight: var(--font-regular);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--color-text-tertiary);
+}
+
+/* Labels — uppercase tracking */
+.label {
+  font-family: var(--font-body);
+  font-weight: var(--font-medium);
+  font-size: var(--text-2xs);
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+/* Monospace — codes, SKUs */
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0;
+}
+
+/* Nav labels */
+.nav-label {
+  font-family: var(--font-body);
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+  letter-spacing: 0.01em;
+}
+
+/* Brand wordmark */
+.brand {
+  font-family: var(--font-heading);
+  font-weight: var(--font-extrabold);
+  letter-spacing: -0.04em;
+}
+
+@media (max-width: 640px) {
+  .heading-1 { font-size: var(--text-2xl); }
+  .heading-2 { font-size: var(--text-xl); }
+  .metric    { font-size: var(--text-3xl); }
+  .metric-md { font-size: var(--text-2xl); }
+}

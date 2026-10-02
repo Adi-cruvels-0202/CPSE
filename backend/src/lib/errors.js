@@ -39,6 +39,14 @@ export const forbidden = (message = 'You are not allowed to perform this action.
  */
 export const merchantRequired = () =>
   new AppError(403, 'MERCHANT_REQUIRED', 'This account is not set up as a merchant yet.');
+/** Category names are unique per store, ignoring case (MERCHANT_RULES C-2). */
+export const categoryNameTaken = (name) =>
+  new AppError(409, 'CATEGORY_NAME_TAKEN', `This store already has a category called "${name}".`, { name });
+/** SKUs are unique per store, ignoring case (MERCHANT_RULES P-5). */
+export const skuTaken = (sku = null) =>
+  sku
+    ? new AppError(409, 'SKU_TAKEN', `The SKU "${sku}" is already used in this store.`, { sku })
+    : new AppError(409, 'SKU_TAKEN', 'One of those SKUs is already used in this store.');
 /** A store link already used by another store (MERCHANT_API.md). */
 export const slugTaken = (slug) =>
   new AppError(409, 'SLUG_TAKEN', `The link "${slug}" is already used by another store.`, { slug });

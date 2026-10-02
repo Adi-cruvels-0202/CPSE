@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { conflict, internal, unprocessable, slugTaken } from '../../lib/errors.js';
 import { resolveOpenState } from '../../lib/openingHours.js';
+import { slugify as slugifyBase, firstFreeSlug } from '../../lib/slug.js';
 import { DAYS } from './merchantStore.schemas.js';
 
 /**
@@ -85,21 +86,8 @@ function toColumns(input) {
   return row;
 }
 
-/**
- * MERCHANT_RULES S-4: lower-case, non-alphanumerics become hyphens, and an
- * empty result falls back to "store".
- */
-export function slugify(name) {
-  const base = name
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 50)
-    .replace(/-+$/, '');
-  return base.length >= 2 ? base : 'store';
-}
+/** Store links fall back to "store" (MERCHANT_RULES S-4). */
+export const slugify = (name) => slugifyBase(name, 'store');
 
 async function slugExists(slug) {
   const { data, error } = await supabaseAdmin.from('stores').select('id').eq('slug', slug).maybeSingle();
@@ -107,15 +95,7 @@ async function slugExists(slug) {
   return Boolean(data);
 }
 
-/** The first free one of base, base-2, base-3, … (MERCHANT_RULES S-4). */
-async function freeSlug(base) {
-  for (let suffix = 1; suffix < 100; suffix += 1) {
-    const candidate = suffix === 1 ? base : `${base}-${suffix}`;
-    if (!(await slugExists(candidate))) return candidate;
-  }
-  // A hundred shops with one name: stop counting and make it unique.
-  return `${base}-${Date.now().toString(36)}`;
-}
+const freeSlug = (base) => firstFreeSlug(base, slugExists);
 
 /** `GET /merchant/stores` — the caller's stores, newest first. */
 export async function listStores(merchant, now = new Date()) {

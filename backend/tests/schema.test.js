@@ -585,11 +585,14 @@ describe('function privileges (checklist 10.1)', () => {
     const functions = await callableFunctions();
 
     expect([...functions.keys()].sort()).toEqual([
+      'add_product_variants',
       'create_order',
+      'create_product',
       'expire_stale_pending_orders',
       'generate_order_number',
       'khata_statement',
       'purge_abandoned_carts',
+      'replace_product_images',
     ]);
   });
 

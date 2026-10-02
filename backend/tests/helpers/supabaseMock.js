@@ -76,6 +76,8 @@ const KNOWN_TABLES = [
  * would come back with undefined where Postgres would have put a value.
  */
 const COLUMN_DEFAULTS = {
+  // migrations 0005, 0026
+  categories: () => ({ description: null, sort_order: 0, is_active: true }),
   // migrations 0004, 0019, 0025
   stores: () => ({
     description: null,
@@ -551,6 +553,13 @@ function queryBuilder(table) {
           if (before.get(row.id) !== row.status) applyOrderStockMovement(row);
         }
       }
+      // Migration 0030's sync_product_price: a variant edit reprices its product.
+      if (table === 'product_variants') {
+        for (const productId of new Set(updated.map((row) => row.product_id))) {
+          const product = rowsOf('products').find((row) => row.id === productId);
+          if (product) syncProductPrice(product);
+        }
+      }
       if (single) return { data: copy(updated[0] ?? null), error: null, count: null };
       return { data: state.returning ? updated.map(copy) : null, error: null, count: null };
     }
@@ -623,7 +632,10 @@ function queryBuilder(table) {
     gte: filter('gte'),
     lte: filter('lte'),
     lt: filter('lt'),
-    ilike: filter('ilike'),
+    // A direct `.ilike(col, '%term%')`: the outer wildcards are the pattern,
+    // not the text — the same normalising parseOr does for `or=` filters.
+    ilike: (column, value) =>
+      filter('ilike')(column, String(value).replace(/^%|%$/g, '').replace(/\\(.)/g, '$1')),
     or(expression) {
       state.filters.push({ op: 'or', value: parseOr(expression) });
       return chain;
@@ -826,6 +838,142 @@ export function createOrderRpc({ payload }) {
 }
 
 /**
+ * Stand-ins for the catalogue functions (migration 0031): the same writes,
+ * in the same order, with the same refusals the SQL raises. The SQL itself
+ * is tested against real Postgres in tests/catalogueSql.test.js.
+ */
+const tableRows = (table) => {
+  if (!db.tables.has(table)) db.tables.set(table, []);
+  return db.tables.get(table);
+};
+
+function uniqueViolation(constraint) {
+  return { code: '23505', message: `duplicate key value violates unique constraint "${constraint}"` };
+}
+
+export function addProductVariantsRpc({ payload }) {
+  const product = tableRows('products').find(
+    (row) => row.id === payload.product_id && row.store_id === payload.store_id,
+  );
+  if (!product) return { data: null, error: { code: 'P0002', message: 'PRODUCT_NOT_FOUND' } };
+
+  const siblings = tableRows('product_variants').filter((row) => row.product_id === product.id);
+  const storeSkus = tableRows('product_variants')
+    .filter((row) => row.store_id === product.store_id && row.sku)
+    .map((row) => row.sku.toLowerCase());
+
+  let sortOrder = siblings.reduce((max, row) => Math.max(max, row.sort_order), -1) + 1;
+  const created = [];
+  for (const variant of payload.variants) {
+    if (siblings.some((row) => row.name.toLowerCase() === variant.name.toLowerCase())) {
+      return { data: null, error: uniqueViolation('product_variants_product_name_key') };
+    }
+    if (variant.sku && storeSkus.includes(variant.sku.toLowerCase())) {
+      return { data: null, error: uniqueViolation('product_variants_store_sku_key') };
+    }
+    const opening = product.track_inventory ? variant.opening_quantity ?? 0 : 0;
+    created.push({
+      id: nextId('5'),
+      product_id: product.id,
+      store_id: product.store_id,
+      name: variant.name,
+      sku: variant.sku ?? null,
+      barcode: variant.barcode ?? null,
+      weight_grams: variant.weight_grams ?? null,
+      price_paise: variant.price_paise,
+      mrp_paise: variant.mrp_paise ?? null,
+      cost_paise: variant.cost_paise ?? null,
+      quantity_on_hand: opening,
+      reserved_quantity: 0,
+      version: 0,
+      is_available: true,
+      sort_order: sortOrder,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    sortOrder += 1;
+  }
+
+  for (const variant of created) {
+    tableRows('product_variants').push(variant);
+    if (variant.quantity_on_hand > 0) {
+      tableRows('inventory_ledger').push({
+        id: nextId('9'),
+        store_id: product.store_id,
+        product_id: product.id,
+        variant_id: variant.id,
+        movement_type: 'stock_in',
+        on_hand_change: variant.quantity_on_hand,
+        reserved_change: 0,
+        on_hand_after: variant.quantity_on_hand,
+        reserved_after: 0,
+        unit_cost_paise: variant.cost_paise,
+        reason: 'Opening stock',
+        reference_type: null,
+        reference_id: null,
+        performed_by_type: 'merchant',
+        performed_by_id: payload.merchant_id,
+        created_at: new Date().toISOString(),
+      });
+    }
+  }
+  syncProductPrice(product);
+  return { data: created.map((variant) => variant.id), error: null };
+}
+
+export function replaceProductImagesRpc({ payload }) {
+  db.tables.set('product_images', tableRows('product_images').filter((row) => row.product_id !== payload.product_id));
+  (payload.images ?? []).forEach((image, index) => {
+    tableRows('product_images').push({
+      id: nextId('6'),
+      product_id: payload.product_id,
+      url: image.url,
+      alt_text: image.alt_text ?? null,
+      sort_order: index,
+      created_at: new Date().toISOString(),
+    });
+  });
+  return { data: null, error: null };
+}
+
+export function createProductRpc({ payload }) {
+  if (tableRows('products').some((row) => row.store_id === payload.store_id && row.slug === payload.slug)) {
+    return { data: null, error: uniqueViolation('products_store_slug_key') };
+  }
+  const [cheapest] = [...payload.variants].sort((a, b) => a.price_paise - b.price_paise);
+  const product = {
+    id: nextId('3'),
+    store_id: payload.store_id,
+    category_id: payload.category_id ?? null,
+    name: payload.name,
+    slug: payload.slug,
+    description: payload.description ?? null,
+    price_paise: cheapest.price_paise,
+    mrp_paise: cheapest.mrp_paise ?? null,
+    tax_percent: payload.tax_percent ?? 0,
+    unit: payload.unit ?? 'pcs',
+    track_inventory: payload.track_inventory ?? true,
+    low_stock_threshold: payload.low_stock_threshold ?? null,
+    is_available: true,
+    sort_order: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  tableRows('products').push(product);
+
+  // One transaction in SQL: a refused variant takes the product with it.
+  const variants = addProductVariantsRpc({
+    payload: { store_id: payload.store_id, product_id: product.id, merchant_id: payload.merchant_id, variants: payload.variants },
+  });
+  if (variants.error) {
+    db.tables.set('products', tableRows('products').filter((row) => row.id !== product.id));
+    return variants;
+  }
+  replaceProductImagesRpc({ payload: { product_id: product.id, images: payload.images } });
+  return { data: product.id, error: null };
+}
+
+/**
  * Stand-in for the orders_apply_stock_movement trigger (migration 0030). Reads
  * what the order still holds from the ledger and releases it (rejected,
  * cancelled) or takes it off the shelf (completed), logging each move.
@@ -935,6 +1083,9 @@ export function createSupabaseMock() {
       rpc: vi.fn(async (name, args) => {
         if (name === 'create_order') return createOrderRpc(args);
         if (name === 'khata_statement') return khataStatementRpc(args);
+        if (name === 'create_product') return createProductRpc(args);
+        if (name === 'add_product_variants') return addProductVariantsRpc(args);
+        if (name === 'replace_product_images') return replaceProductImagesRpc(args);
         throw new Error(`No mock for RPC "${name}"`);
       }),
     },

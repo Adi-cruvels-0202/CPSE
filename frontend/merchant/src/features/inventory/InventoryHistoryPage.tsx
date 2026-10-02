@@ -1,88 +1,95 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { inventoryApi } from '../../api/endpoints';
 import { useActiveStore } from '../../hooks/useStore';
-import { IconHistory, IconStore } from '../../components/icons/Icons';
+import { formatPaise } from '../../lib/money';
+import { EmptyState, NoStore, Pagination, Spinner, formatDateTime } from '../../components/common/ui';
+import { IconHistory } from '../../components/icons/Icons';
+
+/**
+ * Every stock movement, newest first — the merchant's own and the ones orders
+ * and counter sales make. Append-only: a mistake is fixed by a new movement.
+ */
+
+const TYPES: Record<string, { label: string; badge: string }> = {
+  stock_in: { label: 'Received', badge: 'badge-success' },
+  stock_out: { label: 'Taken out', badge: 'badge-danger' },
+  adjustment: { label: 'Counted', badge: 'badge-warning' },
+  order_reserved: { label: 'Held for order', badge: 'badge-info' },
+  order_released: { label: 'Order let go', badge: 'badge-neutral' },
+  order_fulfilled: { label: 'Order completed', badge: 'badge-danger' },
+  sale: { label: 'Counter sale', badge: 'badge-danger' },
+  purchase: { label: 'Purchase', badge: 'badge-success' },
+};
+
+const signed = (value: number) => (value > 0 ? `+${value}` : String(value));
 
 export default function InventoryHistoryPage() {
   const { activeStoreId } = useActiveStore();
-  const [page, setPage] = useState(0);
-  const [typeFilter, setTypeFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [movementType, setMovementType] = useState('');
 
-  const { data: historyRes, isLoading } = useQuery({
-    queryKey: ['inventoryHistory', activeStoreId, page, typeFilter],
-    queryFn: () => inventoryApi.history(activeStoreId!, { page, size: 30, type: typeFilter || undefined }),
+  const { data, isLoading } = useQuery({
+    queryKey: ['history', activeStoreId, page, movementType],
+    queryFn: () => inventoryApi.history(activeStoreId!, { page, limit: 30, movementType: movementType || undefined }),
     enabled: !!activeStoreId,
   });
 
-  const entries = historyRes?.data?.data || [];
-  const totalPages = historyRes?.data?.totalPages || 0;
-  const movementTypes = ['STOCK_IN','STOCK_OUT','ADJUSTMENT','SALE','PURCHASE','DAMAGE','EXPIRY'];
-
-  const badgeClass = (type: string) => {
-    if (type === 'STOCK_IN' || type === 'PURCHASE') return 'badge-success';
-    if (type === 'STOCK_OUT' || type === 'SALE') return 'badge-danger';
-    if (type === 'ADJUSTMENT') return 'badge-warning';
-    return 'badge-neutral';
-  };
-
-  if (!activeStoreId) return (
-    <div>
-      <div className="page-header"><div><h1 className="page-title">Inventory History</h1></div></div>
-      <div className="empty-state">
-        <div className="empty-state-icon"><IconStore size={32} /></div>
-        <div className="empty-state-title">No store selected</div>
-      </div>
-    </div>
-  );
+  if (!activeStoreId) return <NoStore title="Stock history" />;
+  const entries = data?.data.entries ?? [];
 
   return (
     <div>
-      <div className="page-header"><div><h1 className="page-title">Inventory History</h1><p className="page-subtitle">Audit trail of all stock movements</p></div></div>
+      <div className="page-header">
+        <div><h1 className="page-title">Stock history</h1><p className="page-subtitle">Every change to stock, and what caused it</p></div>
+      </div>
 
       <div className="filters-bar">
-        <select className="input-field select-field" value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(0); }} style={{ maxWidth: 200 }}>
-          <option value="">All Types</option>
-          {movementTypes.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+        <select className="input-field select-field" value={movementType} onChange={(e) => { setMovementType(e.target.value); setPage(1); }} style={{ maxWidth: 220 }}>
+          <option value="">Every kind</option>
+          {Object.entries(TYPES).filter(([type]) => type !== 'purchase').map(([type, { label }]) => <option key={type} value={type}>{label}</option>)}
         </select>
       </div>
 
-      {isLoading ? (
-        <div style={{ padding: 40, textAlign: 'center' }}><div className="spinner spinner-lg" /></div>
-      ) : entries.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon"><IconHistory size={32} /></div>
-          <div className="empty-state-title">No history yet</div>
-          <div className="empty-state-description">Stock movements will appear here as you manage inventory.</div>
-        </div>
+      {isLoading ? <Spinner large /> : entries.length === 0 ? (
+        <EmptyState icon={<IconHistory size={32} />} title="No movements yet" description="Receiving stock, orders and counter sales all show up here." />
       ) : (
         <>
           <div className="table-container">
             <table className="table">
-              <thead><tr><th>Date</th><th>Product</th><th>SKU</th><th>Type</th><th>Qty</th><th>Before</th><th>After</th><th>Notes</th></tr></thead>
+              <thead><tr><th>When</th><th>Product</th><th>What</th><th>Shelf</th><th>Held</th><th>Can sell after</th><th>By</th><th>Details</th></tr></thead>
               <tbody>
-                {entries.map((e: any) => (
-                  <tr key={e.id}>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: 'var(--text-xs)' }}>{new Date(e.createdAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}</td>
-                    <td style={{ fontWeight: 'var(--font-medium)' }}>{e.productName || '—'}</td>
-                    <td><code className="mono">{e.variantSku || '—'}</code></td>
-                    <td><span className={`badge ${badgeClass(e.movementType)}`}>{e.movementType?.replace('_', ' ')}</span></td>
-                    <td style={{ fontWeight: 'var(--font-semibold)', color: e.quantity > 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>{e.quantity > 0 ? '+' : ''}{e.quantity}</td>
-                    <td>{e.quantityBefore}</td>
-                    <td style={{ fontWeight: 'var(--font-semibold)' }}>{e.quantityAfter}</td>
-                    <td style={{ maxWidth: 200, color: 'var(--color-text-secondary)', fontSize: 'var(--text-xs)' }}><span className="truncate" style={{ display: 'block' }}>{e.notes || '—'}</span></td>
-                  </tr>
-                ))}
+                {entries.map((entry) => {
+                  const type = TYPES[entry.movementType] ?? { label: entry.movementType, badge: 'badge-neutral' };
+                  return (
+                    <tr key={entry.id}>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: 'var(--text-xs)' }}>{formatDateTime(entry.createdAt)}</td>
+                      <td style={{ fontWeight: 'var(--font-medium)' }}>
+                        {entry.productName ?? '—'}
+                        {entry.variantName && entry.variantName !== 'Default' && <span style={{ color: 'var(--color-text-tertiary)' }}> ({entry.variantName})</span>}
+                      </td>
+                      <td><span className={`badge ${type.badge}`}>{type.label}</span></td>
+                      <td style={{ color: entry.onHandChange > 0 ? 'var(--color-success)' : entry.onHandChange < 0 ? 'var(--color-danger)' : undefined }}>
+                        {entry.onHandChange === 0 ? '—' : signed(entry.onHandChange)} <span className="body-xs">→ {entry.onHandAfter}</span>
+                      </td>
+                      <td>{entry.reservedChange === 0 ? '—' : signed(entry.reservedChange)} <span className="body-xs">→ {entry.reservedAfter}</span></td>
+                      <td style={{ fontWeight: 'var(--font-semibold)' }}>{entry.availableAfter}</td>
+                      <td style={{ fontSize: 'var(--text-xs)' }}>{entry.performedBy.type === 'merchant' ? 'You' : entry.performedBy.type === 'customer' ? 'Customer' : 'Automatic'}</td>
+                      <td style={{ maxWidth: 240, color: 'var(--color-text-secondary)', fontSize: 'var(--text-xs)' }}>
+                        <span className="truncate" style={{ display: 'block' }}>
+                          {entry.reference?.number ?? (entry.reference?.type === 'sale' ? 'Counter sale' : '')}
+                          {entry.reason ? ` ${entry.reason.replace(/_/g, ' ')}` : ''}
+                          {entry.unitCostPaise !== null ? ` @ ${formatPaise(entry.unitCostPaise)}` : ''}
+                          {entry.notes ? ` — ${entry.notes}` : ''}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-          {totalPages > 1 && (
-            <div className="pagination">
-              <button className="btn btn-secondary btn-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</button>
-              <span className="pagination-info">Page {page + 1} of {totalPages}</span>
-              <button className="btn btn-secondary btn-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</button>
-            </div>
-          )}
+          <Pagination meta={data?.meta} onPage={setPage} />
         </>
       )}
     </div>

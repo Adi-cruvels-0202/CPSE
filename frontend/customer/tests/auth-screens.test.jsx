@@ -161,6 +161,8 @@ describe('sign in', () => {
       'href',
       '/register',
     );
+    // The merchant app is its own app on this origin, so a plain link.
+    expect(screen.getByRole('link', { name: /merchant sign in/i })).toHaveAttribute('href', '/merchant/login');
   });
 
   it('reveals the password on request, and says which state it is in', async () => {
@@ -438,6 +440,13 @@ describe('the account screen', () => {
 
     await openEditor(user);
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+  });
+
+  it('leads to the merchant app with the same login', async () => {
+    renderAccount();
+
+    const link = await screen.findByRole('link', { name: /sell on cpse/i });
+    expect(link).toHaveAttribute('href', '/merchant');
   });
 
   it('shows the email in the editor, but not as an input', async () => {

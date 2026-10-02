@@ -95,6 +95,14 @@ export function Account() {
           label="Khata"
           hint="What you owe your stores"
         />
+        {/* The merchant app — same login, a separate app at /merchant. A
+            customer who is not a merchant yet is offered "set up selling". */}
+        <AccountLink
+          href="/merchant"
+          icon={<ShopIcon />}
+          label="Sell on CPSE"
+          hint="Your shop dashboard, with this same login"
+        />
       </nav>
 
       <button
@@ -198,9 +206,10 @@ function ProfileForm({ onSaved }) {
   );
 }
 
-function AccountLink({ to, icon, label, hint }) {
-  return (
-    <Link to={to} className="account__link">
+/** `to` for a page in this app; `href` for one outside it, like /merchant. */
+function AccountLink({ to, href, icon, label, hint }) {
+  const body = (
+    <>
       <span className="account__link-icon" aria-hidden="true">
         {icon}
       </span>
@@ -209,6 +218,15 @@ function AccountLink({ to, icon, label, hint }) {
         <span className="account__link-hint">{hint}</span>
       </span>
       <ChevronRight />
+    </>
+  );
+  return href ? (
+    <a href={href} className="account__link">
+      {body}
+    </a>
+  ) : (
+    <Link to={to} className="account__link">
+      {body}
     </Link>
   );
 }
@@ -251,6 +269,15 @@ function LedgerIcon() {
     <svg {...iconProps}>
       <path d="M5 4h11a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V4Z" />
       <path d="M5 16h13M9 8h5" />
+    </svg>
+  );
+}
+
+function ShopIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M4 9h16l-1.5-5h-13L4 9Z" />
+      <path d="M5 9v11h14V9M10 20v-6h4v6" />
     </svg>
   );
 }

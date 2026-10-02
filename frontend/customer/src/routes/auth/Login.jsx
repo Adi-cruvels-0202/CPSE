@@ -41,7 +41,16 @@ export function Login() {
       title="Sign in"
       lead="To see your orders, addresses and khata."
       footer={
-        <AuthSwitch question="New here?" to="/register" action="Create an account" />
+        <>
+          <AuthSwitch question="New here?" to="/register" action="Create an account" />
+          {/* The merchant app is a separate app on this origin, outside this router. */}
+          <p className="auth__switch">
+            Run a shop?{' '}
+            <a href="/merchant/login" className="auth__link">
+              Merchant sign in
+            </a>
+          </p>
+        </>
       }
     >
       <form

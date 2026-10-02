@@ -1,31 +1,45 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useToast } from '../../hooks/useToast';
+import { errorMessage } from '../../api/client';
 import Logo from '../../components/brand/Logo';
 import './Auth.css';
 
+export function AuthBrand() {
+  return (
+    <div className="auth-brand">
+      <div className="auth-brand-content">
+        <h1 className="auth-brand-heading" style={{ fontFamily: "'Stardom', sans-serif", fontSize: '4rem', marginBottom: '1rem' }}>
+          Merchant One
+        </h1>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'normal', opacity: 0.9, color: 'white' }}>
+          Your store, simplified — on CPSE.
+        </h2>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The same login as the customer app (one Supabase account): a shopkeeper who
+ * also shops signs in with the same email and password.
+ */
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth();
-  const { showToast } = useToast();
-  const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setError('');
     setIsLoading(true);
-
     try {
+      // The route guards move on to the dashboard or onboarding by themselves.
       await login(email, password);
-      showToast('Welcome back!', 'success');
-      navigate('/dashboard');
-    } catch (err: any) {
-      const message = err.response?.data?.error?.message || 'Login failed. Please try again.';
-      setError(message);
+    } catch (err) {
+      setError(errorMessage(err, 'Sign in failed. Please try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -33,75 +47,36 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      {/* Left: Brand */}
-      <div className="auth-brand">
-        <div className="auth-brand-content">
-          <h1 className="auth-brand-heading" style={{ fontFamily: "'Stardom', sans-serif", fontSize: "4rem", marginBottom: "1rem" }}>
-            Merchant One
-          </h1>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: "normal", opacity: 0.9, color: "white" }}>
-            Your store, simplified.
-          </h2>
-        </div>
-      </div>
-
-      {/* Right: Form */}
+      <AuthBrand />
       <div className="auth-form-panel">
         <div className="auth-form-container">
-          <div className="auth-mobile-logo">
-            <Logo size="lg" />
-          </div>
-
+          <div className="auth-mobile-logo"><Logo size="lg" /></div>
           <div className="auth-form-header">
             <h2 className="auth-form-title">Welcome back</h2>
-            <p className="auth-form-subtitle">Sign in to your merchant account</p>
+            <p className="auth-form-subtitle">Sign in to manage your shop</p>
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit}>
-            {error && <div className="auth-error">{error}</div>}
-
+            {error && <div className="auth-error" role="alert">{error}</div>}
             <div className="input-wrapper">
               <label className="input-label" htmlFor="email">Email</label>
-              <input
-                id="email"
-                type="email"
-                className="input-field"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                autoComplete="email"
-                autoFocus
-              />
+              <input id="email" type="email" className="input-field" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="email" autoFocus />
             </div>
-
             <div className="input-wrapper">
               <label className="input-label" htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                className="input-field"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                autoComplete="current-password"
-              />
+              <input id="password" type="password" className="input-field" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" required autoComplete="current-password" />
             </div>
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-lg auth-submit"
-              disabled={isLoading}
-            >
-              {isLoading ? <span className="spinner spinner-sm" /> : null}
+            <button type="submit" className="btn btn-primary btn-lg auth-submit" disabled={isLoading}>
+              {isLoading && <span className="spinner spinner-sm" />}
               {isLoading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
 
           <p className="auth-footer">
-            Don't have an account?{' '}
-            <Link to="/register" className="auth-link">Create one</Link>
+            New to selling here? <Link to="/register" className="auth-link">Create a merchant account</Link>
+          </p>
+          <p className="auth-footer">
+            Here to shop? <a href="/login" className="auth-link">Customer sign in</a>
           </p>
         </div>
       </div>

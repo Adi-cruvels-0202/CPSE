@@ -79,6 +79,10 @@ export function ProductDetail() {
               {saving ? <span className="badge">{saving}% off</span> : null}
             </>
           ) : null}
+          {/* Tax is added on top at checkout (D-4), so the total is no surprise. */}
+          {product.taxPercent > 0 ? (
+            <span className="product__tax">+ {product.taxPercent}% GST</span>
+          ) : null}
         </p>
 
         <Availability purchasable={purchasable} stock={stock} />

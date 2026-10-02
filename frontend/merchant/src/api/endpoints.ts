@@ -1,126 +1,140 @@
-import api from './client';
+import { api } from './client';
+import type {
+  Merchant,
+  StoreSummary,
+  Store,
+  Holiday,
+  Category,
+  Product,
+  StockVariant,
+  LedgerEntry,
+  Order,
+  Sale,
+  Dashboard,
+  OpeningHours,
+} from './types';
 
-// ========== Auth API ==========
+/**
+ * Every backend call, named — the mirror of backend docs/API.md. Screens call
+ * these, never `api` directly, so a path lives in exactly one place.
+ */
+
+type Session = { accessToken: string; refreshToken: string; expiresAt?: number | null };
+
 export const authApi = {
-  register: (data: { name: string; email: string; password: string }) =>
-    api.post('/api/auth/register', data),
-  login: (data: { email: string; password: string }) =>
-    api.post('/api/auth/login', data),
-  me: () => api.get('/api/auth/me'),
+  login: (body: { email: string; password: string }) =>
+    api.post<{ session: Session; roles: string[] }>('/auth/login', body),
+  logout: () => api.post<void>('/auth/logout'),
+  forgotPassword: (email: string) => api.post<{ message: string }>('/auth/forgot-password', { email }),
 };
 
-// ========== Store API ==========
+export const merchantApi = {
+  register: (body: { email: string; password: string; fullName: string; phone?: string }) =>
+    api.post<{ merchant: Merchant | null; session: Session | null; emailConfirmationRequired: boolean }>('/merchant/auth/register', body),
+  /** Turns the signed-in account (a customer) into a merchant too. */
+  onboard: (body: { fullName?: string; phone?: string }) => api.post<{ merchant: Merchant }>('/merchant/onboard', body),
+  me: () => api.get<{ merchant: Merchant; stores: StoreSummary[] }>('/merchant/me'),
+  updateMe: (body: { fullName?: string; phone?: string | null }) => api.patch<{ merchant: Merchant }>('/merchant/me', body),
+};
+
+const store = (storeId: string) => `/merchant/stores/${storeId}`;
+
 export const storeApi = {
-  create: (data: any) => api.post('/api/stores', data),
-  list: () => api.get('/api/stores'),
-  get: (id: string) => api.get(`/api/stores/${id}`),
-  update: (id: string, data: any) => api.put(`/api/stores/${id}`, data),
-  publish: (id: string) => api.patch(`/api/stores/${id}/publish`),
-  unpublish: (id: string) => api.patch(`/api/stores/${id}/unpublish`),
-  getHours: (id: string) => api.get(`/api/stores/${id}/hours`),
-  updateHours: (id: string, data: any) => api.put(`/api/stores/${id}/hours`, data),
-  getHolidays: (id: string) => api.get(`/api/stores/${id}/holidays`),
-  addHoliday: (id: string, data: any) => api.post(`/api/stores/${id}/holidays`, data),
-  deleteHoliday: (id: string, holidayId: string) => api.delete(`/api/stores/${id}/holidays/${holidayId}`),
-  getDelivery: (id: string) => api.get(`/api/stores/${id}/delivery`),
-  updateDelivery: (id: string, data: any) => api.put(`/api/stores/${id}/delivery`, data),
-  getPayments: (id: string) => api.get(`/api/stores/${id}/payments`),
-  updatePayments: (id: string, data: any) => api.put(`/api/stores/${id}/payments`, data),
-  uploadLogo: (id: string, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return api.post(`/api/stores/${id}/logo`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
-  uploadCover: (id: string, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return api.post(`/api/stores/${id}/cover`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-  },
+  list: () => api.get<{ stores: Store[] }>('/merchant/stores'),
+  get: (storeId: string) => api.get<{ store: Store }>(store(storeId)),
+  create: (body: Record<string, unknown>) => api.post<{ store: Store }>('/merchant/stores', body),
+  update: (storeId: string, body: Record<string, unknown>) => api.patch<{ store: Store }>(store(storeId), body),
+  publish: (storeId: string) => api.post<{ store: Store }>(`${store(storeId)}/publish`),
+  unpublish: (storeId: string) => api.post<{ store: Store }>(`${store(storeId)}/unpublish`),
+  setHours: (storeId: string, body: { timezone: string; openingHours: OpeningHours }) =>
+    api.put<{ store: Store }>(`${store(storeId)}/hours`, body),
+  setDelivery: (storeId: string, body: Record<string, unknown>) => api.put<{ store: Store }>(`${store(storeId)}/delivery`, body),
+  setPayments: (storeId: string, body: { cash: boolean; online: boolean }) =>
+    api.put<{ store: Store }>(`${store(storeId)}/payments`, body),
+  uploadLogo: (storeId: string, file: File) => api.upload<{ store: Store }>(`${store(storeId)}/logo`, file),
+  uploadCover: (storeId: string, file: File) => api.upload<{ store: Store }>(`${store(storeId)}/cover`, file),
+  holidays: (storeId: string) => api.get<{ holidays: Holiday[] }>(`${store(storeId)}/holidays`),
+  addHoliday: (storeId: string, body: { date: string; reason?: string }) =>
+    api.post<{ holiday: Holiday }>(`${store(storeId)}/holidays`, body),
+  removeHoliday: (storeId: string, holidayId: string) => api.delete<void>(`${store(storeId)}/holidays/${holidayId}`),
 };
 
-// ========== Category API ==========
 export const categoryApi = {
-  list: (storeId: string) => api.get(`/api/stores/${storeId}/categories`),
-  get: (storeId: string, id: string) => api.get(`/api/stores/${storeId}/categories/${id}`),
-  create: (storeId: string, data: any) => api.post(`/api/stores/${storeId}/categories`, data),
-  update: (storeId: string, id: string, data: any) => api.put(`/api/stores/${storeId}/categories/${id}`, data),
-  activate: (storeId: string, id: string) => api.patch(`/api/stores/${storeId}/categories/${id}/activate`),
-  deactivate: (storeId: string, id: string) => api.patch(`/api/stores/${storeId}/categories/${id}/deactivate`),
-  reorder: (storeId: string, data: { categoryIds: string[] }) => api.put(`/api/stores/${storeId}/categories/reorder`, data),
+  list: (storeId: string) => api.get<{ categories: Category[] }>(`${store(storeId)}/categories`),
+  create: (storeId: string, body: { name: string; description?: string | null }) =>
+    api.post<{ category: Category }>(`${store(storeId)}/categories`, body),
+  update: (storeId: string, id: string, body: { name?: string; description?: string | null }) =>
+    api.patch<{ category: Category }>(`${store(storeId)}/categories/${id}`, body),
+  activate: (storeId: string, id: string) => api.post<{ category: Category }>(`${store(storeId)}/categories/${id}/activate`),
+  deactivate: (storeId: string, id: string) => api.post<{ category: Category }>(`${store(storeId)}/categories/${id}/deactivate`),
 };
 
-// ========== Product API ==========
+const product = (storeId: string, productId: string) => `${store(storeId)}/products/${productId}`;
+
 export const productApi = {
-  list: (storeId: string, params?: any) => api.get(`/api/stores/${storeId}/products`, { params }),
-  get: (storeId: string, id: string) => api.get(`/api/stores/${storeId}/products/${id}`),
-  create: (storeId: string, data: any) => api.post(`/api/stores/${storeId}/products`, data),
-  update: (storeId: string, id: string, data: any) => api.put(`/api/stores/${storeId}/products/${id}`, data),
-  deactivate: (storeId: string, id: string) => api.patch(`/api/stores/${storeId}/products/${id}/deactivate`),
-  activate: (storeId: string, id: string) => api.patch(`/api/stores/${storeId}/products/${id}/activate`),
-  duplicate: (storeId: string, id: string) => api.post(`/api/stores/${storeId}/products/${id}/duplicate`),
-  uploadImage: (storeId: string, productId: string, file: File) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    return api.post(`/api/stores/${storeId}/products/${productId}/images`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  list: (storeId: string, params: Record<string, unknown> = {}) =>
+    api.page<{ products: Product[] }>(`${store(storeId)}/products`, params),
+  /** Every product, a page at a time — for screens that pick from the whole catalogue. */
+  all: async (storeId: string) => {
+    const products: Product[] = [];
+    for (let page = 1; ; page += 1) {
+      const { data, meta } = await productApi.list(storeId, { page, limit: 100 });
+      products.push(...data.products);
+      if (!meta?.hasNextPage) return products;
+    }
   },
+  get: (storeId: string, productId: string) => api.get<{ product: Product }>(product(storeId, productId)),
+  create: (storeId: string, body: Record<string, unknown>) => api.post<{ product: Product }>(`${store(storeId)}/products`, body),
+  update: (storeId: string, productId: string, body: Record<string, unknown>) =>
+    api.patch<{ product: Product }>(product(storeId, productId), body),
+  activate: (storeId: string, productId: string) => api.post<{ product: Product }>(`${product(storeId, productId)}/activate`),
+  deactivate: (storeId: string, productId: string) => api.post<{ product: Product }>(`${product(storeId, productId)}/deactivate`),
+  addVariant: (storeId: string, productId: string, body: Record<string, unknown>) =>
+    api.post<{ product: Product }>(`${product(storeId, productId)}/variants`, body),
+  updateVariant: (storeId: string, productId: string, variantId: string, body: Record<string, unknown>) =>
+    api.patch<{ product: Product }>(`${product(storeId, productId)}/variants/${variantId}`, body),
+  setVariantActive: (storeId: string, productId: string, variantId: string, active: boolean) =>
+    api.post<{ product: Product }>(`${product(storeId, productId)}/variants/${variantId}/${active ? 'activate' : 'deactivate'}`),
+  uploadImage: (storeId: string, productId: string, file: File) =>
+    api.upload<{ product: Product }>(`${product(storeId, productId)}/images`, file),
   deleteImage: (storeId: string, productId: string, imageId: string) =>
-    api.delete(`/api/stores/${storeId}/products/${productId}/images/${imageId}`),
+    api.delete<{ product: Product }>(`${product(storeId, productId)}/images/${imageId}`),
 };
 
-// ========== Inventory API ==========
+type Movement = { variant: StockVariant; entry: LedgerEntry };
+
 export const inventoryApi = {
-  list: (storeId: string, params?: any) => api.get(`/api/stores/${storeId}/inventory`, { params }),
-  get: (storeId: string, variantId: string) => api.get(`/api/stores/${storeId}/inventory/${variantId}`),
-  stockIn: (storeId: string, data: any) => api.post(`/api/stores/${storeId}/inventory/stock-in`, data),
-  stockOut: (storeId: string, data: any) => api.post(`/api/stores/${storeId}/inventory/stock-out`, data),
-  adjust: (storeId: string, data: any) => api.post(`/api/stores/${storeId}/inventory/adjust`, data),
-  history: (storeId: string, params?: any) => api.get(`/api/stores/${storeId}/inventory/history`, { params }),
+  stockIn: (storeId: string, body: { variantId: string; quantity: number; unitCostPaise?: number | null; notes?: string | null }) =>
+    api.post<Movement>(`${store(storeId)}/inventory/stock-in`, body),
+  stockOut: (storeId: string, body: { variantId: string; quantity: number; reason: string; notes?: string | null }) =>
+    api.post<Movement>(`${store(storeId)}/inventory/stock-out`, body),
+  adjust: (storeId: string, body: { variantId: string; newQuantity: number; reason: string }) =>
+    api.post<Movement>(`${store(storeId)}/inventory/adjust`, body),
+  history: (storeId: string, params: Record<string, unknown> = {}) =>
+    api.page<{ entries: LedgerEntry[] }>(`${store(storeId)}/inventory/history`, params),
 };
 
-// ========== Purchase API ==========
-export const purchaseApi = {
-  list: (storeId: string, params?: any) => api.get(`/api/stores/${storeId}/purchases`, { params }),
-  get: (storeId: string, id: string) => api.get(`/api/stores/${storeId}/purchases/${id}`),
-  create: (storeId: string, data: any) => api.post(`/api/stores/${storeId}/purchases`, data),
+export const orderApi = {
+  list: (storeId: string, params: Record<string, unknown> = {}) =>
+    api.page<{ orders: Order[]; counts: Record<string, number> }>(`${store(storeId)}/orders`, params),
+  get: (storeId: string, orderId: string) => api.get<{ order: Order }>(`${store(storeId)}/orders/${orderId}`),
+  /** `action` is one of the order's `allowedActions`, e.g. "accept" or "status:preparing". */
+  act: (storeId: string, orderId: string, action: string, reason?: string) => {
+    const base = `${store(storeId)}/orders/${orderId}`;
+    if (action.startsWith('status:')) return api.post<{ order: Order }>(`${base}/status`, { status: action.slice(7) });
+    if (action === 'reject') return api.post<{ order: Order }>(`${base}/reject`, reason ? { reason } : {});
+    if (action === 'cancel') return api.post<{ order: Order }>(`${base}/cancel`, { reason });
+    return api.post<{ order: Order }>(`${base}/${action}`);
+  },
 };
 
-// ========== Sales API ==========
-export const salesApi = {
-  list: (storeId: string, params?: any) => api.get(`/api/stores/${storeId}/sales`, { params }),
-  get: (storeId: string, id: string) => api.get(`/api/stores/${storeId}/sales/${id}`),
-  create: (storeId: string, data: any, idempotencyKey: string) =>
-    api.post(`/api/stores/${storeId}/sales`, data, {
-      headers: { 'Idempotency-Key': idempotencyKey },
-    }),
+export const saleApi = {
+  create: (storeId: string, body: Record<string, unknown>, idempotencyKey: string) =>
+    api.post<{ sale: Sale; replayed: boolean }>(`${store(storeId)}/sales`, body, { 'Idempotency-Key': idempotencyKey }),
+  list: (storeId: string, params: Record<string, unknown> = {}) => api.page<{ sales: Sale[] }>(`${store(storeId)}/sales`, params),
+  get: (storeId: string, saleId: string) => api.get<{ sale: Sale }>(`${store(storeId)}/sales/${saleId}`),
 };
 
-// ========== Dashboard API ==========
 export const dashboardApi = {
-  metrics: (storeId: string) => api.get(`/api/stores/${storeId}/dashboard/metrics`),
+  get: (storeId: string) => api.get<{ dashboard: Dashboard }>(`${store(storeId)}/dashboard`),
 };
-
-// ========== Storefront API ==========
-export const storefrontApi = {
-  getStore: (slug: string) => api.get(`/api/storefront/${slug}`),
-  getCategories: (slug: string) => api.get(`/api/storefront/${slug}/categories`),
-  getProducts: (slug: string, params?: any) => api.get(`/api/storefront/${slug}/products`, { params }),
-  placeOrder: (slug: string, data: any) => api.post(`/api/storefront/${slug}/orders`, data),
-};
-
-// ========== Orders API ==========
-export const ordersApi = {
-  list: (storeId: string, params?: any) => api.get(`/api/stores/${storeId}/orders`, { params }),
-  get: (storeId: string, id: string) => api.get(`/api/stores/${storeId}/orders/${id}`),
-  accept: (storeId: string, id: string) => api.patch(`/api/stores/${storeId}/orders/${id}/accept`),
-  reject: (storeId: string, id: string, data?: { reason: string }) => api.patch(`/api/stores/${storeId}/orders/${id}/reject`, data),
-  updateStatus: (storeId: string, id: string, data: { status: string }) => api.patch(`/api/stores/${storeId}/orders/${id}/status`, data),
-  complete: (storeId: string, id: string) => api.patch(`/api/stores/${storeId}/orders/${id}/complete`),
-  cancel: (storeId: string, id: string, data?: { reason: string }) => api.patch(`/api/stores/${storeId}/orders/${id}/cancel`, data),
-};
-

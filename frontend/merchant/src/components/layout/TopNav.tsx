@@ -2,14 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useActiveStore } from '../../hooks/useStore';
-import { useQuery } from '@tanstack/react-query';
-import { storeApi } from '../../api/endpoints';
 import Logo from '../brand/Logo';
 import {
   IconDashboard, IconStore, IconClock, IconTruck, IconCreditCard, IconGlobe,
-  IconPackage, IconTag, IconClipboard, IconCart, IconCalendar, IconHistory,
-  IconDollarSign, IconTrendingUp, IconPlus, IconChevronDown, IconUser,
-  IconLogOut, IconMenu, IconX, IconSettings,
+  IconPackage, IconTag, IconClipboard, IconCalendar, IconHistory,
+  IconTrendingUp, IconPlus, IconChevronDown, IconImage, IconCart,
+  IconLogOut, IconMenu, IconX, IconSettings, IconExternalLink,
 } from '../icons/Icons';
 import './TopNav.css';
 
@@ -31,9 +29,10 @@ const navGroups: NavGroup[] = [
       { label: 'Dashboard', path: '/dashboard', icon: <IconDashboard size={16} /> },
       { label: 'Store Setup', path: '/store/setup', icon: <IconStore size={16} /> },
       { label: 'Business Hours', path: '/store/hours', icon: <IconClock size={16} /> },
+      { label: 'Holidays', path: '/store/holidays', icon: <IconCalendar size={16} /> },
       { label: 'Delivery', path: '/store/delivery', icon: <IconTruck size={16} /> },
       { label: 'Payments', path: '/store/payments', icon: <IconCreditCard size={16} /> },
-      { label: 'Storefront', path: '/store/storefront', icon: <IconGlobe size={16} /> },
+      { label: 'Logo & Cover', path: '/store/branding', icon: <IconImage size={16} /> },
     ],
   },
   {
@@ -47,23 +46,22 @@ const navGroups: NavGroup[] = [
     label: 'Inventory',
     items: [
       { label: 'Stock', path: '/inventory', icon: <IconClipboard size={16} /> },
-      { label: 'Purchases', path: '/purchases', icon: <IconCart size={16} /> },
-      { label: 'Batches', path: '/batches', icon: <IconCalendar size={16} /> },
       { label: 'History', path: '/inventory/history', icon: <IconHistory size={16} /> },
     ],
   },
   {
     label: 'Sales',
     items: [
-      { label: 'Orders', path: '/orders', icon: <IconPackage size={16} /> },
-      { label: 'New Sale', path: '/sales/new', icon: <IconPlus size={16} /> },
+      { label: 'Online Orders', path: '/orders', icon: <IconCart size={16} /> },
+      { label: 'New Counter Sale', path: '/sales/new', icon: <IconPlus size={16} /> },
       { label: 'Sales History', path: '/sales', icon: <IconTrendingUp size={16} /> },
     ],
   },
 ];
 
 export default function TopNav() {
-  const { user, logout } = useAuth();
+  const { merchant, stores, logout } = useAuth();
+  const displayName = merchant?.fullName || merchant?.email || 'Merchant';
   const { activeStoreId, setActiveStoreId } = useActiveStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,12 +71,7 @@ export default function TopNav() {
   const dropdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navRef = useRef<HTMLElement>(null);
 
-  const { data: storesRes } = useQuery({
-    queryKey: ['stores'],
-    queryFn: () => storeApi.list(),
-  });
-  const stores = storesRes?.data?.data || [];
-  const currentStore = stores.find((s: any) => s.id === activeStoreId);
+  const currentStore = stores.find((s) => s.id === activeStoreId);
 
   // Close dropdowns on route change
   useEffect(() => {
@@ -121,8 +114,8 @@ export default function TopNav() {
     dropdownTimerRef.current = setTimeout(() => setOpenDropdown(null), 150);
   }, []);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -143,10 +136,10 @@ export default function TopNav() {
               aria-haspopup="true"
             >
               <div className="topnav-avatar">
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
+                {displayName.charAt(0).toUpperCase()}
               </div>
               <div className="topnav-user-info">
-                <span className="topnav-user-name">{user?.name}</span>
+                <span className="topnav-user-name">{displayName}</span>
                 {currentStore && <span className="topnav-store-name">{currentStore.name}</span>}
               </div>
               <IconChevronDown size={14} />
@@ -155,13 +148,13 @@ export default function TopNav() {
             {userMenuOpen && (
               <div className="topnav-user-menu glass-dropdown" role="menu">
                 <div className="topnav-user-menu-header">
-                  <span className="topnav-user-menu-email" style={{ fontWeight: 'var(--font-medium)', color: 'var(--color-text)', fontSize: 'var(--text-sm)' }}>{user?.name}</span>
-                  <span className="topnav-user-menu-email">{user?.email}</span>
+                  <span className="topnav-user-menu-email" style={{ fontWeight: 'var(--font-medium)', color: 'var(--color-text)', fontSize: 'var(--text-sm)' }}>{displayName}</span>
+                  <span className="topnav-user-menu-email">{merchant?.email}</span>
                 </div>
                 <div className="topnav-user-menu-divider" />
                 
                 <div style={{ padding: 'var(--space-1) var(--space-3)', fontSize: '10px', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', letterSpacing: '0.05em' }}>Your Stores</div>
-                {stores.map((s: any) => (
+                {stores.map((s) => (
                   <button 
                     key={s.id} 
                     className="dropdown-item"
@@ -176,7 +169,7 @@ export default function TopNav() {
                   </button>
                 ))}
                 
-                <button className="dropdown-item" onClick={() => { setActiveStoreId(''); navigate('/store/new'); setUserMenuOpen(false); }} style={{ color: 'var(--color-text-secondary)' }}>
+                <button className="dropdown-item" onClick={() => { navigate('/store/new'); setUserMenuOpen(false); }} style={{ color: 'var(--color-text-secondary)' }}>
                   <IconPlus size={15} />
                   Add New Store
                 </button>
@@ -187,6 +180,17 @@ export default function TopNav() {
                   <IconSettings size={15} />
                   Store Settings
                 </button>
+                {currentStore?.isPublished && (
+                  <a className="dropdown-item" href={`/store/${currentStore.slug}`} target="_blank" rel="noopener noreferrer" role="menuitem">
+                    <IconGlobe size={15} />
+                    View my store
+                    <IconExternalLink size={12} />
+                  </a>
+                )}
+                <a className="dropdown-item" href="/" role="menuitem">
+                  <IconCart size={15} />
+                  Go shopping (customer app)
+                </a>
                 <button className="dropdown-item dropdown-item-danger" onClick={handleLogout} role="menuitem">
                   <IconLogOut size={15} />
                   Sign out
@@ -292,10 +296,10 @@ export default function TopNav() {
 
             <div className="topnav-mobile-footer">
               <div className="topnav-mobile-user">
-                <div className="topnav-avatar">{user?.name?.charAt(0).toUpperCase() || 'U'}</div>
+                <div className="topnav-avatar">{displayName.charAt(0).toUpperCase()}</div>
                 <div>
-                  <div style={{ fontWeight: 'var(--font-medium)', fontSize: 'var(--text-sm)' }}>{user?.name}</div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{user?.email}</div>
+                  <div style={{ fontWeight: 'var(--font-medium)', fontSize: 'var(--text-sm)' }}>{displayName}</div>
+                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{merchant?.email}</div>
                 </div>
               </div>
               <button className="btn btn-ghost btn-sm" onClick={handleLogout} style={{ color: 'var(--color-danger)', width: '100%', justifyContent: 'flex-start', gap: 'var(--space-2)' }}>

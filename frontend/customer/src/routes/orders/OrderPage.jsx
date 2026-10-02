@@ -170,6 +170,9 @@ export function OrderPage() {
           {order.totals.discountPaise > 0 ? (
             <Row label="Discount">−{formatPaise(order.totals.discountPaise)}</Row>
           ) : null}
+          {order.totals.taxPaise > 0 ? (
+            <Row label="GST">{formatPaise(order.totals.taxPaise)}</Row>
+          ) : null}
           {order.totals.deliveryFeePaise > 0 ? (
             <Row label="Delivery">{formatPaise(order.totals.deliveryFeePaise)}</Row>
           ) : null}

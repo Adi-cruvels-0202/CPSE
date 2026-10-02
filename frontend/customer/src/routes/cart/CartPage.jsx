@@ -278,7 +278,7 @@ function Totals({ totals }) {
           <Row label="Delivery">{formatPaise(totals.deliveryFeePaise)}</Row>
         ) : null}
 
-        {totals.taxPaise > 0 ? <Row label="Tax">{formatPaise(totals.taxPaise)}</Row> : null}
+        {totals.taxPaise > 0 ? <Row label="GST">{formatPaise(totals.taxPaise)}</Row> : null}
 
         <Row label="Total" strong>
           {formatPaise(totals.totalPaise)}

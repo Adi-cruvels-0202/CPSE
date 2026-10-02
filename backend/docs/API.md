@@ -24,6 +24,7 @@ identifiers, and answers with the envelope described below.
   - [Notifications](#notifications)
   - [Khata](#khata)
   - [Merchant account](#merchant-account)
+  - [Merchant stores](#merchant-stores)
 - [Rate limits](#rate-limits)
 - [Invariants worth knowing](#invariants-worth-knowing)
 
@@ -107,7 +108,8 @@ anonymous and a boolean when signed in.
 | 403 | `MERCHANT_REQUIRED` | Signed in, but not a merchant, on a `/merchant` route. A role check, not ownership — the merchant app offers onboarding |
 | 404 | `NOT_FOUND` | The resource does not exist **or belongs to someone else** |
 | 404 | `ROUTE_NOT_FOUND` | No such endpoint |
-| 409 | `CONFLICT` | An illegal state change — cancelling a delivered order, settling a settled payment |
+| 409 | `CONFLICT` | An illegal state change — cancelling a delivered order, settling a settled payment, publishing a published store |
+| 409 | `SLUG_TAKEN` | A store link already used by another store. `details.slug` |
 | 413 | `PAYLOAD_TOO_LARGE` | Body over the configured cap (32kb by default) |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Unsupported charset or content encoding |
 | 422 | `VALIDATION_FAILED` | Schema failure. `details.issues[]` is `{ source, field, message }` |
@@ -124,6 +126,8 @@ refused for a reason the customer can act on":
 | `MINIMUM_ORDER_NOT_MET` | Below the store's floor. `details.shortfallPaise` says by how much |
 | `ITEM_UNAVAILABLE` | An item sold out between the quote and the commit |
 | `VARIANT_REQUIRED` | Added a product that has several options without saying which |
+| `PAYMENT_METHOD_UNAVAILABLE` | The store does not take that payment method. `details.accepts` says what it does take |
+| `STORE_INCOMPLETE` | A merchant tried to publish a store that is missing something customers need. `details.missing[]`: `address`, `phone`, `openingHours`, `fulfilment` |
 | `OUT_OF_STOCK` / `INSUFFICIENT_STOCK` | Nothing, or not enough, is **available** — on hand minus what open orders hold. `details.available` says how many |
 | `PRICE_CHANGED` | A line's price moved since the client last saw it |
 | `TOTAL_CHANGED` | `expectedTotalPaise` no longer matches. Nobody is charged a number they did not see |
@@ -180,9 +184,14 @@ All five accept an optional bearer token and personalise when one is present.
 | `GET /stores/:slug/products/:productId` | **public.** Full detail: images and `variants` (each with its own `pricePaise`, `mrpPaise` and available `stock`). A product sold without options returns `variants: []` — it has one hidden Default variant, which the cart fills in. A product id from another store is **404**. |
 | `GET /stores/:slug/search` | **public.** `?q=&categoryId=&page=&limit=`. Store-scoped, name and description, minimum 2 characters. |
 
-An unknown slug, an inactive store, and a `categoryId` belonging to another
-store all return **404** — never an empty list, which would confirm the id is
-real somewhere.
+An unknown slug, an inactive store, a store its merchant has not published (or
+has unpublished), and a `categoryId` belonging to another store all return
+**404** — never an empty list, which would confirm the id is real somewhere. The
+same holds for the cart, checkout and saved stores.
+
+The store page's `payment: { online, cashOnDelivery }` is what the merchant has
+switched on; `POST /orders` with a method the store does not take is **422
+`PAYMENT_METHOD_UNAVAILABLE`**.
 
 ### Saved stores
 
@@ -370,6 +379,52 @@ Sign-in, refresh, logout and password reset are the `/auth` endpoints above.
 malformed id in the path → **422**; not a merchant → **403 `MERCHANT_REQUIRED`**;
 a `storeId` that is not yours, or does not exist → **404** (never 403, so a store
 id cannot confirm that someone else's store exists); a malformed body → **422**.
+
+
+### Merchant stores
+
+Every route here is **Bearer, merchant**, and every `:storeId` is the caller's
+own store — anyone else's, or one that does not exist, is the same **404**.
+
+| | |
+|---|---|
+| `GET /merchant/stores` | Bearer, merchant. `{ stores }`, newest first, in every state. |
+| `POST /merchant/stores` | Bearer, merchant. `{ name, slug?, description?, shopCategory?, phone?, email?, address?, latitude?, longitude?, timezone? }` → **201** `{ store }`. Created **unpublished**, pickup on, delivery off, cash only, no hours. No `slug` → one made from the name (`sharma-kirana`, then `sharma-kirana-2`, …); a `slug` already used is **409 `SLUG_TAKEN`**. |
+| `GET /merchant/stores/:storeId` | Bearer, merchant. `{ store }` |
+| `PATCH /merchant/stores/:storeId` | Bearer, merchant. Any subset of the create fields → `{ store }`. `address: null` clears it. `slug` can change only while unpublished — once published it is in shared links and QR codes, so a change is **409**. |
+| `POST /merchant/stores/:storeId/publish` | Bearer, merchant. No body → `{ store }`. Missing details are **422 `STORE_INCOMPLETE`**, listed in `details.missing`; already published is **409**. |
+| `POST /merchant/stores/:storeId/unpublish` | Bearer, merchant. No body → `{ store }`. Customers get **404** on it again; orders already placed carry on. Not published is **409**. |
+| `PUT /merchant/stores/:storeId/hours` | Bearer, merchant. `{ timezone?, openingHours }` → `{ store }`. Replaces the whole week. |
+| `PUT /merchant/stores/:storeId/delivery` | Bearer, merchant. `{ pickupEnabled, deliveryEnabled, deliveryFeePaise, minOrderPaise, freeDeliveryThresholdPaise?, deliveryRadiusKm? }` → `{ store }`. At least one of pickup and delivery (**422**). |
+| `PUT /merchant/stores/:storeId/payments` | Bearer, merchant. `{ cash, online }`, at least one true → `{ store }`. |
+
+**`openingHours`** — all seven keys (`mon` … `sun`), each a list of up to three
+`{ open, close }` windows in 24-hour `HH:MM`. `[]` is a closed day. A window
+whose `close` is earlier than its `open` runs past midnight. `timezone` is an
+IANA zone (default `Asia/Kolkata`); an unknown one is **422**. This is the same
+format the customer store page computes open/closed from.
+
+**`store`** (the merchant's view — includes what customers never see):
+
+```json
+"store": {
+  "id": "3f2a…", "slug": "sharma-kirana", "name": "Sharma Kirana",
+  "description": "Groceries and daily needs", "shopCategory": "grocery",
+  "phone": "+919876543210", "email": "sharma@shop.in",
+  "address": { "line1": "12 MG Road", "line2": null, "city": "Pune", "state": "MH", "postalCode": "411001", "country": "IN" },
+  "latitude": 18.5204, "longitude": 73.8567, "logoUrl": null, "coverImageUrl": null,
+  "timezone": "Asia/Kolkata", "openingHours": { "mon": [{ "open": "09:00", "close": "21:30" }], "…": [] },
+  "hours": { "isOpen": false, "opensAt": "09:00" },
+  "fulfilment": { "pickupEnabled": true, "deliveryEnabled": true, "deliveryFeePaise": 3000, "minOrderPaise": 19900, "freeDeliveryThresholdPaise": 99900, "deliveryRadiusKm": 5 },
+  "paymentMethods": { "cash": true, "online": true },
+  "isPublished": true, "publicPath": "/store/sharma-kirana",
+  "createdAt": "…", "updatedAt": "…"
+}
+```
+
+`shopCategory`: `grocery`, `pharmacy`, `restaurant`, `bakery`, `electronics`,
+`clothing`, `general`, `other`. `publicPath` is what a "share" or QR-code button
+links to.
 
 ---
 

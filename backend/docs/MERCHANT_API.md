@@ -108,6 +108,12 @@ The customer app ignores it.
 
 ### Stores
 
+> ✅ **Built** (`backend/merchant-stores`). The authoritative description is now
+> `docs/API.md` → *Merchant stores*. Two details settled while building: a new
+> store takes **cash only** until the merchant switches online on, and
+> `hours.opensAt` is the store's local `HH:MM`, the same as on the customer
+> store page.
+
 | | |
 |---|---|
 | `GET /merchant/stores` | `{ stores }` — the caller's stores, newest first. |

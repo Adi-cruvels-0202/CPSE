@@ -81,7 +81,9 @@ export async function listSavedStores(customerId, { page = 1, limit = 20 } = {})
     .from('stores')
     .select(STORE_COLUMNS)
     .in('id', rows.map((row) => row.store_id))
-    .eq('is_active', true);
+    .eq('is_active', true)
+    // Unpublished by the merchant: hidden, like an inactive one, until it is back.
+    .eq('is_published', true);
 
   fail(storeError, 'Could not load your saved stores.');
 

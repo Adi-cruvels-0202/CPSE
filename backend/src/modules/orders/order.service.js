@@ -83,6 +83,18 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
 
   const isOnline = input.paymentMethod === 'online';
 
+  // The store chooses what it takes (MERCHANT_RULES S-16). Checked here rather
+  // than in the quote because the quote is priced before a method is chosen.
+  if (isOnline ? !store.accepts_online : !store.accepts_cash) {
+    throw unprocessable(
+      'PAYMENT_METHOD_UNAVAILABLE',
+      isOnline
+        ? `${store.name} does not take online payment.`
+        : `${store.name} does not take cash.`,
+      { accepts: { cash: store.accepts_cash, online: store.accepts_online } },
+    );
+  }
+
   const payload = {
     customer_id: customerId,
     store_id: store.id,

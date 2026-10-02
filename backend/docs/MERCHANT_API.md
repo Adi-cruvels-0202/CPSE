@@ -278,6 +278,11 @@ card shows. Stock fields are `null` when `trackInventory` is false.
 
 ### Inventory
 
+> ✅ **Built** (`backend/merchant-inventory`). The authoritative description is now
+> `docs/API.md` → *Merchant inventory*. Settled while building: a count to the
+> number already on hand is a 422 rather than an empty ledger row, and history
+> carries the standard pagination `meta`.
+
 Stock is per variant. **On hand** is what is on the shelf; **reserved** is promised to open
 orders; **available = on hand − reserved** is what can still be sold. The ledger is
 **append-only**: a mistake is corrected by a new `adjustment`, never by editing a row.

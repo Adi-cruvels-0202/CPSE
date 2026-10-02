@@ -26,6 +26,7 @@ identifiers, and answers with the envelope described below.
   - [Merchant account](#merchant-account)
   - [Merchant stores](#merchant-stores)
   - [Merchant catalogue](#merchant-catalogue)
+  - [Merchant inventory](#merchant-inventory)
 - [Rate limits](#rate-limits)
 - [Invariants worth knowing](#invariants-worth-knowing)
 
@@ -130,6 +131,8 @@ refused for a reason the customer can act on":
 | `ITEM_UNAVAILABLE` | An item sold out between the quote and the commit |
 | `VARIANT_REQUIRED` | Added a product that has several options without saying which |
 | `PAYMENT_METHOD_UNAVAILABLE` | The store does not take that payment method. `details.accepts` says what it does take |
+| `NOT_TRACKED` | A stock movement on a product whose stock is not counted (`trackInventory: false`) |
+| `BELOW_RESERVED` | A stock count lower than what open orders hold. `details.reservedQuantity` |
 | `STORE_INCOMPLETE` | A merchant tried to publish a store that is missing something customers need. `details.missing[]`: `address`, `phone`, `openingHours`, `fulfilment` |
 | `OUT_OF_STOCK` / `INSUFFICIENT_STOCK` | Nothing, or not enough, is **available** — on hand minus what open orders hold. `details.available` says how many |
 | `PRICE_CHANGED` | A line's price moved since the client last saw it |
@@ -512,6 +515,46 @@ for reorder. Deactivate instead.
 shows. Stock fields are `null` when `trackInventory` is false. `costPaise` is the
 merchant's alone: no customer response carries it, and the public database roles
 cannot read the column.
+
+
+### Merchant inventory
+
+Bearer, merchant, on the caller's own store. Stock is per variant: **on hand**
+is on the shelf, **reserved** is held by open orders, and **available = on hand −
+reserved** is what can still be sold. Every change is a ledger row and the
+ledger is append-only — a mistake is corrected by a new movement, never an edit.
+A variant from another store is **404**; one whose product has
+`trackInventory: false` is **422 `NOT_TRACKED`**.
+
+| | |
+|---|---|
+| `POST /merchant/stores/:storeId/inventory/stock-in` | Bearer, merchant. `{ variantId, quantity, unitCostPaise?, notes? }` → `{ variant, entry }`. `quantity` 1–100000. |
+| `POST /merchant/stores/:storeId/inventory/stock-out` | Bearer, merchant. `{ variantId, quantity, reason, notes? }` → `{ variant, entry }`. `reason`: `damaged`, `expired`, `lost`, `returned_to_supplier`, `own_use`, `other`. More than **available** is **422 `INSUFFICIENT_STOCK`** with `details.availableQuantity` — reserved units cannot be taken out. |
+| `POST /merchant/stores/:storeId/inventory/adjust` | Bearer, merchant. `{ variantId, newQuantity, reason }` → `{ variant, entry }`. Sets on hand after a physical count; `reason` is required. Below what open orders hold is **422 `BELOW_RESERVED`** with `details.reservedQuantity`; the same number as now is **422**. |
+| `GET /merchant/stores/:storeId/inventory/history` | Bearer, merchant. `?variantId=&productId=&movementType=&from=&to=&page=&limit=` → `{ entries }` with pagination `meta`, newest first. `from`/`to` are ISO date-times. Includes the movements orders make. |
+
+There is no separate stock list: `GET …/products` already carries every
+variant's on hand, reserved and available.
+
+```json
+"variant": { "id": "v1…", "productId": "p1…", "productName": "India Gate Basmati Rice", "name": "1 kg", "sku": "RICE-1KG",
+             "quantityOnHand": 40, "reservedQuantity": 3, "availableQuantity": 37, "isLowStock": false },
+"entry": {
+  "id": "l1…", "movementType": "order_reserved",
+  "productId": "p1…", "productName": "India Gate Basmati Rice", "variantId": "v1…", "variantName": "1 kg", "sku": "RICE-1KG",
+  "onHandChange": 0, "reservedChange": 2, "onHandAfter": 40, "reservedAfter": 3, "availableAfter": 37,
+  "unitCostPaise": null, "reason": null, "notes": null,
+  "reference": { "type": "order", "id": "o1…", "number": "CPSE-261002-65U5NC" },
+  "performedBy": { "type": "customer", "id": "u1…" },
+  "createdAt": "…"
+}
+```
+
+`movementType`: `stock_in`, `stock_out`, `adjustment`, `order_reserved`,
+`order_released`, `order_fulfilled` (later `sale`, `purchase`). `reference` is
+`null` for the merchant's own movements. `performedBy.type` is `merchant`,
+`customer` or `system`; releases and completions are `system`, and the order's
+own history says who changed its status.
 
 ---
 

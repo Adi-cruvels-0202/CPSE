@@ -1,4 +1,5 @@
 import { api, url } from './app.js';
+import { db, seedMerchant, STORE_ID } from './supabaseMock.js';
 
 /**
  * The customer journey, as a handful of calls. Store discovery → cart →
@@ -40,6 +41,36 @@ export function placeOrder(auth, body, { idempotencyKey } = {}) {
 
 export const getOrder = (auth, orderId) => api().get(url(`/orders/${orderId}`)).set(auth);
 
-/** Marches an order forward through the test-only merchant endpoint (8.8). */
-export const advance = (auth, orderId, status, note) =>
-  api().post(url(`/orders/${orderId}/test-advance`)).set(auth).send({ status, note });
+/**
+ * Moves an order the way its merchant would, through the real merchant
+ * endpoints (MERCHANT_API.md, Orders). Tests sign one person in for both sides,
+ * so that person is made the store's merchant first — exactly the "one login,
+ * customer and merchant" case D-2 allows.
+ *
+ * `status` is where the order should end up; the matching action is chosen:
+ * accept, reject, complete, cancel, or a step in between.
+ */
+export async function advance(auth, orderId, status, note) {
+  const order = (db.tables.get('orders') ?? []).find((row) => row.id === orderId);
+  const storeId = order?.store_id ?? STORE_ID;
+  if (order) actAsMerchantOf(storeId, order.customer_id);
+
+  const base = `/merchant/stores/${storeId}/orders/${orderId}`;
+  const [path, body] = {
+    accepted: ['/accept', {}],
+    rejected: ['/reject', note ? { reason: note } : {}],
+    completed: ['/complete', {}],
+    cancelled: ['/cancel', { reason: note ?? 'Cancelled by the store' }],
+  }[status] ?? ['/status', { status }];
+
+  return api().post(url(`${base}${path}`)).set(auth).send(body);
+}
+
+/** Gives `userId` a merchant profile, if missing, and makes them own `storeId`. */
+export function actAsMerchantOf(storeId, userId) {
+  if (!(db.tables.get('merchants') ?? []).some((row) => row.id === userId)) {
+    seedMerchant({ id: userId });
+  }
+  const store = (db.tables.get('stores') ?? []).find((row) => row.id === storeId);
+  if (store) store.owner_id = userId;
+}

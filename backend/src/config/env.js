@@ -33,13 +33,6 @@ const envSchema = z.object({
   PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('dev-only-webhook-secret-change-me'),
   PAYMENT_MOCK_CHECKOUT_URL: z.string().url().default('http://localhost:4000/mock-payment'),
 
-  // Exposes the test-only endpoint that advances an order's status the way a
-  // merchant dashboard would (checklist 8.8). MUST stay false in production.
-  ENABLE_TEST_ENDPOINTS: z
-    .enum(['true', 'false'])
-    .default('false')
-    .transform((value) => value === 'true'),
-
   // Serve the React app from this process too, so `npm run dev` in the backend
   // is the only thing you need to run. Set false to go back to API-only.
   SERVE_FRONTEND: z
@@ -75,8 +68,6 @@ function testDefaults(source) {
     SUPABASE_ANON_KEY: source.SUPABASE_ANON_KEY ?? 'test-anon-key',
     SUPABASE_SERVICE_ROLE_KEY: source.SUPABASE_SERVICE_ROLE_KEY ?? 'test-service-role-key',
     LOG_LEVEL: source.LOG_LEVEL ?? 'silent',
-    // The order lifecycle cannot be tested without a way to advance it.
-    ENABLE_TEST_ENDPOINTS: source.ENABLE_TEST_ENDPOINTS ?? 'true',
   };
 }
 
@@ -94,12 +85,6 @@ export function loadEnv(source = process.env) {
   }
 
   const value = parsed.data;
-
-  // A production deployment that leaves the test-only status endpoint on would
-  // let anyone march someone else's order to 'completed'.
-  if (value.NODE_ENV === 'production' && value.ENABLE_TEST_ENDPOINTS) {
-    throw new Error('ENABLE_TEST_ENDPOINTS must not be true in production.');
-  }
 
   return {
     ...value,

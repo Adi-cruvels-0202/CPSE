@@ -120,11 +120,9 @@ completed / cancelled / rejected ──▶ (terminal)
 - `changed_by` on each history row is one of `customer`, `store`, `system`,
   `payment_webhook`. The merchant side writes `store`.
 
-Until a merchant dashboard exists, `POST /api/v1/orders/:id/test-advance`
-stands in for this (checklist 8.8). It is mounted only when
-`ENABLE_TEST_ENDPOINTS=true`, and the app refuses to boot in production with
-that flag set. **It is a test fixture, not the contract** — the contract is the
-state machine above.
+The merchant moves orders through `/api/v1/merchant/stores/:storeId/orders/…`
+(`docs/API.md` → *Merchant orders*). The test-only `test-advance` endpoint that
+stood in for it until then has been removed.
 
 ---
 

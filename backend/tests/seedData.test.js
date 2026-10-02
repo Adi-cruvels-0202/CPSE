@@ -120,6 +120,15 @@ describe('seed catalogue (checklist 1.21)', () => {
   });
 });
 
+describe('seed demo merchant (WORK_PLAN Day 5)', () => {
+  it('is a separate login from the test customer, with a valid phone', async () => {
+    const { demoMerchant, testCustomer } = await import('../scripts/seed-data.js');
+    expect(demoMerchant.email).not.toBe(testCustomer.email);
+    expect(demoMerchant.phone).toMatch(/^\+?[0-9]{7,15}$/);
+    expect(demoMerchant.password.length).toBeGreaterThanOrEqual(8);
+  });
+});
+
 describe('seed khata (checklist 1.22)', () => {
   it('belongs to a seeded store', () => {
     expect(storeRows.some((store) => store.id === khataSeed.storeId)).toBe(true);

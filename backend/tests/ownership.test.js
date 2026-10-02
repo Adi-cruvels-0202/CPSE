@@ -92,7 +92,6 @@ describe('10.1 — another customer’s resource is a 404, never a 403', () => {
     ['GET    order receipt', (w) => ['get', `/orders/${w.order.id}/receipt`]],
     ['POST   order cancel', (w) => ['post', `/orders/${w.order.id}/cancel`]],
     ['POST   order reorder', (w) => ['post', `/orders/${w.order.id}/reorder`]],
-    ['POST   order advance', (w) => ['post', `/orders/${w.order.id}/test-advance`]],
     ['POST   payment initiate', (w) => ['post', `/payments/${w.order.id}/initiate`]],
     ['POST   payment verify', (w) => ['post', `/payments/${w.order.id}/verify`]],
     ['POST   notification read', (w) => ['post', `/notifications/${w.notification.id}/read`]],
@@ -108,9 +107,7 @@ describe('10.1 — another customer’s resource is a 404, never a 403', () => {
         ? { quantity: 5 }
         : method === 'patch'
           ? { label: 'Taken over' }
-          : method === 'post' && path.includes('test-advance')
-            ? { status: 'accepted' }
-            : method === 'post' && path.includes('verify')
+          : method === 'post' && path.includes('verify')
               ? { providerRef: 'mock_x' }
               : {};
 

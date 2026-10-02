@@ -2,16 +2,13 @@ import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { writeLimiter } from '../../middleware/rateLimit.js';
-import { env } from '../../config/env.js';
 import * as controller from './order.controller.js';
-import { advanceOrder } from './order.testing.controller.js';
 import { emptyBody } from '../../lib/schemas.js';
 import {
   createOrderSchema,
   orderListQuery,
   orderParams,
   cancelOrderSchema,
-  advanceOrderSchema,
 } from './order.schemas.js';
 
 /** Every order belongs to somebody, so the whole router is authenticated. */
@@ -38,13 +35,3 @@ orderRouter.post(
   validate({ params: orderParams, body: emptyBody }),
   controller.reorder,
 );
-
-// ⚠️ TEST-ONLY (checklist 8.8) — stands in for the merchant dashboard so the
-// order lifecycle can be exercised. Not mounted at all unless the flag is on.
-if (env.ENABLE_TEST_ENDPOINTS) {
-  orderRouter.post(
-    '/:id/test-advance',
-    validate({ params: orderParams, body: advanceOrderSchema }),
-    advanceOrder,
-  );
-}

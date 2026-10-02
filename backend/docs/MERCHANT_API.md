@@ -319,6 +319,12 @@ its three stock numbers — so there is no separate inventory list.
 
 ### Orders
 
+> ✅ **Built** (`backend/merchant-orders`). The authoritative description is now
+> `docs/API.md` → *Merchant orders*. Settled while building: a disallowed action's
+> 409 carries `details: { status, action }`; the order also carries `statusLabel`,
+> `itemCount` and `acceptedAt` / `completedAt` / `cancelledAt`; and `status` can
+> never take a pickup order out for delivery or a delivery order to the counter.
+
 The order states and their rules are the customer side's (D-7, `order.state.js`). Every action
 here goes through the same single writer (`transitionOrder`), so **the customer is notified of
 every merchant action automatically**, and stock moves with it (see below).
@@ -419,7 +425,8 @@ These land in `docs/API.md` with the code that causes them:
    `taxPercent` / `taxPaise`; invariant 2 in API.md ("prices are tax-inclusive") is replaced.
 3. **`stock` on products and variants means *available*** (on hand − reserved).
 4. `POST /auth/login` gains `roles`.
-5. `POST /orders/:id/test-advance` is **removed** once merchant orders ship.
+5. `POST /orders/:id/test-advance` is **removed** once merchant orders ship. ✅ Done, with
+   `ENABLE_TEST_ENDPOINTS`.
 
 ---
 

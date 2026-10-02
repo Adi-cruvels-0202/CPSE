@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '../../lib/supabase.js';
-import { conflict, internal, notFound, skuTaken, validationFailed } from '../../lib/errors.js';
+import { conflict, internal, notFound, skuTaken, unprocessable, validationFailed } from '../../lib/errors.js';
 import { slugify, firstFreeSlug } from '../../lib/slug.js';
 import { logger } from '../../lib/logger.js';
 import { findStoreCategory } from './category.service.js';
+import { MAX_PRODUCT_IMAGES } from './catalogue.schemas.js';
+import { storeImage, removeStoredImage } from '../../lib/imageUpload.js';
 
 /**
  * A store's products and variants — MERCHANT_API.md, Products and variants;
@@ -416,5 +418,61 @@ export async function setVariantActive(store, productId, variantId, isActive) {
 
   const { error } = await supabaseAdmin.from('product_variants').update({ is_available: isActive }).eq('id', variantId);
   if (error) throw internal('Could not update the variant.');
+  return getProduct(store, productId);
+}
+
+// ── Photos (P1, D-10) ────────────────────────────────────────────────────────
+
+async function productImages(productId) {
+  const { data, error } = await supabaseAdmin
+    .from('product_images')
+    .select('id, product_id, url, sort_order')
+    .eq('product_id', productId);
+  if (error) throw internal('Could not load the photos.');
+  return data ?? [];
+}
+
+/** `POST …/products/:productId/images` — added after the existing photos. */
+export async function addProductImage(store, productId, file) {
+  await findStoreProductRow(store, productId);
+  const existing = await productImages(productId);
+  if (existing.length >= MAX_PRODUCT_IMAGES) {
+    throw unprocessable('IMAGE_LIMIT', `A product can have at most ${MAX_PRODUCT_IMAGES} photos. Remove one first.`);
+  }
+
+  const url = await storeImage(file, `stores/${store.id}/products/${productId}`);
+  const sortOrder = existing.reduce((max, row) => Math.max(max, row.sort_order), -1) + 1;
+
+  const { error } = await supabaseAdmin
+    .from('product_images')
+    .insert({ product_id: productId, url, sort_order: sortOrder });
+  if (error) {
+    await removeStoredImage(url);
+    throw internal('Could not save the photo.');
+  }
+
+  return getProduct(store, productId);
+}
+
+/**
+ * `DELETE …/products/:productId/images/:imageId`. Looked up by product AND
+ * image, so a photo id from another product is a 404 — Merchant-One checked the
+ * product and then deleted any image id it was given (MERCHANT_RULES S-18).
+ */
+export async function removeProductImage(store, productId, imageId) {
+  await findStoreProductRow(store, productId);
+
+  const { data, error } = await supabaseAdmin
+    .from('product_images')
+    .delete()
+    .eq('id', imageId)
+    .eq('product_id', productId)
+    .select('id, url')
+    .maybeSingle();
+
+  if (error) throw internal('Could not remove the photo.');
+  if (!data) throw notFound('Photo');
+
+  await removeStoredImage(data.url);
   return getProduct(store, productId);
 }

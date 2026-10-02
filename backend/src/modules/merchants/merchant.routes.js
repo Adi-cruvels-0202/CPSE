@@ -7,6 +7,8 @@ import { merchantStoreRouter } from '../merchantStores/merchantStore.routes.js';
 import { catalogueRouter } from '../merchantCatalogue/catalogue.routes.js';
 import { inventoryRouter } from '../merchantInventory/inventory.routes.js';
 import { merchantOrderRouter } from '../merchantOrders/merchantOrder.routes.js';
+import { saleRouter } from '../merchantSales/sale.routes.js';
+import { dashboardRouter } from '../merchantDashboard/dashboard.routes.js';
 import * as controller from './merchant.controller.js';
 import {
   registerMerchantSchema,
@@ -59,3 +61,5 @@ merchantRouter.use('/stores', merchantStoreRouter);
 merchantRouter.use('/stores', catalogueRouter);
 merchantRouter.use('/stores', inventoryRouter);
 merchantRouter.use('/stores', merchantOrderRouter);
+merchantRouter.use('/stores', saleRouter);
+merchantRouter.use('/stores', dashboardRouter);

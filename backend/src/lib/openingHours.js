@@ -43,6 +43,9 @@ export function localNow(timezone, now = new Date()) {
     parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone || 'UTC',
       weekday: 'short',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -58,8 +61,17 @@ export function localNow(timezone, now = new Date()) {
   return {
     day: read('weekday').toLowerCase().slice(0, 3),
     minutes: hour * 60 + Number(read('minute')),
+    // The local calendar date, YYYY-MM-DD — what a holiday is recorded as.
+    date: `${read('year')}-${read('month')}-${read('day')}`,
     timezoneValid: true,
   };
+}
+
+/** YYYY-MM-DD plus `days`, on the calendar (no time zone involved). */
+export function addDays(date, days) {
+  const [year, month, day] = date.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return shifted.toISOString().slice(0, 10);
 }
 
 /** Normalises one day's windows, dropping anything malformed. */
@@ -86,13 +98,20 @@ const dayAfter = (day) => DAYS[(DAYS.indexOf(day) + 1) % 7];
  * }}
  * `closesAt` is set while open; `opensAt`/`opensOn` describe the next opening
  * while closed. Both are null for a store that never lists any hours.
+ *
+ * `holidays` are YYYY-MM-DD dates in the store's own timezone (store_holidays,
+ * migration 0033). A holiday closes the whole local day — including the tail of
+ * the night before's late window — and the next opening skips over it
+ * (MERCHANT_RULES S-12: Merchant-One stored holidays and never applied them).
  */
-export function resolveOpenState(openingHours, timezone, now = new Date()) {
-  const { day, minutes } = localNow(timezone, now);
+export function resolveOpenState(openingHours, timezone, now = new Date(), { holidays = [] } = {}) {
+  const { day, minutes, date } = localNow(timezone, now);
   const base = { localTime: fromMinutes(minutes), localDay: day };
+  const closedOn = new Set(holidays);
+  const isHoliday = closedOn.has(date);
 
   // Today's windows, plus yesterday's overnight window still running.
-  for (const window of windowsFor(openingHours, day)) {
+  for (const window of isHoliday ? [] : windowsFor(openingHours, day)) {
     if (window.close > window.open && minutes >= window.open && minutes < window.close) {
       return { ...base, isOpen: true, closesAt: fromMinutes(window.close), opensAt: null, opensOn: null };
     }
@@ -102,16 +121,18 @@ export function resolveOpenState(openingHours, timezone, now = new Date()) {
     }
   }
 
-  for (const window of windowsFor(openingHours, dayBefore(day))) {
+  for (const window of isHoliday ? [] : windowsFor(openingHours, dayBefore(day))) {
     if (window.close <= window.open && minutes < window.close) {
       return { ...base, isOpen: true, closesAt: fromMinutes(window.close), opensAt: null, opensOn: null };
     }
   }
 
-  // Closed. Find the next opening, looking at most a week ahead.
+  // Closed. Find the next opening, looking a fortnight ahead so a run of
+  // holidays does not hide it.
   let cursor = day;
-  for (let offset = 0; offset < 8; offset += 1) {
-    const candidates = windowsFor(openingHours, cursor)
+  for (let offset = 0; offset < 15; offset += 1) {
+    const onHoliday = closedOn.has(addDays(date, offset));
+    const candidates = (onHoliday ? [] : windowsFor(openingHours, cursor))
       .filter((window) => offset > 0 || window.open > minutes)
       .sort((a, b) => a.open - b.open);
 
@@ -122,6 +143,9 @@ export function resolveOpenState(openingHours, timezone, now = new Date()) {
         closesAt: null,
         opensAt: fromMinutes(candidates[0].open),
         opensOn: cursor,
+        // The calendar date too: past a run of holidays the weekday alone is
+        // ambiguous.
+        opensOnDate: addDays(date, offset),
       };
     }
     cursor = dayAfter(cursor);

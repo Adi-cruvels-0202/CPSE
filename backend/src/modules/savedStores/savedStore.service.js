@@ -1,6 +1,12 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { internal } from '../../lib/errors.js';
-import { STORE_COLUMNS, findActiveStoreById, toPublicStore } from '../stores/store.service.js';
+import {
+  STORE_COLUMNS,
+  findActiveStoreById,
+  toPublicStore,
+  holidaysFor,
+  holidaysByStore,
+} from '../stores/store.service.js';
 
 /**
  * Saved stores — "my stores" — checklist 9.1 – 9.2.
@@ -32,7 +38,7 @@ export async function saveStore(customerId, storeId) {
     );
 
   fail(error, 'Could not save the store.');
-  return { store: toPublicStore(store, { isSaved: true }) };
+  return { store: toPublicStore(store, { isSaved: true, holidays: await holidaysFor(store.id) }) };
 }
 
 /**
@@ -50,7 +56,7 @@ export async function unsaveStore(customerId, storeId) {
     .eq('store_id', storeId);
 
   fail(error, 'Could not remove the store.');
-  return { store: toPublicStore(store, { isSaved: false }) };
+  return { store: toPublicStore(store, { isSaved: false, holidays: await holidaysFor(store.id) }) };
 }
 
 /**
@@ -88,12 +94,13 @@ export async function listSavedStores(customerId, { page = 1, limit = 20 } = {})
   fail(storeError, 'Could not load your saved stores.');
 
   const byId = new Map((stores ?? []).map((store) => [store.id, store]));
+  const holidays = await holidaysByStore([...byId.keys()]);
 
   const savedStores = rows
     .filter((row) => byId.has(row.store_id))
     .map((row) => ({
       savedAt: row.created_at,
-      store: toPublicStore(byId.get(row.store_id), { isSaved: true }),
+      store: toPublicStore(byId.get(row.store_id), { isSaved: true, holidays: holidays.get(row.store_id) }),
     }));
 
   return { savedStores, total: count ?? rows.length };

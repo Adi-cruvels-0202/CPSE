@@ -78,7 +78,36 @@ async function isStoreSaved(storeId, customerId) {
   return Boolean(data);
 }
 
-export function toPublicStore(row, { isSaved = null, now = new Date() } = {}) {
+/**
+ * The holidays that can affect open/closed now or in the next fortnight, per
+ * store, as YYYY-MM-DD strings (migration 0033). A day of slack on the early
+ * side covers a store whose local date is behind UTC's.
+ */
+export async function holidaysByStore(storeIds, now = new Date()) {
+  const byStore = new Map(storeIds.map((id) => [id, []]));
+  if (storeIds.length === 0) return byStore;
+
+  const from = new Date(now.getTime() - 2 * 86_400_000).toISOString().slice(0, 10);
+  const to = new Date(now.getTime() + 16 * 86_400_000).toISOString().slice(0, 10);
+
+  const { data, error } = await supabaseAdmin
+    .from('store_holidays')
+    .select('store_id, holiday_date')
+    .in('store_id', storeIds)
+    .gte('holiday_date', from)
+    .lte('holiday_date', to);
+
+  fail(error, 'Could not load the store holidays.');
+  for (const row of data ?? []) byStore.get(row.store_id)?.push(row.holiday_date);
+  return byStore;
+}
+
+/** One store's upcoming holidays — see holidaysByStore. */
+export async function holidaysFor(storeId, now = new Date()) {
+  return (await holidaysByStore([storeId], now)).get(storeId) ?? [];
+}
+
+export function toPublicStore(row, { isSaved = null, now = new Date(), holidays = [] } = {}) {
   return {
     id: row.id,
     slug: row.slug,
@@ -101,7 +130,7 @@ export function toPublicStore(row, { isSaved = null, now = new Date() } = {}) {
       timezone: row.timezone,
       openingHours: row.opening_hours ?? {},
       // Computed server-side so every client agrees on whether it is open.
-      ...resolveOpenState(row.opening_hours, row.timezone, now),
+      ...resolveOpenState(row.opening_hours, row.timezone, now, { holidays }),
     },
     fulfilment: {
       pickupEnabled: row.pickup_enabled,
@@ -184,7 +213,8 @@ export function toPublicProduct(row, imageUrl = null, variants = []) {
 /** Checklist 3.1 + 3.6 */
 export async function getStorePage(slug, customerId) {
   const store = await findActiveStoreBySlug(slug);
-  return toPublicStore(store, { isSaved: await isStoreSaved(store.id, customerId) });
+  const [isSaved, holidays] = await Promise.all([isStoreSaved(store.id, customerId), holidaysFor(store.id)]);
+  return toPublicStore(store, { isSaved, holidays });
 }
 
 /** Checklist 3.3 */

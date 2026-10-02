@@ -205,3 +205,29 @@ describe('flattenSeed', () => {
     expect(flattenSeed(stores)).toEqual(flattenSeed(stores));
   });
 });
+
+describe('catalogue photos', () => {
+  it('matches a file to the product whose slug it spells', async () => {
+    const { photoSlug } = await import('../scripts/seed-data.js');
+    expect(photoSlug('toor_dal.png')).toBe('toor-dal');
+    expect(photoSlug('Basmati_Rice.JPG')).toBe('basmati-rice');
+    expect(photoSlug('aloo bhujia.webp')).toBe('aloo-bhujia');
+    expect(photoSlug('notes.txt')).toBeNull();
+  });
+
+  it('gives a photographed product one image row — its first, so the id stays stable', async () => {
+    const { applyPhotos } = await import('../scripts/seed-data.js');
+    const rows = [
+      { id: 'i2', product_id: 'rice', url: 'old-2', sort_order: 2 },
+      { id: 'i1', product_id: 'rice', url: 'old-1', sort_order: 1 },
+      { id: 'i3', product_id: 'dal', url: 'dal-1', sort_order: 1 },
+    ];
+
+    const result = applyPhotos(rows, new Map([['rice', 'https://photo/rice.png']]));
+
+    expect(result).toEqual([
+      { id: 'i1', product_id: 'rice', url: 'https://photo/rice.png', sort_order: 1, alt_text: null },
+      { id: 'i3', product_id: 'dal', url: 'dal-1', sort_order: 1 },
+    ]);
+  });
+});

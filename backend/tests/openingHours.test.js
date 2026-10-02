@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toMinutes, fromMinutes, localNow, resolveOpenState } from '../src/lib/openingHours.js';
+import { toMinutes, fromMinutes, localNow, resolveOpenState, addDays } from '../src/lib/openingHours.js';
 
 /**
  * Pure logic, so every case pins an explicit `now` rather than mocking time.
@@ -164,5 +164,46 @@ describe('resolveOpenState — degenerate input', () => {
 
   it('never throws on a bad timezone', () => {
     expect(() => resolveOpenState(nineToNine, 'Mars/Olympus', ist('12:00'))).not.toThrow();
+  });
+});
+
+describe('holidays (MERCHANT_RULES S-12)', () => {
+  const WEEKDAYS = Object.fromEntries(
+    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) => [day, [{ open: '09:00', close: '21:00' }]]),
+  );
+  // Friday 2 October 2026, 11:00 in Kolkata.
+  const fridayMorning = new Date('2026-10-02T05:30:00Z');
+
+  it('closes the store all day on a holiday, inside its usual hours', () => {
+    const state = resolveOpenState(WEEKDAYS, 'Asia/Kolkata', fridayMorning, { holidays: ['2026-10-02'] });
+    expect(state).toMatchObject({ isOpen: false, opensAt: '09:00', opensOn: 'sat', opensOnDate: '2026-10-03' });
+  });
+
+  it('skips a run of holidays to the next real opening', () => {
+    const state = resolveOpenState(WEEKDAYS, 'Asia/Kolkata', fridayMorning, {
+      holidays: ['2026-10-02', '2026-10-03', '2026-10-04'],
+    });
+    expect(state).toMatchObject({ isOpen: false, opensOn: 'mon', opensOnDate: '2026-10-05' });
+  });
+
+  it('reads the holiday as the store’s local date, not UTC’s', () => {
+    // 20:00 UTC on the 1st is already 01:30 on the 2nd in Kolkata.
+    const lateNight = new Date('2026-10-01T20:00:00Z');
+    const overnight = { ...WEEKDAYS, thu: [{ open: '18:00', close: '03:00' }] };
+
+    expect(resolveOpenState(overnight, 'Asia/Kolkata', lateNight).isOpen).toBe(true);
+    expect(resolveOpenState(overnight, 'Asia/Kolkata', lateNight, { holidays: ['2026-10-02'] }).isOpen).toBe(false);
+  });
+
+  it('leaves other days alone', () => {
+    expect(resolveOpenState(WEEKDAYS, 'Asia/Kolkata', fridayMorning, { holidays: ['2026-10-09'] }).isOpen).toBe(true);
+  });
+});
+
+describe('addDays', () => {
+  it('crosses month and year ends on the calendar', () => {
+    expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
+    expect(addDays('2026-12-31', 1)).toBe('2027-01-01');
+    expect(addDays('2028-02-28', 1)).toBe('2028-02-29');
   });
 });

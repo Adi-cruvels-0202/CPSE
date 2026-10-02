@@ -78,3 +78,14 @@ export const deactivateVariant = asyncHandler(async (req, res) => {
   const { productId, variantId } = req.params;
   sendSuccess(res, { product: await products.setVariantActive(req.store, productId, variantId, false) });
 });
+
+// ── Photos ───────────────────────────────────────────────────────────────────
+
+export const uploadProductImage = asyncHandler(async (req, res) => {
+  sendCreated(res, { product: await products.addProductImage(req.store, req.params.productId, req.file) });
+});
+
+export const deleteProductImage = asyncHandler(async (req, res) => {
+  const { productId, imageId } = req.params;
+  sendSuccess(res, { product: await products.removeProductImage(req.store, productId, imageId) });
+});

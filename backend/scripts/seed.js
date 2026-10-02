@@ -9,9 +9,22 @@
  *
  * Refuses to run against NODE_ENV=production — this is dummy data.
  */
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { supabaseAdmin } from '../src/lib/supabase.js';
 import { env } from '../src/config/env.js';
-import { stores, flattenSeed, testCustomer, demoMerchant, khataSeed } from './seed-data.js';
+import { IMAGE_BUCKET, sniffImageType } from '../src/lib/imageUpload.js';
+import {
+  stores,
+  flattenSeed,
+  testCustomer,
+  demoMerchant,
+  khataSeed,
+  CATALOGUE_PHOTOS_DIR,
+  photoSlug,
+  applyPhotos,
+} from './seed-data.js';
 
 async function upsert(table, rows) {
   if (rows.length === 0) return;
@@ -41,6 +54,65 @@ async function adoptExistingDefaultVariants(variantRows) {
   return variantRows.map((row) =>
     row.name === 'Default' && existing.has(row.product_id) ? { ...row, id: existing.get(row.product_id) } : row,
   );
+}
+
+/**
+ * Uploads the photos in `backend/catlog photos/` to Supabase Storage and
+ * answers product id → public URL. Optional: no folder, no bucket (migration
+ * 0033 not applied yet) or a failed upload just leaves the placeholders.
+ */
+async function uploadCataloguePhotos(productRows) {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', CATALOGUE_PHOTOS_DIR);
+  let files;
+  try {
+    files = await fs.readdir(dir);
+  } catch {
+    console.log(`  photos             none (no "${CATALOGUE_PHOTOS_DIR}" folder)`);
+    return new Map();
+  }
+
+  const bySlug = new Map(productRows.map((product) => [product.slug, product]));
+  const urls = new Map();
+
+  for (const file of files.sort()) {
+    const product = bySlug.get(photoSlug(file));
+    if (!product) continue;
+
+    const buffer = await fs.readFile(path.join(dir, file));
+    const type = sniffImageType(buffer);
+    if (!type) {
+      console.warn(`  photos             skipped ${file}: not a JPEG, PNG or WebP`);
+      continue;
+    }
+
+    // A fixed path per product, overwritten on re-seed, so seeding twice does
+    // not leave orphaned copies behind.
+    const objectPath = `seed/${product.slug}.${type.ext}`;
+    const { error } = await supabaseAdmin.storage
+      .from(IMAGE_BUCKET)
+      .upload(objectPath, buffer, { contentType: type.mime, upsert: true, cacheControl: '3600' });
+    if (error) {
+      console.warn(`  photos             skipped ${file}: ${error.message} (is migration 0033 applied?)`);
+      continue;
+    }
+    urls.set(product.id, supabaseAdmin.storage.from(IMAGE_BUCKET).getPublicUrl(objectPath).data.publicUrl);
+  }
+
+  console.log(`  photos             ${urls.size} uploaded`);
+  return urls;
+}
+
+/** Removes a photographed product's other placeholder images left by earlier seeds. */
+async function dropReplacedImages(imageRows, photoUrls) {
+  for (const productId of photoUrls.keys()) {
+    const keep = imageRows.filter((row) => row.product_id === productId).map((row) => row.id);
+    const { error } = await supabaseAdmin
+      .from('product_images')
+      .delete()
+      .eq('product_id', productId)
+      .not('id', 'in', `(${keep.join(',')})`);
+    if (error) throw new Error(`product_images: ${error.message}`);
+  }
 }
 
 /**
@@ -122,7 +194,10 @@ async function seed() {
   await upsert('stores', storeRows.map((store) => ({ ...store, owner_id: merchantId })));
   await upsert('categories', categoryRows);
   await upsert('products', productRows);
-  await upsert('product_images', imageRows);
+  const photoUrls = await uploadCataloguePhotos(productRows);
+  const images = applyPhotos(imageRows, photoUrls);
+  await dropReplacedImages(images, photoUrls);
+  await upsert('product_images', images);
   // Stock is reset to the seed's numbers; reserved_quantity is left alone, so
   // a re-seed never forgets what open orders hold.
   await upsert('product_variants', await adoptExistingDefaultVariants(variantRows));

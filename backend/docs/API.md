@@ -23,6 +23,7 @@ identifiers, and answers with the envelope described below.
   - [Payments](#payments)
   - [Notifications](#notifications)
   - [Khata](#khata)
+  - [Merchant account](#merchant-account)
 - [Rate limits](#rate-limits)
 - [Invariants worth knowing](#invariants-worth-knowing)
 
@@ -103,6 +104,7 @@ anonymous and a boolean when signed in.
 | 400 | `MALFORMED_JSON` | The body is not valid JSON |
 | 401 | `UNAUTHORIZED` | No token, a junk token, or an expired one |
 | 403 | `FORBIDDEN` | Disallowed CORS origin. Never used for ownership |
+| 403 | `MERCHANT_REQUIRED` | Signed in, but not a merchant, on a `/merchant` route. A role check, not ownership — the merchant app offers onboarding |
 | 404 | `NOT_FOUND` | The resource does not exist **or belongs to someone else** |
 | 404 | `ROUTE_NOT_FOUND` | No such endpoint |
 | 409 | `CONFLICT` | An illegal state change — cancelling a delivered order, settling a settled payment |
@@ -150,7 +152,7 @@ addresses, cart items, orders, payments, notifications and khata accounts.
 | | |
 |---|---|
 | `POST /auth/register` | **public.** `{ email, password, fullName, phone? }` → **201** `{ customer, session, emailConfirmationRequired }`. `session` is `null` when email confirmation is on. A duplicate email is **409**. |
-| `POST /auth/login` | **public.** `{ email, password }` → `{ customer, session }`. **401** on bad credentials, with the same message for an unknown email as for a wrong password. |
+| `POST /auth/login` | **public.** `{ email, password }` → `{ customer, session, roles }`. `roles` is `["customer"]` or `["customer", "merchant"]`; the customer app can ignore it. **401** on bad credentials, with the same message for an unknown email as for a wrong password. |
 | `POST /auth/refresh` | **public.** `{ refreshToken }` → a rotated `{ session }`. |
 | `POST /auth/logout` | Bearer. No body. **204**. Revokes refresh tokens globally. |
 | `POST /auth/forgot-password` | **public.** `{ email }` → always **200**, whether or not the address is registered. |
@@ -345,6 +347,29 @@ no `from`, the period starts at the beginning of the ledger and opens at zero.
 The account's `balancePaise` comes from the trigger-maintained column rather than
 from re-adding the ledger. If those two ever disagreed, the number the store acts
 on is the one to show.
+
+
+### Merchant account
+
+The shopkeeper side shares this login (one Supabase Auth, MERGE_MAPPING D-2): a
+merchant is an account with a merchant profile, and is still a customer too.
+Sign-in, refresh, logout and password reset are the `/auth` endpoints above.
+
+| | |
+|---|---|
+| `POST /merchant/auth/register` | **public.** `{ email, password, fullName, phone? }` → **201** `{ merchant, session, emailConfirmationRequired }`. Same rules and wording as `/auth/register`: a taken email is **409**; with email confirmation on, `merchant` and `session` are `null`. |
+| `POST /merchant/onboard` | Bearer. `{ fullName?, phone? }` → **201** `{ merchant }`: an existing account becomes a merchant, taking any field left out from its customer profile. Already a merchant → **200**, same shape. |
+| `GET /merchant/me` | Bearer, merchant. `{ merchant, stores: [{ id, name, slug, isPublished, logoUrl }] }`, stores newest first. **403 `MERCHANT_REQUIRED`** means "offer onboarding". |
+| `PATCH /merchant/me` | Bearer, merchant. `{ fullName?, phone? }` (`phone: null` clears it) → `{ merchant }`. `email` or `id` is a **422**. |
+
+```json
+"merchant": { "id": "7c1e…", "email": "owner@shop.in", "fullName": "Ravi Sharma", "phone": "+919876543210", "createdAt": "2026-10-01T09:00:00Z" }
+```
+
+**Guards on every `/merchant` route, in order:** no or bad token → **401**; a
+malformed id in the path → **422**; not a merchant → **403 `MERCHANT_REQUIRED`**;
+a `storeId` that is not yours, or does not exist → **404** (never 403, so a store
+id cannot confirm that someone else's store exists); a malformed body → **422**.
 
 ---
 

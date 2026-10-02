@@ -138,7 +138,7 @@ All from `backend/` unless noted.
 | `npm run dev` | API + app with hot reload, on :4000 |
 | `npm start` | Production mode — serves `frontend/customer/dist`, no Vite |
 | `npm run build` | Installs and builds the customer app into `frontend/customer/dist` |
-| `npm test` | 820 backend tests (Vitest + supertest, plus the stock SQL run on PGlite — no live database needed) |
+| `npm test` | 852 backend tests (Vitest + supertest, plus the stock SQL run on PGlite — no live database needed) |
 | `npm test --prefix ../frontend/customer` | 575 frontend tests (Vitest + Testing Library) |
 | `npm run db:seed` | Dummy stores, catalogue and khata |
 | `npm run db:maintenance` | Expiry sweeps — stale carts, abandoned payments |

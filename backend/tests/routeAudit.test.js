@@ -108,6 +108,30 @@ describe('10.1 — every route that touches owned data requires authentication',
   );
 });
 
+describe('every /merchant route is for merchants (D-2)', () => {
+  // The two a non-merchant must reach: creating a merchant account, and
+  // turning their customer account into one.
+  const OPEN_TO_CUSTOMERS = new Set(['POST /merchant/auth/register', 'POST /merchant/onboard']);
+  const merchantOnly = ROUTES.filter(
+    (route) => route.path.startsWith('/merchant/') && !OPEN_TO_CUSTOMERS.has(routeKey(route)),
+  );
+
+  it('there are merchant routes to check', () => {
+    expect(merchantOnly.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it.each(merchantOnly.map((route) => [routeKey(route), route]))(
+    '%s answers 403 MERCHANT_REQUIRED to a signed-in customer',
+    async (_key, route) => {
+      // The seeded customer has no merchants row.
+      const res = await call(route, { storeId: STORE_ID, default: CUSTOMER_ID }, signIn());
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('MERCHANT_REQUIRED');
+    },
+  );
+});
+
 describe('10.2 — every identifier in a path is validated', () => {
   // :slug is the one parameter that is not a uuid; everything else is.
   const uuidRoutes = ROUTES.filter((route) =>
@@ -167,9 +191,10 @@ describe('10.2 — every identifier in a path is validated', () => {
       .send({ definitelyNotAField: 'x' });
 
     // Either the schema rejects the unknown key (422), or the route takes no
-    // body at all and fails for its own reason first — but never 201/200, which
+    // body at all and fails for its own reason first — a merchant route refuses
+    // a non-merchant (403) before reading the body — but never 201/200, which
     // would mean the field was silently dropped.
-    expect([400, 401, 404, 409, 422]).toContain(res.status);
+    expect([400, 401, 403, 404, 409, 422]).toContain(res.status);
   });
 });
 
@@ -196,6 +221,8 @@ describe('10.5 — one error contract everywhere', () => {
     'ADDRESS_REQUIRED',
     'PRICE_CHANGED',
     'PAYMENT_FAILED',
+    // The merchant role check (D-2).
+    'MERCHANT_REQUIRED',
     // Rejections that happen before any handler runs.
     'PAYLOAD_TOO_LARGE',
     'MALFORMED_JSON',

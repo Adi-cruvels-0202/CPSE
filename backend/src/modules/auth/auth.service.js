@@ -80,7 +80,7 @@ function isUpstreamOutage(error) {
   return /fetch failed|network|socket hang up|ECONNRESET|ETIMEDOUT/i.test(message);
 }
 
-function isAlreadyRegistered(error) {
+export function isAlreadyRegistered(error) {
   return /already (been )?registered|already exists|user_already_exists/i.test(error?.message ?? '');
 }
 
@@ -96,7 +96,7 @@ function isAlreadyRegistered(error) {
  * So: the cases worth naming are named, and anything else gets a generic
  * sentence while the real text goes to the log for us.
  */
-function signUpFailure(error) {
+export function signUpFailure(error) {
   const message = error?.message ?? '';
 
   if (/rate limit/i.test(message)) {
@@ -132,6 +132,31 @@ export async function loadCustomer(id) {
 
   if (error) throw internal('Could not load the customer profile.');
   return data ?? null;
+}
+
+export const MERCHANT_COLUMNS = 'id, email, full_name, phone, created_at, updated_at';
+
+/**
+ * The merchants row (migration 0024), or null for someone who is only a
+ * customer. Lives beside loadCustomer because sign-in needs both.
+ */
+export async function loadMerchant(id) {
+  const { data, error } = await supabaseAdmin
+    .from('merchants')
+    .select(MERCHANT_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw internal('Could not load the merchant profile.');
+  return data ?? null;
+}
+
+/**
+ * What the account can act as. Everyone is a customer — the signup trigger
+ * gives every auth user a customers row — and some are merchants too (D-2).
+ */
+export async function rolesFor(userId) {
+  return (await loadMerchant(userId)) ? ['customer', 'merchant'] : ['customer'];
 }
 
 /**
@@ -183,8 +208,10 @@ export async function login({ email, password }) {
 
   if (error || !data?.session) throw unauthorized(INVALID_CREDENTIALS);
 
-  const customer = await loadCustomer(data.user.id);
-  return { customer: toPublicCustomer(customer), session: toSession(data.session) };
+  const [customer, roles] = await Promise.all([loadCustomer(data.user.id), rolesFor(data.user.id)]);
+  // `roles` is additive: the customer app ignores it, the merchant app uses it
+  // to decide between its dashboard and onboarding.
+  return { customer: toPublicCustomer(customer), session: toSession(data.session), roles };
 }
 
 /** Checklist 2.3. Rotates the session; Supabase invalidates the old refresh token. */

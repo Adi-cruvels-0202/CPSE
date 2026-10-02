@@ -128,6 +128,22 @@ export function customerRow(overrides = {}) {
 
 export const seedCustomer = (overrides = {}) => insert('customers', customerRow(overrides));
 
+/**
+ * A merchants row (migration 0024). Defaults to the test customer's id: the
+ * same person, also a merchant, which is the normal case (D-2).
+ */
+export function seedMerchant(overrides = {}) {
+  return insert('merchants', {
+    id: CUSTOMER_ID,
+    email: 'test.customer@cpse.local',
+    full_name: 'Test Merchant',
+    phone: '+919876543210',
+    created_at: '2026-10-01T09:00:00.000Z',
+    updated_at: '2026-10-01T09:00:00.000Z',
+    ...overrides,
+  });
+}
+
 /** A stores row (migrations 0004 + 0019). */
 export function storeRow(overrides = {}) {
   return {

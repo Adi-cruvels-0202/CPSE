@@ -11,6 +11,7 @@ import { paymentRouter } from './modules/payments/payment.routes.js';
 import { savedStoreRouter } from './modules/savedStores/savedStore.routes.js';
 import { notificationRouter } from './modules/notifications/notification.routes.js';
 import { khataRouter } from './modules/khata/khata.routes.js';
+import { merchantRouter } from './modules/merchants/merchant.routes.js';
 
 /**
  * All v1 routes are mounted here. Each module owns its own router;
@@ -30,3 +31,6 @@ apiRouter.use('/payments', paymentRouter);
 apiRouter.use('/saved-stores', savedStoreRouter);
 apiRouter.use('/notifications', notificationRouter);
 apiRouter.use('/khata', khataRouter);
+// The shopkeeper side (MERGE_MAPPING D-11): role-gated, and store-scoped below
+// /merchant/stores/:storeId.
+apiRouter.use('/merchant', merchantRouter);

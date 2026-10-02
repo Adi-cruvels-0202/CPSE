@@ -174,6 +174,12 @@ switches; UPI vs card is the provider's concern, not the store's.
 
 ### Categories
 
+> ✅ **Built** (`backend/merchant-catalogue`), with Products and variants below. The
+> authoritative description is now `docs/API.md` → *Merchant catalogue*. Settled
+> while building: category responses carry their `slug`; a product response also
+> has a top-level `isLowStock`; and the product list's `meta` is the standard
+> pagination block.
+
 | | |
 |---|---|
 | `GET /merchant/stores/:storeId/categories` | `{ categories }` — **including inactive**, in sort order, each with `productCount`. |

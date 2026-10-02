@@ -6,8 +6,9 @@
  * stock triggers and the one-time backfills are tested as SQL, not as the
  * JavaScript stand-in in supabaseMock.js.
  *
- * Supabase provides an `auth` schema and three roles that the migrations refer
- * to; the minimum of each is created here first.
+ * Supabase provides an `auth` schema, three roles that the migrations refer
+ * to, and default grants on new tables; the minimum of each is created here
+ * first.
  */
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -28,6 +29,14 @@ const SUPABASE_STANDINS = `
     raw_user_meta_data jsonb not null default '{}'::jsonb
   );
   create function auth.uid() returns uuid language sql as $$ select null::uuid $$;
+  grant usage on schema public to anon, authenticated, service_role;
+  grant usage on schema auth to anon, authenticated, service_role;
+  grant execute on function auth.uid() to anon, authenticated;
+  -- Supabase's default privileges: every new table in public is readable and
+  -- writable by the API roles, with RLS deciding which rows. Without this a
+  -- test could not tell "RLS hid it" from "the role had no grant at all".
+  alter default privileges in schema public
+    grant select, insert, update, delete on tables to anon, authenticated, service_role;
 `;
 
 async function migrationFiles() {

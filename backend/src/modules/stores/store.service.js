@@ -336,10 +336,13 @@ export async function getProductDetail(slug, productId) {
       images,
       // A product sold without options has only its Default variant, which is
       // left out: the page shows no picker and the cart fills it in
-      // (cart.service resolveVariant). Real options, even a single one, show.
-      variants: variantRows
-        .filter((row) => !isDefaultVariant(row))
-        .map((row) => toPublicVariant(row, product)),
+      // (cart.service resolveVariant). Real options, even a single one, show —
+      // and once a merchant adds options to a simple product, its Default
+      // shows with them, or it could never be chosen.
+      variants:
+        variantRows.length === 1 && isDefaultVariant(variantRows[0])
+          ? []
+          : variantRows.map((row) => toPublicVariant(row, product)),
     },
   };
 }

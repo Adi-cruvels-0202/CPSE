@@ -25,6 +25,7 @@ identifiers, and answers with the envelope described below.
   - [Khata](#khata)
   - [Merchant account](#merchant-account)
   - [Merchant stores](#merchant-stores)
+  - [Merchant catalogue](#merchant-catalogue)
 - [Rate limits](#rate-limits)
 - [Invariants worth knowing](#invariants-worth-knowing)
 
@@ -110,6 +111,8 @@ anonymous and a boolean when signed in.
 | 404 | `ROUTE_NOT_FOUND` | No such endpoint |
 | 409 | `CONFLICT` | An illegal state change — cancelling a delivered order, settling a settled payment, publishing a published store |
 | 409 | `SLUG_TAKEN` | A store link already used by another store. `details.slug` |
+| 409 | `CATEGORY_NAME_TAKEN` | The store already has a category with that name, ignoring case. `details.name` |
+| 409 | `SKU_TAKEN` | The store already uses that SKU, ignoring case. `details.sku` when known |
 | 413 | `PAYLOAD_TOO_LARGE` | Body over the configured cap (32kb by default) |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Unsupported charset or content encoding |
 | 422 | `VALIDATION_FAILED` | Schema failure. `details.issues[]` is `{ source, field, message }` |
@@ -181,7 +184,7 @@ All five accept an optional bearer token and personalise when one is present.
 | `GET /stores/:slug` | **public.** The store page: contact, location, `hours` (with `isOpen` and `opensAt`, computed in the store's own timezone), `fulfilment` (`minOrderPaise`, `deliveryFeePaise`, and `freeDeliveryThresholdPaise` — delivery is free once the subtotal reaches it; `null` = never), `isSaved`. |
 | `GET /stores/:slug/categories` | **public.** Active categories, in sort order. |
 | `GET /stores/:slug/products` | **public.** `?categoryId=&page=&limit=&availableOnly=`. Sold-out and withdrawn products are **listed**, with `isPurchasable: false`. `stock` is what can still be ordered across the product's variants — on hand minus what open orders hold — and `null` means not counted. `pricePaise` is the cheapest variant's. `taxPercent` is added on top at checkout: show "+ GST" when it is above 0. |
-| `GET /stores/:slug/products/:productId` | **public.** Full detail: images and `variants` (each with its own `pricePaise`, `mrpPaise` and available `stock`). A product sold without options returns `variants: []` — it has one hidden Default variant, which the cart fills in. A product id from another store is **404**. |
+| `GET /stores/:slug/products/:productId` | **public.** Full detail: images and `variants` (each with its own `pricePaise`, `mrpPaise` and available `stock`). A product sold without options returns `variants: []` — it has one hidden Default variant, which the cart fills in. Once a merchant adds options to such a product, its Default is listed with them so it can still be chosen. A product id from another store is **404**. |
 | `GET /stores/:slug/search` | **public.** `?q=&categoryId=&page=&limit=`. Store-scoped, name and description, minimum 2 characters. |
 
 An unknown slug, an inactive store, a store its merchant has not published (or
@@ -425,6 +428,90 @@ format the customer store page computes open/closed from.
 `shopCategory`: `grocery`, `pharmacy`, `restaurant`, `bakery`, `electronics`,
 `clothing`, `general`, `other`. `publicPath` is what a "share" or QR-code button
 links to.
+
+
+### Merchant catalogue
+
+Bearer, merchant, on the caller's own store. A category, product or variant id
+from another store is the same **404** as one that does not exist.
+
+**Categories** — there is no delete; deactivating hides a category from
+customers and leaves its products listed under "all".
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/categories` | Bearer, merchant. `{ categories }` — inactive ones too, in sort order, each with `productCount`. |
+| `POST /merchant/stores/:storeId/categories` | Bearer, merchant. `{ name, description? }` → **201** `{ category }`. Name 1–100 characters, unique in the store ignoring case (**409 `CATEGORY_NAME_TAKEN`**). Added at the end of the order. |
+| `PATCH /merchant/stores/:storeId/categories/:categoryId` | Bearer, merchant. `{ name?, description? }` → `{ category }`. |
+| `POST /merchant/stores/:storeId/categories/:categoryId/activate` | Bearer, merchant. No body → `{ category }`. |
+| `POST /merchant/stores/:storeId/categories/:categoryId/deactivate` | Bearer, merchant. No body → `{ category }`. |
+
+```json
+"category": { "id": "c1…", "name": "Rice & Grains", "slug": "rice-grains", "description": null, "isActive": true, "sortOrder": 2, "productCount": 14, "createdAt": "…", "updatedAt": "…" }
+```
+
+**Products and variants.** Every product has at least one variant; price, MRP,
+cost, SKU and stock live on the variant. Stock is **never set here** except as a
+new variant's `openingQuantity`, which is logged as a `stock_in` — every other
+change goes through inventory. There is no delete: order lines keep the product
+for reorder. Deactivate instead.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/products` | Bearer, merchant. `?search=&categoryId=&isActive=&lowStock=&page=&limit=` → `{ products }` with pagination `meta`. Inactive products included unless `isActive=true`. `lowStock=true`: some active variant can sell no more than the product's `lowStockThreshold`. |
+| `POST /merchant/stores/:storeId/products` | Bearer, merchant. The body below → **201** `{ product }`. One transaction: product, variants, opening stock and images, or nothing. |
+| `GET /merchant/stores/:storeId/products/:productId` | Bearer, merchant. `{ product }` |
+| `PATCH /merchant/stores/:storeId/products/:productId` | Bearer, merchant. `{ name?, description?, categoryId?, unit?, taxPercent?, trackInventory?, lowStockThreshold?, images? }` → `{ product }`. `categoryId: null` uncategorises; `images` replaces the list. |
+| `POST /merchant/stores/:storeId/products/:productId/activate` | Bearer, merchant. No body → `{ product }`. |
+| `POST /merchant/stores/:storeId/products/:productId/deactivate` | Bearer, merchant. No body → `{ product }`. Customers still see it, unavailable. |
+| `POST /merchant/stores/:storeId/products/:productId/variants` | Bearer, merchant. One variant (below) → **201** `{ product }`. |
+| `PATCH /merchant/stores/:storeId/products/:productId/variants/:variantId` | Bearer, merchant. `{ name?, sku?, barcode?, weightGrams?, pricePaise?, mrpPaise?, costPaise? }` → `{ product }`. No stock here. |
+| `POST /merchant/stores/:storeId/products/:productId/variants/:variantId/activate` | Bearer, merchant. No body → `{ product }`. |
+| `POST /merchant/stores/:storeId/products/:productId/variants/:variantId/deactivate` | Bearer, merchant. No body → `{ product }`. |
+
+```json
+{
+  "name": "India Gate Basmati Rice", "description": "Aged basmati", "categoryId": "c1…",
+  "unit": "kg", "taxPercent": 5, "trackInventory": true, "lowStockThreshold": 5,
+  "images": [{ "url": "https://…/rice.jpg", "altText": "Rice bag" }],
+  "variants": [
+    { "name": "1 kg", "sku": "RICE-1KG", "pricePaise": 12900, "mrpPaise": 14500, "costPaise": 10500, "openingQuantity": 40 },
+    { "name": "5 kg", "pricePaise": 59900, "openingQuantity": 10 }
+  ]
+}
+```
+
+- `variants`: 1–50, names different within the product (ignoring case). `sku`
+  optional — generated as `SKU-<name letters>-<6 random>` if left out — and
+  unique in the store, ignoring case (**409 `SKU_TAKEN`**). `mrpPaise` is never
+  below `pricePaise` (**422**). `openingQuantity` needs `trackInventory: true`.
+- `unit`: `pcs`, `kg`, `g`, `l`, `ml`, `m`, `cm`, `dozen`, `pack`, `box`, `pair`,
+  `set`, `roll`, `plate`, `serving`; default `pcs`. `taxPercent`: 0–100, two
+  decimals at most, default 0 — added on top at checkout. At most 10 images,
+  http(s) URLs.
+- A simple product is one variant; call it `Default` and customers never see a
+  picker for it.
+
+```json
+"product": {
+  "id": "p1…", "slug": "india-gate-basmati-rice", "name": "India Gate Basmati Rice", "description": "Aged basmati",
+  "categoryId": "c1…", "categoryName": "Rice & Grains", "unit": "kg", "taxPercent": 5,
+  "trackInventory": true, "lowStockThreshold": 5, "isActive": true, "pricePaise": 12900,
+  "images": [{ "id": "i1…", "url": "https://…/rice.jpg", "altText": "Rice bag", "sortOrder": 0 }],
+  "variants": [{
+    "id": "v1…", "name": "1 kg", "sku": "RICE-1KG", "barcode": null, "weightGrams": null,
+    "pricePaise": 12900, "mrpPaise": 14500, "costPaise": 10500, "isActive": true, "sortOrder": 0,
+    "quantityOnHand": 40, "reservedQuantity": 3, "availableQuantity": 37, "isLowStock": false
+  }],
+  "stock": { "quantityOnHand": 50, "reservedQuantity": 3, "availableQuantity": 47 },
+  "isLowStock": false, "createdAt": "…", "updatedAt": "…"
+}
+```
+
+`pricePaise` is the cheapest active variant's — what the customer's product card
+shows. Stock fields are `null` when `trackInventory` is false. `costPaise` is the
+merchant's alone: no customer response carries it, and the public database roles
+cannot read the column.
 
 ---
 

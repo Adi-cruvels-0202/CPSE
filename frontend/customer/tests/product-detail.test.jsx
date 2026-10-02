@@ -57,6 +57,21 @@ function renderProduct({ product, signedIn = false, routes = {} } = {}) {
 
 const base = () => productDetailFixture().product;
 
+describe('tax (D-4)', () => {
+  it('says "+ GST" when tax is added at checkout', async () => {
+    renderProduct({ product: { ...base(), taxPercent: 5 } });
+
+    expect(await screen.findByText('+ 5% GST')).toBeInTheDocument();
+  });
+
+  it('says nothing for a product with no tax', async () => {
+    renderProduct({ product: { ...base(), taxPercent: 0 } });
+
+    await screen.findByRole('heading', { level: 1, name: 'Basmati Rice' });
+    expect(screen.queryByText(/GST/)).not.toBeInTheDocument();
+  });
+});
+
 describe('it opens with no account', () => {
   it('shows the product to a visitor with no session', async () => {
     renderProduct();

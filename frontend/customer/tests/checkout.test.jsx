@@ -117,6 +117,21 @@ describe('choosing how to get it', () => {
     expect(screen.getByRole('radio', { name: /have it delivered/i })).toBeInTheDocument();
   });
 
+  it('offers only the payment methods the shop takes', async () => {
+    renderCheckout({ store: storeFixture({ payment: { online: false, cashOnDelivery: true } }) });
+
+    await screen.findByRole('heading', { level: 1, name: 'Checkout' });
+    expect(await screen.findByRole('radio', { name: /cash on pickup/i })).toBeChecked();
+    expect(screen.queryByRole('radio', { name: /pay online/i })).not.toBeInTheDocument();
+  });
+
+  it('picks online when that is all the shop takes', async () => {
+    renderCheckout({ store: storeFixture({ payment: { online: true, cashOnDelivery: false } }) });
+
+    expect(await screen.findByRole('radio', { name: /pay online/i })).toBeChecked();
+    expect(screen.queryByRole('radio', { name: /cash on pickup/i })).not.toBeInTheDocument();
+  });
+
   it('offers pickup only when the shop does not deliver', async () => {
     renderCheckout({
       store: storeFixture({

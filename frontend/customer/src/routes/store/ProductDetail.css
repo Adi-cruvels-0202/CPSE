@@ -83,6 +83,11 @@
   color: var(--text-strong);
 }
 
+.product__tax {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 .product__mrp {
   color: var(--text-muted);
 }

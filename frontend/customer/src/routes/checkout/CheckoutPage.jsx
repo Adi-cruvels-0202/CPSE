@@ -86,6 +86,27 @@ export function CheckoutPage() {
 
   const fulfilment = store.data?.store?.fulfilment;
 
+  // Only the payment methods this store takes (its merchant switches them).
+  // Until the store loads, the server's list stands; the order would be refused
+  // with PAYMENT_METHOD_UNAVAILABLE anyway.
+  const accepts = store.data?.store?.payment;
+  const offeredMethods = useMemo(
+    () =>
+      (methods.data?.methods ?? []).filter((method) => {
+        if (!accepts) return true;
+        if (method.code === 'online') return accepts.online;
+        if (method.code === 'cash') return accepts.cashOnDelivery;
+        return true;
+      }),
+    [methods.data, accepts],
+  );
+
+  useEffect(() => {
+    if (offeredMethods.length > 0 && !offeredMethods.some((method) => method.code === paymentMethod)) {
+      setPaymentMethod(offeredMethods[0].code);
+    }
+  }, [offeredMethods, paymentMethod]);
+
   // Default to whatever the shop offers — pickup when it does both, since it is
   // the option with no fee and no address to choose. With no store to ask, the
   // quote is still the authority: it refuses a mode the shop does not do.
@@ -256,7 +277,7 @@ export function CheckoutPage() {
 
       <Step step={needsAddress ? 3 : 2} title="How do you want to pay?">
         <PaymentChoice
-          methods={methods.data?.methods}
+          methods={offeredMethods}
           value={paymentMethod}
           onChange={setPaymentMethod}
           disabled={placing}

@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node --watch-path=./src --watch-preserve-output src/server.js",
     "start": "node src/server.js",
-    "build": "npm --prefix ../frontend/customer ci --include=dev && npm --prefix ../frontend/customer run build",
+    "build": "npm --prefix ../frontend/customer ci --include=dev && npm --prefix ../frontend/customer run build && npm --prefix ../frontend/merchant ci --include=dev && npm --prefix ../frontend/merchant run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

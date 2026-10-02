@@ -1,22 +1,31 @@
 # CPSE — Customer Portal & Shopping Experience
 
-A shopping app for neighbourhood stores. A customer opens a shop from a link or a
-QR code the shop shared, browses the catalogue, fills a cart, picks pickup or
-delivery, pays in cash or online, and follows the order to the door.
+A shopping app for neighbourhood stores, for both sides of the counter.
 
-One Node process serves both halves: the Express API **and** the React app, on
+- **Customers** open a shop from a link or a QR code the shop shared, browse the
+  catalogue, fill a cart, pick pickup or delivery, pay in cash or online, and
+  follow the order to the door.
+- **Shopkeepers** set up their store, add products and photos, keep stock, accept
+  and fulfil online orders, ring up walk-in customers at the counter, and see the
+  day on a dashboard.
+
+One login serves both: a shopkeeper is a customer account with a merchant
+profile, and signing in on one app signs you in on the other.
+
+One Node process serves everything — the Express API **and** both React apps, on
 one port. Run the backend and you have the whole thing.
 
 ```
-┌──────────────────────────────────────────┐
-│  Express (backend/)                      │
-│    /api/v1/*   →  the API                │
-│    everything else →  the React app      │
-│         dev: Vite in middleware mode     │
-│         prod: frontend/customer/dist     │
-└──────────────┬───────────────────────────┘
+┌───────────────────────────────────────────────┐
+│  Express (backend/)                           │
+│    /api/v1/*      →  the API                  │
+│    /merchant/*    →  the merchant app         │
+│    everything else →  the customer app        │
+│         dev: Vite in middleware mode          │
+│         prod: frontend/*/dist                 │
+└──────────────┬────────────────────────────────┘
                │
-        Supabase (Postgres + Auth)
+        Supabase (Postgres + Auth + Storage)
 ```
 
 ---
@@ -27,7 +36,7 @@ one port. Run the backend and you have the whole thing.
 |---|---|
 | `backend/` | Express 4 API, Node 20+, ESM. Supabase for data and auth, Zod for every request body. |
 | `frontend/customer/` | The customer app. React 18 + React Router, built with Vite. Plain JavaScript for now (moving to TypeScript gradually — see `docs/MERGE_MAPPING.md` D-9). |
-| `frontend/merchant/` | The shopkeeper app, being brought in from Merchant-One. React + TypeScript. See `docs/WORK_PLAN.md`. |
+| `frontend/merchant/` | The shopkeeper app ("Merchant One", from Merchant-One), served at `/merchant`. React + TypeScript + TanStack Query, built with Vite. |
 | `backend/migrations/` | 33 numbered SQL files. The whole schema. |
 | `backend/docs/API.md` | Every endpoint, its body and its errors. |
 | `backend/docs/MERCHANT_INTEGRATION.md` | The contract with the merchant side, which this repo does **not** contain. |
@@ -101,13 +110,14 @@ the product (`toor_dal.png` → Toor Dal), and the seed uploads them to Supabase
 Storage and uses them in place of the placeholders. The folder is git-ignored —
 photos are megabytes each.
 
-### 5. Install the frontend's dependencies
+### 5. Install the frontends' dependencies
 
 ```bash
 npm install --prefix ../frontend/customer
+npm install --prefix ../frontend/merchant
 ```
 
-No `.env` needed. The app calls `/api/v1` on whatever origin served it, so
+No `.env` needed. Both apps call `/api/v1` on whatever origin served them, so
 there is no URL to configure.
 
 ### 6. Run it
@@ -116,17 +126,21 @@ there is no URL to configure.
 npm run dev          # from backend/
 ```
 
-Open **http://localhost:4000**. That is the app, not a JSON blob.
+Open **http://localhost:4000** for the shop, and **http://localhost:4000/merchant**
+for the shopkeeper side (`demo.merchant@cpse.local` / `CpseMerchant!2026` after
+seeding). The customer app's login and account pages link across.
 
-Vite runs *inside* the API process in middleware mode, sharing its HTTP socket
-for hot reloads — so an edit under `frontend/customer/src` appears without a rebuild, and
-an edit under `backend/src` restarts the server. Two halves, one terminal.
+Each app's Vite runs *inside* the API process in middleware mode — so an edit
+under `frontend/*/src` appears without a rebuild, and an edit under `backend/src`
+restarts the server. Everything, one terminal. (The merchant app's hot-reload
+socket is on port 24679, so the two Vites never compete for one connection.)
 
 <details>
-<summary>Running the frontend on its own instead</summary>
+<summary>Running a frontend on its own instead</summary>
 
 ```bash
 npm run dev --prefix frontend/customer   # http://localhost:5173
+npm run dev --prefix frontend/merchant   # http://localhost:5174/merchant/
 ```
 
 Vite proxies `/api` to port 4000, so the backend still has to be running. You
@@ -142,15 +156,17 @@ All from `backend/` unless noted.
 | Command | What it does |
 |---|---|
 | `npm run dev` | API + app with hot reload, on :4000 |
-| `npm start` | Production mode — serves `frontend/customer/dist`, no Vite |
-| `npm run build` | Installs and builds the customer app into `frontend/customer/dist` |
+| `npm start` | Production mode — serves `frontend/customer/dist` and `frontend/merchant/dist`, no Vite |
+| `npm run build` | Installs and builds both apps into their `dist/` folders |
 | `npm test` | 1267 backend tests (Vitest + supertest, plus the SQL run on real Postgres in WebAssembly — PGlite — one file at a time; no live database needed) |
-| `npm test --prefix ../frontend/customer` | 575 frontend tests (Vitest + Testing Library) |
+| `npm test --prefix ../frontend/customer` | 581 customer-app tests (Vitest + Testing Library) |
+| `npm test --prefix ../frontend/merchant` | 13 merchant-app tests (money, the shared session, the API client) |
+| `npm run typecheck --prefix ../frontend/merchant` | TypeScript check of the merchant app |
 | `npm run db:seed` | Dummy stores, catalogue and khata |
 | `npm run db:maintenance` | Expiry sweeps — stale carts, abandoned payments |
 
-Both suites run against mocks, so a fresh clone can run them before touching
-Supabase at all.
+Every suite runs against mocks or an in-process Postgres, so a fresh clone can
+run them before touching Supabase at all.
 
 ---
 
@@ -162,7 +178,7 @@ One web service on any Node host. On [Render](https://render.com), create a
 
 | Field | Value |
 |---|---|
-| Build Command | `cd frontend/customer && npm ci --include=dev && npm run build && cd ../../backend && npm ci` |
+| Build Command | `cd backend && npm ci && npm run build` |
 | Start Command | `cd backend && node src/server.js` |
 | Health Check Path | `/api/v1/health` |
 

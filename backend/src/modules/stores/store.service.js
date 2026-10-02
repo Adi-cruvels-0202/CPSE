@@ -19,7 +19,8 @@ export const STORE_COLUMNS = `
   address_line1, address_line2, city, state, postal_code, country,
   latitude, longitude, opening_hours, timezone,
   pickup_enabled, delivery_enabled, min_order_paise, delivery_fee_paise,
-  free_delivery_threshold_paise, is_active, created_at, updated_at
+  free_delivery_threshold_paise, accepts_cash, accepts_online,
+  is_active, is_published, created_at, updated_at
 `;
 
 // price_paise / mrp_paise are the cheapest variant's, kept in step by a
@@ -42,13 +43,18 @@ const fail = (error, message) => {
   if (error) throw upstreamFailure(error, message);
 };
 
-/** Only active stores are reachable: an inactive one is a 404, not a 403. */
+/**
+ * Only stores customers may see are reachable: active (the operator's switch)
+ * AND published (the merchant's, migration 0025). Anything else is a 404, not
+ * a 403 — the same answer as a slug that never existed.
+ */
 export async function findActiveStoreBySlug(slug) {
   const { data, error } = await supabaseAdmin
     .from('stores')
     .select(STORE_COLUMNS)
     .eq('slug', slug)
     .eq('is_active', true)
+    .eq('is_published', true)
     .maybeSingle();
 
   fail(error, 'Could not load the store.');
@@ -105,10 +111,9 @@ export function toPublicStore(row, { isSaved = null, now = new Date() } = {}) {
       // Delivery is free once the subtotal reaches this; null = never free.
       freeDeliveryThresholdPaise: row.free_delivery_threshold_paise ?? null,
     },
-    // Payment options are the same everywhere for now: the mock provider (D7)
-    // plus cash on pickup/delivery. Declared here so the storefront can render
-    // it without a second endpoint.
-    payment: { online: true, cashOnDelivery: true },
+    // What this store takes (migration 0025, set by the merchant). Declared
+    // here so the storefront can render it without a second endpoint.
+    payment: { online: row.accepts_online, cashOnDelivery: row.accepts_cash },
     isSaved,
   };
 }
@@ -448,8 +453,8 @@ export async function findStoreCategory(storeId, categoryId) {
 
 /**
  * By id rather than slug, for the customer-side flows (cart, checkout, orders)
- * where the store is already known. Inactive stores stay unreachable: a store
- * that stops trading must not accept new orders.
+ * where the store is already known. Inactive and unpublished stores stay
+ * unreachable: a store that is not trading must not accept new orders.
  */
 export async function findActiveStoreById(storeId) {
   const { data, error } = await supabaseAdmin
@@ -457,6 +462,7 @@ export async function findActiveStoreById(storeId) {
     .select(STORE_COLUMNS)
     .eq('id', storeId)
     .eq('is_active', true)
+    .eq('is_published', true)
     .maybeSingle();
 
   fail(error, 'Could not load the store.');

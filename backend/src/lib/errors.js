@@ -39,6 +39,9 @@ export const forbidden = (message = 'You are not allowed to perform this action.
  */
 export const merchantRequired = () =>
   new AppError(403, 'MERCHANT_REQUIRED', 'This account is not set up as a merchant yet.');
+/** A store link already used by another store (MERCHANT_API.md). */
+export const slugTaken = (slug) =>
+  new AppError(409, 'SLUG_TAKEN', `The link "${slug}" is already used by another store.`, { slug });
 export const notFound = (resource = 'Resource') =>
   new AppError(404, 'NOT_FOUND', `${resource} was not found.`);
 export const conflict = (message, details) => new AppError(409, 'CONFLICT', message, details);

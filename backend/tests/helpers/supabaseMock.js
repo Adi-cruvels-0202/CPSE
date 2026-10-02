@@ -70,6 +70,44 @@ const KNOWN_TABLES = [
   'inventory_ledger',
 ];
 
+/**
+ * Column defaults the real tables fill in on insert, for the tables the API
+ * inserts partial rows into. Without them a row created through the API
+ * would come back with undefined where Postgres would have put a value.
+ */
+const COLUMN_DEFAULTS = {
+  // migrations 0004, 0019, 0025
+  stores: () => ({
+    description: null,
+    logo_url: null,
+    cover_image_url: null,
+    phone: null,
+    email: null,
+    address_line1: null,
+    address_line2: null,
+    city: null,
+    state: null,
+    postal_code: null,
+    country: 'IN',
+    latitude: null,
+    longitude: null,
+    opening_hours: {},
+    timezone: 'Asia/Kolkata',
+    pickup_enabled: true,
+    delivery_enabled: false,
+    min_order_paise: 0,
+    delivery_fee_paise: 0,
+    free_delivery_threshold_paise: null,
+    delivery_radius_km: null,
+    is_active: true,
+    owner_id: null,
+    is_published: false,
+    shop_category: null,
+    accepts_cash: true,
+    accepts_online: false,
+  }),
+};
+
 /** A row as the wire would deliver it: a snapshot, not a live reference. */
 const copy = (row) => (row === null || row === undefined ? row : structuredClone(row));
 
@@ -488,6 +526,7 @@ function queryBuilder(table) {
 
         const created = {
           id: row.id ?? nextId(),
+          ...(COLUMN_DEFAULTS[table]?.() ?? {}),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           ...row,

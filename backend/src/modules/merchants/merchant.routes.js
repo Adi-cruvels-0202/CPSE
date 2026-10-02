@@ -3,6 +3,7 @@ import { validate } from '../../middleware/validate.js';
 import { authLimiter, writeLimiter } from '../../middleware/rateLimit.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
 import { requireMerchant } from '../../middleware/requireMerchant.js';
+import { merchantStoreRouter } from '../merchantStores/merchantStore.routes.js';
 import * as controller from './merchant.controller.js';
 import {
   registerMerchantSchema,
@@ -49,3 +50,6 @@ merchantRouter.patch(
   validate({ body: updateMerchantSchema }),
   controller.updateMe,
 );
+
+// Store-scoped routes: /merchant/stores and /merchant/stores/:storeId/…
+merchantRouter.use('/stores', merchantStoreRouter);

@@ -313,6 +313,10 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
                 </tbody>
               </table>
             </div>
+            <p className="body-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+              <strong>Price</strong> is what customers pay. <strong>MRP</strong> is the printed maximum price — when it is higher, customers see the discount.{' '}
+              <strong>Cost</strong> is what you paid your supplier; only you see it. <strong>SKU</strong> is your own code for the item (for a barcode or your records) — leave it empty and one is made for you.
+            </p>
             {hasOptions && variants.length < 50 && (
               <button type="button" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setVariants([...variants, emptyVariant()])}><IconPlus size={14} /> Add option</button>
             )}
@@ -323,6 +327,47 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+// ── Deleting: archives, so past orders and stock history keep the product ────
+function DeleteProduct({ storeId, product, onDeleted }: { storeId: string; product: Product; onDeleted: () => void }) {
+  const { showToast } = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const remove = async () => {
+    setDeleting(true);
+    try {
+      await productApi.remove(storeId, product.id);
+      showToast(`${product.name} deleted`, 'success');
+      onDeleted();
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="product-delete">
+      <div className="form-section-title">Delete product</div>
+      {confirming ? (
+        <>
+          <p className="body-sm">
+            Delete <strong>{product.name}</strong>? It disappears from your products, your shop and the till. Past orders and stock history keep it. This cannot be undone.
+          </p>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <button className="btn btn-secondary" onClick={() => setConfirming(false)} disabled={deleting}>Keep it</button>
+            <button className="btn btn-danger" onClick={remove} disabled={deleting}><IconTrash size={16} /> {deleting ? 'Deleting…' : 'Yes, delete'}</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="body-xs" style={{ color: 'var(--color-text-tertiary)' }}>Only want to stop selling it for a while? Make it unavailable instead (the eye icon in the list).</p>
+          <button className="btn btn-secondary product-delete__start" onClick={() => setConfirming(true)}><IconTrash size={16} /> Delete product</button>
+        </>
+      )}
     </div>
   );
 }
@@ -418,6 +463,8 @@ function ProductPanel({ storeId, productId, categories, onClose, onChanged }: { 
             {product.trackInventory && <p className="body-xs" style={{ color: 'var(--color-text-tertiary)', marginTop: 'var(--space-2)' }}>"Held" is promised to open orders. Receive and count stock under Stock.</p>}
 
             <ProductDetailsForm storeId={storeId} product={product} categories={categories} onSaved={applied} />
+
+            <DeleteProduct storeId={storeId} product={product} onDeleted={() => { onChanged(); onClose(); }} />
           </div>
         )}
       </div>

@@ -299,6 +299,67 @@ describe('active and inactive', () => {
   });
 });
 
+describe('DELETE …/products/:productId (P-8 revised, migration 0034)', () => {
+  const remove = (id, storeId) => api().delete(at(`/products/${id}`, storeId)).set(signIn());
+
+  it('archives the product: 204, gone from the merchant list, the store and the detail page', async () => {
+    const { body: created } = await createRice();
+    const id = created.data.product.id;
+
+    const res = await remove(id);
+
+    expect(res.status).toBe(204);
+    expect((await get('/products')).body.data.products).toEqual([]);
+    expect((await get(`/products/${id}`)).status).toBe(404);
+    expect((await api().get(url('/stores/sharma-kirana/products'))).body.data.products).toEqual([]);
+    expect((await api().get(url(`/stores/sharma-kirana/products/${id}`))).status).toBe(404);
+  });
+
+  it('keeps the row, its variants and its stock history — only stamped and unavailable', async () => {
+    const { body: created } = await createRice();
+    const id = created.data.product.id;
+    const ledgerBefore = rows('inventory_ledger').length;
+
+    await remove(id);
+
+    const row = rows('products').find((product) => product.id === id);
+    expect(row.archived_at).toEqual(expect.any(String));
+    expect(row.is_available).toBe(false);
+    expect(rows('product_variants').filter((variant) => variant.product_id === id)).toHaveLength(2);
+    expect(rows('inventory_ledger')).toHaveLength(ledgerBefore);
+  });
+
+  it('takes it out of customers’ carts', async () => {
+    const { body: created } = await createRice();
+    const { id, variants } = created.data.product;
+    if (!db.tables.has('cart_items')) db.tables.set('cart_items', []);
+    db.tables.get('cart_items').push({ id: 'line-1', cart_id: 'cart-1', product_id: id, variant_id: variants[0].id, quantity: 1 });
+
+    await remove(id);
+
+    expect(rows('cart_items')).toEqual([]);
+  });
+
+  it('frees the name for a new product', async () => {
+    const { body: created } = await createRice();
+    await remove(created.data.product.id);
+
+    const again = await createRice({ variants: [{ name: '1 kg', pricePaise: 12900 }] });
+
+    expect(again.status).toBe(201);
+    expect(again.body.data.product.slug).toBe(created.data.product.slug);
+  });
+
+  it('is a 404 the second time, and for another merchant’s store', async () => {
+    const { body: created } = await createRice();
+    const id = created.data.product.id;
+
+    expect((await remove(id)).status).toBe(204);
+    expect((await remove(id)).status).toBe(404);
+    expect((await remove(id, OTHER_STORE_ID)).status).toBe(404);
+  });
+});
+
 // ── Variants ─────────────────────────────────────────────────────────────────
 
 describe('variants', () => {

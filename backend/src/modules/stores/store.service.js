@@ -320,7 +320,8 @@ export async function listProducts(slug, { categoryId, page, limit, availableOnl
   let query = supabaseAdmin
     .from('products')
     .select(PRODUCT_COLUMNS, { count: 'exact' })
-    .eq('store_id', store.id);
+    .eq('store_id', store.id)
+    .is('archived_at', null);
 
   if (categoryId) query = query.eq('category_id', categoryId);
   if (availableOnly) query = query.eq('is_available', true);
@@ -419,6 +420,7 @@ export async function findStoreProduct(storeId, productId) {
     .select(PRODUCT_COLUMNS)
     .eq('id', productId)
     .eq('store_id', storeId)
+    .is('archived_at', null)
     .maybeSingle();
 
   fail(error, 'Could not load the product.');
@@ -477,7 +479,8 @@ export async function searchProducts(slug, { q, categoryId, page, limit }) {
   let query = supabaseAdmin
     .from('products')
     .select(PRODUCT_COLUMNS, { count: 'exact' })
-    .eq('store_id', store.id);
+    .eq('store_id', store.id)
+    .is('archived_at', null);
 
   if (categoryId) query = query.eq('category_id', categoryId);
 

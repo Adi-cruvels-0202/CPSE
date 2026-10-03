@@ -89,7 +89,7 @@ below are written in paise.
 | P-5 | SKU optional; generated as `SKU-<first 8 letters/digits of the name, upper-case>-<6 random hex>`. Duplicate SKU → 409. | **Keep** the generation. **Changed:** unique **per store** (`SKU_TAKEN`), not across the whole system — two shops may both use `MILK-500`. |
 | P-6 | `trackInventory` defaults to true. | **Keep.** When false: no stock counted, never sold out, inventory endpoints refuse it (`NOT_TRACKED`). |
 | P-7 | Low stock = on-hand ≤ the product's `lowStockThreshold`. | **Changed:** compare **available** (on hand − reserved), which is what can actually still be sold. |
-| P-8 | No delete — only activate / deactivate, for products and variants. | **Keep** — order lines keep the product id for reorder. |
+| P-8 | No delete — only activate / deactivate, for products and variants. | **Revised** (migration 0034): a product can be deleted, which archives it — it leaves every list, the store and the till, while order lines and stock history keep its id. Variants: still activate / deactivate only. |
 | P-9 | Inactive products / variants cannot be ordered. | **Keep.** |
 | P-10 | **Fix.** Editing a product's price changed `products.price` but **not** the default variant's price — and orders charge the variant price, so the edit did nothing at checkout. | Price lives on the variant only. The product's `pricePaise` is derived (lowest active variant). |
 | P-11 | Customers never see cost price, reserved quantity, low-stock threshold or track-inventory (`toPublicDto`). Public stock = **available**. | **Keep.** Cost is merchant-only; customer `stock` means available (contract, customer change 3). |

@@ -462,8 +462,9 @@ customers and leaves its products listed under "all".
 **Products and variants.** Every product has at least one variant; price, MRP,
 cost, SKU and stock live on the variant. Stock is **never set here** except as a
 new variant's `openingQuantity`, which is logged as a `stock_in` — every other
-change goes through inventory. There is no delete: order lines keep the product
-for reorder. Deactivate instead.
+change goes through inventory. Delete archives (migration 0034): the product
+leaves every list, the store and the till, and past orders keep pointing at it.
+Deactivate to hide it for a while instead.
 
 | | |
 |---|---|
@@ -472,6 +473,7 @@ for reorder. Deactivate instead.
 | `GET /merchant/stores/:storeId/products/:productId` | Bearer, merchant. `{ product }` |
 | `PATCH /merchant/stores/:storeId/products/:productId` | Bearer, merchant. `{ name?, description?, categoryId?, unit?, taxPercent?, trackInventory?, lowStockThreshold?, images? }` → `{ product }`. `categoryId: null` uncategorises; `images` replaces the list. |
 | `POST /merchant/stores/:storeId/products/:productId/activate` | Bearer, merchant. No body → `{ product }`. |
+| `DELETE /merchant/stores/:storeId/products/:productId` | Bearer, merchant. No body → 204. Archives the product: gone from the merchant's lists, the store and carts; a 404 from then on. Order and stock history keep it. |
 | `POST /merchant/stores/:storeId/products/:productId/deactivate` | Bearer, merchant. No body → `{ product }`. Customers still see it, unavailable. |
 | `POST /merchant/stores/:storeId/products/:productId/variants` | Bearer, merchant. One variant (below) → **201** `{ product }`. |
 | `PATCH /merchant/stores/:storeId/products/:productId/variants/:variantId` | Bearer, merchant. `{ name?, sku?, barcode?, weightGrams?, pricePaise?, mrpPaise?, costPaise? }` → `{ product }`. No stock here. |

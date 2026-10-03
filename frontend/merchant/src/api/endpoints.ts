@@ -89,6 +89,8 @@ export const productApi = {
     api.patch<{ product: Product }>(product(storeId, productId), body),
   activate: (storeId: string, productId: string) => api.post<{ product: Product }>(`${product(storeId, productId)}/activate`),
   deactivate: (storeId: string, productId: string) => api.post<{ product: Product }>(`${product(storeId, productId)}/deactivate`),
+  /** Archives the product: it leaves every list; past orders keep it. */
+  remove: (storeId: string, productId: string) => api.delete<void>(product(storeId, productId)),
   addVariant: (storeId: string, productId: string, body: Record<string, unknown>) =>
     api.post<{ product: Product }>(`${product(storeId, productId)}/variants`, body),
   updateVariant: (storeId: string, productId: string, variantId: string, body: Record<string, unknown>) =>

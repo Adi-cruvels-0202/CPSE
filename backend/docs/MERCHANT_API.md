@@ -213,6 +213,7 @@ SKU and stock live on the variant.** Stock is never set here — it moves only t
 | `GET /merchant/stores/:storeId/products/:productId` | `{ product }` |
 | `PATCH /merchant/stores/:storeId/products/:productId` | `{ name?, description?, categoryId?, unit?, taxPercent?, trackInventory?, lowStockThreshold?, images? }` → `{ product }`. `categoryId: null` uncategorises. `images` replaces the list. |
 | `POST /merchant/stores/:storeId/products/:productId/activate` | No body. |
+| `DELETE /merchant/stores/:storeId/products/:productId` | No body → 204. Archives the product (see above). |
 | `POST /merchant/stores/:storeId/products/:productId/deactivate` | No body. Customers still see it, marked unavailable (it stays in order history and reorder). |
 | `POST /merchant/stores/:storeId/products/:productId/variants` | One variant object (below) → **201** `{ product }` |
 | `PATCH /merchant/stores/:storeId/products/:productId/variants/:variantId` | `{ name?, sku?, barcode?, weightGrams?, pricePaise?, mrpPaise?, costPaise? }` → `{ product }` |
@@ -246,7 +247,8 @@ SKU and stock live on the variant.** Stock is never set here — it moves only t
 - `taxPercent`: 0–100, up to 2 decimals. Default 0. See [tax](#how-tax-is-computed-d-4).
 - `trackInventory: false` → stock is not counted, never runs out, and inventory endpoints refuse
   it (`NOT_TRACKED`).
-- No delete: order lines keep the product id for reorder (MERCHANT_INTEGRATION §3). Deactivate.
+- Delete archives (migration 0034): order lines and stock history keep the product id, but the
+  product leaves every list, the storefront, the till and customers' carts, and answers 404.
 - A price change is visible to customers at once: carts reprice on every read and flag
   `PRICE_CHANGED` (customer D25).
 

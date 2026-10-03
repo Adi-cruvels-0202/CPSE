@@ -170,3 +170,35 @@ describe('variant cost is the merchant’s alone (P-11)', () => {
     }
   });
 });
+
+describe('archiving a product (migration 0034)', () => {
+  it('frees its name for a new product, while a live product still holds its own', async () => {
+    const db = await database();
+    const first = await rpc(db, 'create_product', product());
+
+    // Two live products with one link in one store: still refused.
+    await expect(rpc(db, 'create_product', product({ variants: [{ name: '1 kg', sku: 'RICE-NEW', price_paise: 100 }] })))
+      .rejects.toThrow(/products_store_slug_key/);
+
+    await db.query(`update products set archived_at = now(), is_available = false where id = $1`, [first]);
+    const second = await rpc(db, 'create_product', product({ variants: [{ name: '1 kg', sku: 'RICE-NEW', price_paise: 100 }] }));
+
+    expect(second).not.toBe(first);
+    const { count } = await one(db, `select count(*)::int as count from products where slug = 'basmati-rice'`);
+    expect(count).toBe(2);
+  });
+
+  it('hides an archived product from customers reading the catalogue directly', async () => {
+    const db = await database();
+    const id = await rpc(db, 'create_product', product());
+    await db.query(`update products set archived_at = now() where id = $1`, [id]);
+
+    const live = await rpc(db, 'create_product', product({ name: 'Toor Dal', slug: 'toor-dal', variants: [{ name: '1 kg', sku: 'DAL-1', price_paise: 100 }] }));
+
+    await db.exec('set role anon');
+    const { rows } = await db.query(`select id from products where id in ($1, $2)`, [id, live]);
+    await db.exec('reset role');
+
+    expect(rows).toEqual([{ id: live }]);
+  });
+});

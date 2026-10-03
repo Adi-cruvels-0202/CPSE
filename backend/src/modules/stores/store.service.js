@@ -210,6 +210,41 @@ export function toPublicProduct(row, imageUrl = null, variants = []) {
   };
 }
 
+/**
+ * The shop directory: every store a customer may see — active and published,
+ * the same two switches as findActiveStoreBySlug — newest first. Each entry
+ * is the public store payload, so a card can say open or closed and how the
+ * shop delivers without a request per shop.
+ */
+export async function listStores({ q, page, limit }, now = new Date()) {
+  const from = (page - 1) * limit;
+
+  let query = supabaseAdmin
+    .from('stores')
+    .select(STORE_COLUMNS, { count: 'exact' })
+    .eq('is_active', true)
+    .eq('is_published', true);
+
+  if (q) {
+    const term = escapeSearchTerm(q);
+    query = query.or(`name.ilike.%${term}%,city.ilike.%${term}%`);
+  }
+
+  const { data, count, error } = await query
+    .order('created_at', { ascending: false })
+    .order('name', { ascending: true })
+    .range(from, from + limit - 1);
+
+  fail(error, 'Could not load the shops.');
+
+  const rows = data ?? [];
+  const holidays = await holidaysByStore(rows.map((row) => row.id), now);
+  return {
+    stores: rows.map((row) => toPublicStore(row, { now, holidays: holidays.get(row.id) ?? [] })),
+    total: count ?? rows.length,
+  };
+}
+
 /** Checklist 3.1 + 3.6 */
 export async function getStorePage(slug, customerId) {
   const store = await findActiveStoreBySlug(slug);

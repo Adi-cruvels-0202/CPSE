@@ -230,4 +230,15 @@ describe('catalogue photos', () => {
       { id: 'i3', product_id: 'dal', url: 'dal-1', sort_order: 1 },
     ]);
   });
+
+  it('adds a row for a photographed product that had no placeholder, with a stable id', async () => {
+    const { applyPhotos } = await import('../scripts/seed-data.js');
+    const productId = '31111111-1111-4111-8111-000000000004';
+
+    const result = applyPhotos([], new Map([[productId, 'https://photo/soan.png']]));
+
+    expect(result).toEqual([
+      { id: '61111111-1111-4111-8111-900000000004', product_id: productId, url: 'https://photo/soan.png', alt_text: null, sort_order: 1 },
+    ]);
+  });
 });

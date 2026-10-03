@@ -51,3 +51,21 @@ export const searchQuery = z
     limit: z.coerce.number().int().positive().max(100).default(20),
   })
   .strict();
+
+/**
+ * The shop directory on the customer home page. Optional text matches a
+ * shop's name or city; capped like the catalogue lists so the directory
+ * cannot be pulled in one request.
+ */
+export const storeDirectoryQuery = z
+  .object({
+    q: z
+      .string()
+      .trim()
+      .max(80, 'Search terms are limited to 80 characters.')
+      .optional()
+      .transform((value) => value || undefined),
+    page: z.coerce.number().int().positive().default(1),
+    limit: z.coerce.number().int().positive().max(50).default(20),
+  })
+  .strict();

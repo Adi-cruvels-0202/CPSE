@@ -8,6 +8,13 @@ import * as storeService from './store.service.js';
  */
 const customerId = (req) => req.customer?.id ?? null;
 
+/** The shop directory on the customer home page. */
+export const listStores = asyncHandler(async (req, res) => {
+  const { page, limit } = req.query;
+  const { stores, total } = await storeService.listStores(req.query);
+  sendSuccess(res, { stores }, { meta: paginationMeta({ page, limit, total }) });
+});
+
 /** Checklist 3.1 */
 export const getStore = asyncHandler(async (req, res) => {
   const store = await storeService.getStorePage(req.params.slug, customerId(req));

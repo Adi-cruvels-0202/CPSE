@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { supabaseAdmin } from '../src/lib/supabase.js';
 import { env } from '../src/config/env.js';
-import { IMAGE_BUCKET, sniffImageType } from '../src/lib/imageUpload.js';
+import { IMAGE_BUCKET, shrinkImage, sniffImageType } from '../src/lib/imageUpload.js';
 import {
   stores,
   flattenSeed,
@@ -85,12 +85,26 @@ async function uploadCataloguePhotos(productRows) {
       continue;
     }
 
+    // Shrunk to WebP like a merchant's upload, so the storefront is not
+    // fetching camera originals.
+    let body;
+    try {
+      body = await shrinkImage(buffer);
+    } catch {
+      console.warn(`  photos             skipped ${file}: does not open as an image`);
+      continue;
+    }
+
     // A fixed path per product, overwritten on re-seed, so seeding twice does
-    // not leave orphaned copies behind.
-    const objectPath = `seed/${product.slug}.${type.ext}`;
+    // not leave orphaned copies behind — and the full-size copies earlier
+    // seeds stored under the original extension are removed.
+    const objectPath = `seed/${product.slug}.webp`;
+    await supabaseAdmin.storage
+      .from(IMAGE_BUCKET)
+      .remove(['jpg', 'png'].map((ext) => `seed/${product.slug}.${ext}`));
     const { error } = await supabaseAdmin.storage
       .from(IMAGE_BUCKET)
-      .upload(objectPath, buffer, { contentType: type.mime, upsert: true, cacheControl: '3600' });
+      .upload(objectPath, body, { contentType: 'image/webp', upsert: true, cacheControl: '3600' });
     if (error) {
       console.warn(`  photos             skipped ${file}: ${error.message} (is migration 0033 applied?)`);
       continue;

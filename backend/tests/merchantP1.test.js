@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import sharp from 'sharp';
 import { api, url } from './helpers/app.js';
 import { ALWAYS_OPEN, addToCart, placeOrder } from './helpers/shopping.js';
 
@@ -32,10 +33,14 @@ const MERCHANT_ID = '81111111-1111-4111-8111-000000000001';
 const OTHER_MERCHANT_ID = '81111111-1111-4111-8111-000000000099';
 const OTHER_STORE_ID = '41111111-1111-4111-8111-0000000000b2';
 
-// The first bytes are what decide the type; the rest is padding.
-const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]);
-const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64)]);
-const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.alloc(64)]);
+// Real, tiny photos: what is stored is re-encoded, so the bytes must decode.
+const photo = (width, height = width) =>
+  sharp({ create: { width, height, channels: 3, background: '#1f7a4d' } });
+const PNG = await photo(8).png().toBuffer();
+const JPEG = await photo(8).jpeg().toBuffer();
+const WEBP = await photo(8).webp().toBuffer();
+// The right first bytes and nothing behind them: passes the sniff, not the decode.
+const PNG_HEADER_ONLY = Buffer.concat([PNG.subarray(0, 8), Buffer.alloc(64)]);
 const HTML_AS_PNG = Buffer.from('<html><script>alert(1)</script></html>'.padEnd(80, ' '));
 
 let rice;
@@ -79,9 +84,26 @@ describe('store logo and cover (D-10)', () => {
 
     expect(res.status).toBe(200);
     const { logoUrl } = res.body.data.store;
-    expect(logoUrl).toMatch(new RegExp(`^https://storage\\.test/storage/v1/object/public/catalogue/stores/${STORE_ID}/logo/[0-9a-f-]{36}\\.png$`));
+    expect(logoUrl).toMatch(new RegExp(`^https://storage\\.test/storage/v1/object/public/catalogue/stores/${STORE_ID}/logo/[0-9a-f-]{36}\\.webp$`));
     expect([...db.storage.keys()]).toEqual([logoUrl.split('/public/')[1]]);
-    expect([...db.storage.values()][0].contentType).toBe('image/png');
+    expect([...db.storage.values()][0].contentType).toBe('image/webp');
+  });
+
+  it('stores a shrunk WebP copy, never the original', async () => {
+    const big = await photo(3000, 2000).jpeg().toBuffer();
+
+    expect((await upload('/cover', big, 'camera.jpg')).status).toBe(200);
+
+    const stored = [...db.storage.values()][0].body;
+    expect(sniffImageType(stored)).toEqual({ mime: 'image/webp', ext: 'webp' });
+    expect(await sharp(stored).metadata()).toMatchObject({ width: 1600, height: 1067 });
+  });
+
+  it('refuses bytes that look like an image but do not decode as one', async () => {
+    const res = await upload('/logo', PNG_HEADER_ONLY);
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('IMAGE_INVALID');
+    expect(db.storage.size).toBe(0);
   });
 
   it('deletes the photo it replaces, but never one it did not store', async () => {

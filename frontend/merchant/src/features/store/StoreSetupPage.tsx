@@ -270,19 +270,19 @@ function DetailsTab({ store }: { store: Store }) {
         <div className="setup-section-content">
           <div className="form-row">
             <div className="input-wrapper">
-              <label className="input-label">Store name *</label>
-              <input className="input-field" required minLength={2} maxLength={100} value={form.name} onChange={set('name')} />
+              <label className="input-label" htmlFor="store-store-name">Store name *</label>
+              <input id="store-store-name" className="input-field" required minLength={2} maxLength={100} value={form.name} onChange={set('name')} />
             </div>
             <div className="input-wrapper">
-              <label className="input-label">Type of shop</label>
-              <select className="input-field select-field" value={form.shopCategory} onChange={set('shopCategory')}>
+              <label className="input-label" htmlFor="store-type-of-shop">Type of shop</label>
+              <select id="store-type-of-shop" className="input-field select-field" value={form.shopCategory} onChange={set('shopCategory')}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{capitalise(c)}</option>)}
               </select>
             </div>
           </div>
           <div className="input-wrapper">
-            <label className="input-label">Store link</label>
-            <input className="input-field mono" value={form.slug} onChange={set('slug')} disabled={store.isPublished} pattern="[a-z0-9]+(-[a-z0-9]+)*" />
+            <label className="input-label" htmlFor="store-store-link">Store link</label>
+            <input id="store-store-link" className="input-field mono" value={form.slug} onChange={set('slug')} disabled={store.isPublished} pattern="[a-z0-9]+(-[a-z0-9]+)*" />
             <span className="input-helper">
               {store.isPublished
                 ? `Customers reach you at /store/${store.slug}. It cannot change while the store is published — it is in shared links and QR codes.`
@@ -290,8 +290,8 @@ function DetailsTab({ store }: { store: Store }) {
             </span>
           </div>
           <div className="input-wrapper">
-            <label className="input-label">Description</label>
-            <textarea className="input-field textarea-field" maxLength={1000} value={form.description} onChange={set('description')} />
+            <label className="input-label" htmlFor="store-description">Description</label>
+            <textarea id="store-description" className="input-field textarea-field" maxLength={1000} value={form.description} onChange={set('description')} />
           </div>
         </div>
       </div>
@@ -304,12 +304,12 @@ function DetailsTab({ store }: { store: Store }) {
         <div className="setup-section-content">
           <div className="form-row">
             <div className="input-wrapper">
-              <label className="input-label">Phone</label>
-              <input type="tel" className="input-field" value={form.phone} onChange={set('phone')} placeholder="+919876543210" />
+              <label className="input-label" htmlFor="store-phone">Phone</label>
+              <input id="store-phone" type="tel" className="input-field" value={form.phone} onChange={set('phone')} placeholder="+919876543210" />
             </div>
             <div className="input-wrapper">
-              <label className="input-label">Email</label>
-              <input type="email" className="input-field" value={form.email} onChange={set('email')} />
+              <label className="input-label" htmlFor="store-email">Email</label>
+              <input id="store-email" type="email" className="input-field" value={form.email} onChange={set('email')} />
             </div>
           </div>
         </div>
@@ -321,12 +321,12 @@ function DetailsTab({ store }: { store: Store }) {
           <p className="setup-section-desc">Where pickup customers come to. Needed to publish.</p>
         </div>
         <div className="setup-section-content">
-          <div className="input-wrapper"><label className="input-label">Address line 1</label><input className="input-field" maxLength={200} value={form.line1} onChange={set('line1')} /></div>
-          <div className="input-wrapper"><label className="input-label">Address line 2</label><input className="input-field" maxLength={200} value={form.line2} onChange={set('line2')} /></div>
+          <div className="input-wrapper"><label className="input-label" htmlFor="store-address-line-1">Address line 1</label><input id="store-address-line-1" className="input-field" maxLength={200} value={form.line1} onChange={set('line1')} /></div>
+          <div className="input-wrapper"><label className="input-label" htmlFor="store-address-line-2">Address line 2</label><input id="store-address-line-2" className="input-field" maxLength={200} value={form.line2} onChange={set('line2')} /></div>
           <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-            <div className="input-wrapper"><label className="input-label">City</label><input className="input-field" maxLength={100} value={form.city} onChange={set('city')} /></div>
-            <div className="input-wrapper"><label className="input-label">State</label><input className="input-field" maxLength={100} value={form.state} onChange={set('state')} /></div>
-            <div className="input-wrapper"><label className="input-label">PIN code</label><input className="input-field" maxLength={12} value={form.postalCode} onChange={set('postalCode')} /></div>
+            <div className="input-wrapper"><label className="input-label" htmlFor="store-city">City</label><input id="store-city" className="input-field" maxLength={100} value={form.city} onChange={set('city')} /></div>
+            <div className="input-wrapper"><label className="input-label" htmlFor="store-state">State</label><input id="store-state" className="input-field" maxLength={100} value={form.state} onChange={set('state')} /></div>
+            <div className="input-wrapper"><label className="input-label" htmlFor="store-pin-code">PIN code</label><input id="store-pin-code" className="input-field" maxLength={12} value={form.postalCode} onChange={set('postalCode')} /></div>
           </div>
         </div>
       </div>
@@ -455,8 +455,8 @@ function HolidaysTab({ store }: { store: Store }) {
       </div>
       <div className="setup-section-content">
         <form onSubmit={add} className="form-row" style={{ alignItems: 'flex-end' }}>
-          <div className="input-wrapper"><label className="input-label">Date *</label><input type="date" className="input-field" required value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div className="input-wrapper"><label className="input-label">Reason</label><input className="input-field" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Diwali" /></div>
+          <div className="input-wrapper"><label className="input-label" htmlFor="store-date">Date *</label><input id="store-date" type="date" className="input-field" required value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div className="input-wrapper"><label className="input-label" htmlFor="store-reason">Reason</label><input id="store-reason" className="input-field" maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Diwali" /></div>
           <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : 'Add holiday'}</button>
         </form>
 
@@ -542,13 +542,13 @@ function DeliveryTab({ store }: { store: Store }) {
           <span className="switch-slider" /><span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-medium)' }}>We deliver</span>
         </label>
         <div className="form-row">
-          <div className="input-wrapper"><label className="input-label">Minimum order (₹)</label><input inputMode="decimal" className="input-field" value={form.minOrder} onChange={(e) => setForm({ ...form, minOrder: e.target.value })} placeholder="0" /></div>
-          {form.deliveryEnabled && <div className="input-wrapper"><label className="input-label">Delivery fee (₹)</label><input inputMode="decimal" className="input-field" value={form.deliveryFee} onChange={(e) => setForm({ ...form, deliveryFee: e.target.value })} placeholder="0" /></div>}
+          <div className="input-wrapper"><label className="input-label" htmlFor="store-minimum-order">Minimum order (₹)</label><input id="store-minimum-order" inputMode="decimal" className="input-field" value={form.minOrder} onChange={(e) => setForm({ ...form, minOrder: e.target.value })} placeholder="0" /></div>
+          {form.deliveryEnabled && <div className="input-wrapper"><label className="input-label" htmlFor="store-delivery-fee">Delivery fee (₹)</label><input id="store-delivery-fee" inputMode="decimal" className="input-field" value={form.deliveryFee} onChange={(e) => setForm({ ...form, deliveryFee: e.target.value })} placeholder="0" /></div>}
         </div>
         {form.deliveryEnabled && (
           <div className="form-row">
-            <div className="input-wrapper"><label className="input-label">Free delivery above (₹)</label><input inputMode="decimal" className="input-field" value={form.freeAbove} onChange={(e) => setForm({ ...form, freeAbove: e.target.value })} placeholder="Never free" /></div>
-            <div className="input-wrapper"><label className="input-label">Delivery radius (km)</label><input inputMode="decimal" className="input-field" value={form.radius} onChange={(e) => setForm({ ...form, radius: e.target.value })} placeholder="No limit" /></div>
+            <div className="input-wrapper"><label className="input-label" htmlFor="store-free-delivery-above">Free delivery above (₹)</label><input id="store-free-delivery-above" inputMode="decimal" className="input-field" value={form.freeAbove} onChange={(e) => setForm({ ...form, freeAbove: e.target.value })} placeholder="Never free" /></div>
+            <div className="input-wrapper"><label className="input-label" htmlFor="store-delivery-radius-km">Delivery radius (km)</label><input id="store-delivery-radius-km" inputMode="decimal" className="input-field" value={form.radius} onChange={(e) => setForm({ ...form, radius: e.target.value })} placeholder="No limit" /></div>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-2)' }}>
@@ -637,15 +637,15 @@ function BrandingTab({ store }: { store: Store }) {
       <div className="setup-section-content">
         <div className="form-row" style={{ alignItems: 'flex-start' }}>
           <div className="input-wrapper">
-            <label className="input-label">Logo</label>
+            <label className="input-label" htmlFor="store-logo">Logo</label>
             {store.logoUrl && <img src={store.logoUrl} alt="Store logo" style={{ width: 96, height: 96, borderRadius: 'var(--radius-lg)', objectFit: 'cover', marginBottom: 'var(--space-2)', border: '1px solid var(--color-border)' }} />}
-            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading !== null} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) handleUpload('logo', file); }} />
+            <input id="store-logo" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading !== null} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) handleUpload('logo', file); }} />
             {uploading === 'logo' && <span className="input-helper">Uploading…</span>}
           </div>
           <div className="input-wrapper">
-            <label className="input-label">Cover photo</label>
+            <label className="input-label" htmlFor="store-cover">Cover photo</label>
             {store.coverImageUrl && <img src={store.coverImageUrl} alt="Store cover" style={{ width: '100%', height: 140, borderRadius: 'var(--radius-lg)', objectFit: 'cover', marginBottom: 'var(--space-2)', border: '1px solid var(--color-border)' }} />}
-            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading !== null} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) handleUpload('cover', file); }} />
+            <input id="store-cover" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading !== null} onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) handleUpload('cover', file); }} />
             <span className="input-helper">{uploading === 'cover' ? 'Uploading…' : 'A wide photo works best, about 1200×400.'}</span>
           </div>
         </div>

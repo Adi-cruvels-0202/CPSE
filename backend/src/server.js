@@ -11,9 +11,18 @@ const app = createApp();
 // HMR socket can share it — one port serves the API, the app and hot reloads.
 const server = http.createServer(app);
 
-await mountFrontend(app, server);
+// The port is claimed before Vite starts. A second `npm run dev` used to start
+// both Vite servers first and only then fail to listen — and dying mid-way
+// through a dependency pre-bundle left the running server's
+// node_modules/.vite cache half-deleted, so its pages loaded blank.
+server.once('error', (error) => {
+  if (error.code !== 'EADDRINUSE') throw error;
+  logger.error(`port ${env.PORT} is already in use — is another \`npm run dev\` running?`);
+  process.exit(1);
+});
 
-server.listen(env.PORT, () => {
+server.listen(env.PORT, async () => {
+  await mountFrontend(app, server);
   logger.info('server started', {
     port: env.PORT,
     environment: env.NODE_ENV,

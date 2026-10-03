@@ -96,7 +96,7 @@ export default function InventoryPage() {
       <div className="filters-bar">
         <div className="search-input-wrap">
           <IconSearch size={16} className="search-input-icon" />
-          <input className="input-field search-input" placeholder="Search by product, option or SKU…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input aria-label="Search stock" className="input-field search-input" placeholder="Search by product, option or SKU…" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -195,8 +195,8 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
         <div className="dialog-header"><h2 className="dialog-title" id="movement-title">{TITLES[mode]}</h2></div>
         <form onSubmit={submit}>
           <div className="dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <div className="input-wrapper"><label className="input-label">Product *</label>
-              <select className="input-field select-field" required value={variantId} onChange={(e) => setVariantId(e.target.value)}>
+            <div className="input-wrapper"><label className="input-label" htmlFor="stock-product">Product *</label>
+              <select id="stock-product" className="input-field select-field" required value={variantId} onChange={(e) => setVariantId(e.target.value)}>
                 <option value="">Choose…</option>
                 {rows.map((row) => <option key={row.id} value={row.id}>{row.productName}{row.name === 'Default' ? '' : ` — ${row.name}`}{row.sku ? ` (${row.sku})` : ''}</option>)}
               </select>
@@ -208,31 +208,31 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
             )}
 
             <div className="input-wrapper">
-              <label className="input-label">{mode === 'count' ? 'Counted on the shelf *' : 'Quantity *'}</label>
-              <input type="number" min={mode === 'count' ? Math.max(0, selected?.held ?? 0) : 1} max={mode === 'out' ? selected?.available : undefined} className="input-field" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <label className="input-label" htmlFor="stock-quantity">{mode === 'count' ? 'Counted on the shelf *' : 'Quantity *'}</label>
+              <input id="stock-quantity" type="number" min={mode === 'count' ? Math.max(0, selected?.held ?? 0) : 1} max={mode === 'out' ? selected?.available : undefined} className="input-field" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
               {mode === 'out' && selected && <span className="input-helper">At most {selected.available} — the rest is held for orders.</span>}
               {mode === 'count' && selected && selected.held > 0 && <span className="input-helper">At least {selected.held}: open orders hold that many.</span>}
             </div>
 
             {mode === 'in' && (
-              <div className="input-wrapper"><label className="input-label">Cost per unit ₹ (optional)</label>
-                <input inputMode="decimal" className="input-field" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+              <div className="input-wrapper"><label className="input-label" htmlFor="stock-cost-per-unit-optional">Cost per unit ₹ (optional)</label>
+                <input id="stock-cost-per-unit-optional" inputMode="decimal" className="input-field" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
               </div>
             )}
             {mode === 'out' && (
-              <div className="input-wrapper"><label className="input-label">Why *</label>
-                <select className="input-field select-field" value={reason} onChange={(e) => setReason(e.target.value)}>
+              <div className="input-wrapper"><label className="input-label" htmlFor="stock-why">Why *</label>
+                <select id="stock-why" className="input-field select-field" value={reason} onChange={(e) => setReason(e.target.value)}>
                   {OUT_REASONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </div>
             )}
             {mode === 'count' ? (
-              <div className="input-wrapper"><label className="input-label">Why it changed *</label>
-                <input className="input-field" required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Monthly shelf count" />
+              <div className="input-wrapper"><label className="input-label" htmlFor="stock-why-it-changed">Why it changed *</label>
+                <input id="stock-why-it-changed" className="input-field" required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Monthly shelf count" />
               </div>
             ) : (
-              <div className="input-wrapper"><label className="input-label">Notes</label>
-                <textarea className="input-field textarea-field" maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <div className="input-wrapper"><label className="input-label" htmlFor="stock-notes">Notes</label>
+                <textarea id="stock-notes" className="input-field textarea-field" maxLength={500} value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
             )}
           </div>

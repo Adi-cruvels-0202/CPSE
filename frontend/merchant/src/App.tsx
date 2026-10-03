@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -17,6 +17,8 @@ import InventoryHistoryPage from './features/inventory/InventoryHistoryPage';
 import NewSalePage from './features/sales/NewSalePage';
 import SalesHistoryPage from './features/sales/SalesHistoryPage';
 import OrdersPage from './features/orders/OrdersPage';
+import { EmptyState } from './components/common/ui';
+import { IconStore } from './components/icons/Icons';
 
 /**
  * The merchant app, served by the backend at /merchant (the customer app is
@@ -37,10 +39,36 @@ function FullPageSpinner() {
   );
 }
 
+/** The account could not be loaded — offer a retry, not an empty shop. */
+function UnavailableScreen() {
+  const { refresh, logout } = useAuth();
+  const [retrying, setRetrying] = useState(false);
+  const retry = () => {
+    setRetrying(true);
+    refresh().catch(() => undefined).finally(() => setRetrying(false));
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: 'var(--space-4)', background: 'var(--color-bg)' }}>
+      <EmptyState
+        icon={<IconStore size={32} />}
+        title="Couldn't reach CPSE"
+        description="Check your connection and try again. Your shop and orders are safe."
+        action={
+          <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center' }}>
+            <button type="button" className="btn btn-primary" onClick={retry} disabled={retrying}>{retrying ? 'Trying…' : 'Try again'}</button>
+            <button type="button" className="btn btn-ghost" onClick={logout}>Sign out</button>
+          </div>
+        }
+      />
+    </div>
+  );
+}
+
 /** Merchant screens: signed in, and a merchant. */
 function MerchantRoute({ children }: { children: ReactNode }) {
   const { status } = useAuth();
   if (status === 'loading') return <FullPageSpinner />;
+  if (status === 'unavailable') return <UnavailableScreen />;
   if (status === 'signedOut') return <Navigate to="/login" replace />;
   if (status === 'needsOnboarding') return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
@@ -52,6 +80,7 @@ function SignedOutRoute({ children }: { children: ReactNode }) {
   if (status === 'loading') return <FullPageSpinner />;
   if (status === 'merchant') return <Navigate to="/dashboard" replace />;
   if (status === 'needsOnboarding') return <Navigate to="/onboarding" replace />;
+  if (status === 'unavailable') return <UnavailableScreen />;
   return <>{children}</>;
 }
 
@@ -61,6 +90,7 @@ function OnboardingRoute({ children }: { children: ReactNode }) {
   if (status === 'loading') return <FullPageSpinner />;
   if (status === 'signedOut') return <Navigate to="/login" replace />;
   if (status === 'merchant') return <Navigate to="/dashboard" replace />;
+  if (status === 'unavailable') return <UnavailableScreen />;
   return <>{children}</>;
 }
 

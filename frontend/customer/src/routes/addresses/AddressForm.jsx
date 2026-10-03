@@ -52,7 +52,7 @@ export function AddressForm({ address, onSave, onCancel, saveLabel = 'Save addre
         error={fieldErrors.recipientName}
         required
         autoComplete="name"
-        placeholder="Aditya Suresh"
+        placeholder="Priya Sharma"
         disabled={pending}
         autoFocus
       />

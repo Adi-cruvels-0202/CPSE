@@ -108,7 +108,7 @@ export function Register() {
           onChange={update('fullName')}
           error={fieldErrors.fullName}
           autoComplete="name"
-          placeholder="Aditya Suresh"
+          placeholder="Priya Sharma"
           disabled={pending}
         />
 

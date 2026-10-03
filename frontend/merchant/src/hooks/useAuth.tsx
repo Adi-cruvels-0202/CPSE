@@ -15,10 +15,14 @@ import { readSession, writeSession, clearSession, onSessionChange } from '../lib
  *   needsOnboarding — signed in, but the account is only a customer so far
  *                 (/merchant/me says 403 MERCHANT_REQUIRED). The app offers
  *                 "set up my shop" rather than an error;
- *   merchant    — signed in as a merchant.
+ *   merchant    — signed in as a merchant;
+ *   unavailable — signed in, but /merchant/me failed for another reason
+ *                 (offline, rate-limited, server down) before we ever knew
+ *                 the stores. The app offers "try again" — never "create a
+ *                 store", which an empty store list would otherwise mean.
  */
 
-type Status = 'loading' | 'signedOut' | 'needsOnboarding' | 'merchant';
+type Status = 'loading' | 'signedOut' | 'needsOnboarding' | 'merchant' | 'unavailable';
 
 interface AuthContextType {
   status: Status;
@@ -60,8 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearSession();
         setStatus('signedOut');
       } else {
-        // The server is unreachable: stay signed in, and let the screens show it.
-        setStatus((current) => (current === 'loading' ? 'merchant' : current));
+        // Stay signed in. A merchant already loaded keeps their stores; one
+        // never loaded must not look like a merchant with none.
+        setStatus((current) => (current === 'merchant' ? current : 'unavailable'));
         throw error;
       }
     }

@@ -125,12 +125,12 @@ function CategoryModal({ storeId, category, onClose, onSaved }: { storeId: strin
         <form onSubmit={handleSubmit}>
           <div className="dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div className="input-wrapper">
-              <label className="input-label">Name *</label>
-              <input className="input-field" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Fruits & Vegetables" autoFocus />
+              <label className="input-label" htmlFor="cat-name">Name *</label>
+              <input id="cat-name" className="input-field" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Fruits & Vegetables" autoFocus />
             </div>
             <div className="input-wrapper">
-              <label className="input-label">Description</label>
-              <textarea className="input-field textarea-field" maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
+              <label className="input-label" htmlFor="cat-description">Description</label>
+              <textarea id="cat-description" className="input-field textarea-field" maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
           </div>
           <div className="dialog-footer">

@@ -73,6 +73,13 @@ catalogueRouter.patch(
   ...write(productParams, updateProductSchema),
   controller.updateProduct,
 );
+// Archives: the product leaves every list, its history stays (migration 0034).
+catalogueRouter.delete(
+  '/:storeId/products/:productId',
+  writeLimiter,
+  ...own(productParams),
+  controller.deleteProduct,
+);
 catalogueRouter.post(
   '/:storeId/products/:productId/activate',
   ...write(productParams, emptyBody),

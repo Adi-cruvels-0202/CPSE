@@ -142,6 +142,7 @@ async function findStoreProductRow(store, productId) {
     .select(PRODUCT_COLUMNS)
     .eq('id', productId)
     .eq('store_id', store.id)
+    .is('archived_at', null)
     .maybeSingle();
 
   if (error) throw internal('Could not load the product.');
@@ -163,7 +164,7 @@ export async function getProduct(store, productId) {
 export async function listProducts(store, { search, categoryId, isActive, lowStock, page, limit }) {
   if (categoryId) await findStoreCategory(store, categoryId);
 
-  let query = supabaseAdmin.from('products').select(PRODUCT_COLUMNS).eq('store_id', store.id);
+  let query = supabaseAdmin.from('products').select(PRODUCT_COLUMNS).eq('store_id', store.id).is('archived_at', null);
   if (categoryId) query = query.eq('category_id', categoryId);
   if (isActive !== undefined) query = query.eq('is_available', isActive);
   if (search) {
@@ -253,6 +254,7 @@ export async function createProduct(store, merchant, input) {
       .select('id')
       .eq('store_id', store.id)
       .eq('slug', candidate)
+      .is('archived_at', null)
       .maybeSingle();
     if (error) throw internal('Could not check the product link.');
     return Boolean(data);
@@ -320,6 +322,29 @@ export async function updateProduct(store, productId, input) {
   }
 
   return getProduct(store, productId);
+}
+
+/**
+ * `DELETE …/products/:productId` — MERCHANT_RULES P-8 (revised), migration
+ * 0034. Archives rather than removes: stock history and past orders still
+ * point at the product. It leaves every list, the storefront and the till,
+ * is made unavailable so nothing can still order it, and comes out of any
+ * customer's cart. An archived product is a 404 from then on.
+ */
+export async function archiveProduct(store, productId) {
+  await findStoreProductRow(store, productId);
+
+  const { error } = await supabaseAdmin
+    .from('products')
+    .update({ archived_at: new Date().toISOString(), is_available: false })
+    .eq('id', productId)
+    .eq('store_id', store.id);
+  if (error) throw internal('Could not delete the product.');
+
+  const { error: cartError } = await supabaseAdmin.from('cart_items').delete().eq('product_id', productId);
+  // The product is already unavailable, so a line left behind cannot be
+  // checked out; it only shows as unavailable until the customer removes it.
+  if (cartError) logger.warn('could not clear an archived product from carts', { productId, message: cartError.message });
 }
 
 /** `POST …/activate` and `…/deactivate`. Inactive products stay listed, unavailable (P-8). */

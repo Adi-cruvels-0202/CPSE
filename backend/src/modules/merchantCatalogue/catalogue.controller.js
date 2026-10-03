@@ -1,5 +1,5 @@
 import { asyncHandler } from '../../lib/asyncHandler.js';
-import { sendSuccess, sendCreated, paginationMeta } from '../../lib/response.js';
+import { sendSuccess, sendCreated, sendNoContent, paginationMeta } from '../../lib/response.js';
 import * as categories from './category.service.js';
 import * as products from './product.service.js';
 
@@ -54,6 +54,12 @@ export const activateProduct = asyncHandler(async (req, res) => {
 
 export const deactivateProduct = asyncHandler(async (req, res) => {
   sendSuccess(res, { product: await products.setProductActive(req.store, req.params.productId, false) });
+});
+
+/** Archives the product (P-8, revised) — see product.service archiveProduct. */
+export const deleteProduct = asyncHandler(async (req, res) => {
+  await products.archiveProduct(req.store, req.params.productId);
+  sendNoContent(res);
 });
 
 // ── Variants ─────────────────────────────────────────────────────────────────

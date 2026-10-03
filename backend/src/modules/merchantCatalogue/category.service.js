@@ -39,7 +39,11 @@ async function storeCategories(storeId) {
 }
 
 async function productCounts(storeId) {
-  const { data, error } = await supabaseAdmin.from('products').select('category_id').eq('store_id', storeId);
+  const { data, error } = await supabaseAdmin
+    .from('products')
+    .select('category_id')
+    .eq('store_id', storeId)
+    .is('archived_at', null);
   if (error) throw internal('Could not count the products.');
 
   const counts = new Map();

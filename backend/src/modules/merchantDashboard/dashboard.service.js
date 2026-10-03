@@ -41,7 +41,8 @@ export async function getDashboard(store, now = new Date()) {
       .select('id, name, low_stock_threshold, track_inventory, is_available')
       .eq('store_id', store.id)
       .eq('track_inventory', true)
-      .eq('is_available', true),
+      .eq('is_available', true)
+      .is('archived_at', null),
   ]);
   for (const result of [recentRows, salesRows, openRows, latest, products]) {
     if (result.error) throw internal('Could not load the dashboard.');

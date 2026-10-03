@@ -947,7 +947,8 @@ export function replaceProductImagesRpc({ payload }) {
 }
 
 export function createProductRpc({ payload }) {
-  if (tableRows('products').some((row) => row.store_id === payload.store_id && row.slug === payload.slug)) {
+  // The unique index is partial — archived products free their slug (0034).
+  if (tableRows('products').some((row) => row.store_id === payload.store_id && row.slug === payload.slug && !row.archived_at)) {
     return { data: null, error: uniqueViolation('products_store_slug_key') };
   }
   const [cheapest] = [...payload.variants].sort((a, b) => a.price_paise - b.price_paise);

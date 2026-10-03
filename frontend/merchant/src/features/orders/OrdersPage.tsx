@@ -67,7 +67,7 @@ export default function OrdersPage() {
         ) : (
           <>
             <div className="table-container">
-              <table className="table">
+              <table className="table orders-table">
                 <thead><tr><th>Order</th><th>Placed</th><th>Customer</th><th>Pickup / delivery</th><th>Paid by</th><th>Status</th><th>Total</th></tr></thead>
                 <tbody>
                   {orders.map((order) => (

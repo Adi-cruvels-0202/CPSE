@@ -175,11 +175,14 @@
 }
 
 @media (max-width: 640px) {
+  /* Takings across the top, the three counts side by side under it. */
   .dashboard-metrics {
-    flex-direction: column;
-    gap: var(--space-4);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4) var(--space-3);
     padding: var(--space-4);
   }
+  .dashboard-metric-hero { grid-column: 1 / -1; }
 
   .dashboard-welcome {
     flex-direction: column;

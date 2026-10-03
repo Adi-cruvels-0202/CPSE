@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { productApi, categoryApi } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import type { Category, Product, Variant } from '../../api/types';
@@ -7,7 +8,7 @@ import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise, paiseToRupees, rupeesToPaise } from '../../lib/money';
 import { EmptyState, NoStore, Pagination, Spinner } from '../../components/common/ui';
-import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash } from '../../components/icons/Icons';
+import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash, IconTag } from '../../components/icons/Icons';
 import './Products.css';
 
 const UNITS = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'dozen', 'pack', 'box', 'pair', 'set', 'roll', 'plate', 'serving'];
@@ -74,7 +75,10 @@ export default function ProductsPage() {
           <h1 className="page-title">Products</h1>
           <p className="page-subtitle">{list?.meta?.total ?? 0} products</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus size={16} /> Add product</button>
+        <div className="page-actions">
+          <Link className="btn btn-secondary" to="/categories"><IconTag size={16} /> Categories</Link>
+          <button className="btn btn-primary" onClick={() => setCreating(true)}><IconPlus size={16} /> Add product</button>
+        </div>
       </div>
 
       <div className="filters-bar">
@@ -104,7 +108,7 @@ export default function ProductsPage() {
       ) : (
         <>
           <div className="table-container">
-            <table className="table">
+            <table className="table products-table">
               <thead><tr><th style={{ width: 44 }}></th><th>Product</th><th>Category</th><th>Price</th><th>Can sell</th><th>Status</th><th style={{ width: 100 }}></th></tr></thead>
               <tbody>
                 {products.map((product) => (
@@ -133,8 +137,8 @@ export default function ProductsPage() {
                     <td><span className={`badge ${product.isActive ? 'badge-primary' : 'badge-neutral'}`}>{product.isActive ? 'Available' : 'Unavailable'}</span></td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => setOpenId(product.id)} aria-label={`Edit ${product.name}`}><IconEdit size={14} /></button>
-                        <button className="btn btn-ghost btn-sm" onClick={() => toggle(product)} title={product.isActive ? 'Make unavailable' : 'Make available'} aria-label="Toggle availability"><IconEye size={14} /></button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setOpenId(product.id)} aria-label={`Edit ${product.name}`}><IconEdit size={18} /></button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => toggle(product)} title={product.isActive ? 'Make unavailable' : 'Make available'} aria-label="Toggle availability"><IconEye size={18} /></button>
                       </div>
                     </td>
                   </tr>

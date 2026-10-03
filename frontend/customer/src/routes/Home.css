@@ -131,3 +131,67 @@
   background: var(--green-100);
   color: var(--green-700);
 }
+
+/* ── Every shop ─────────────────────────────────────────────────────────── */
+
+/* Cards with a picture, like a listing in any delivery app: a first-time
+   visitor is choosing, so each shop gets room to be recognised. */
+.home__directory {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.home__listing {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  color: var(--text-body);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.home__listing:hover {
+  text-decoration: none;
+  border-color: var(--green-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.home__listing-image { border-radius: 0; }
+
+.home__listing-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.home__listing-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.home__listing-name {
+  font-weight: var(--weight-semibold);
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.home__listing-meta {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.home__listing--compact {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+  padding-left: var(--space-3);
+}
+.home__listing--compact .home__listing-body { flex: 1; min-width: 0; padding-left: 0; }
+.home__listing-mark { width: 3.5rem; flex-shrink: 0; }

@@ -122,11 +122,11 @@
   --font-body:    var(--font-heading);
   --font-mono:    ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
 
-  /* A dashboard is denser than a phone shop, so the base stays 14px. */
+  /* The customer app's scale: 16px body, so neither app reads smaller. */
   --text-2xs:  0.6875rem;
   --text-xs:   0.75rem;
-  --text-sm:   0.8125rem;
-  --text-base: 0.875rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
   --text-md:   1rem;
   --text-lg:   1.125rem;
   --text-xl:   1.25rem;
@@ -165,8 +165,8 @@
 
   /* === Shape: the customer app's rounded corners === */
   --radius-sm:   0.375rem;
-  --radius-md:   0.5rem;
-  --radius-lg:   0.625rem;
+  --radius-md:   0.625rem;   /* buttons and inputs, as in the customer app */
+  --radius-lg:   1rem;       /* cards */
   --radius-xl:   1rem;
   --radius-2xl:  1rem;
   --radius-full: 999px;
@@ -207,10 +207,25 @@
   --transition-slow:   300ms ease;
   --transition-spring: 300ms var(--ease-out);
 
-  /* === Layout === */
-  --topnav-height:     64px;
-  --content-max-width: 1320px;
+  /* === Layout — the customer app's measures === */
+  --header-height:     3.5rem;
+  --bottom-nav-height: 4rem;
+  --tap-target:        2.75rem;   /* anything reached for without looking */
+  --tap-target-dense:  2.25rem;   /* a control in a row of its own kind */
+  --topnav-height:     var(--header-height);
+  --shell-max-width:   100%;
+  --shell-gutter:      var(--space-4);
+  --content-max-width: 100%;
   --content-narrow:    860px;
+}
+
+/* Same breakpoints as the customer app; the desktop column is wider, since a
+   shopkeeper's tables use the room a shopping list does not. */
+@media (min-width: 48rem) {
+  :root { --shell-gutter: var(--space-6); }
+}
+@media (min-width: 75rem) {
+  :root { --shell-max-width: 72rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

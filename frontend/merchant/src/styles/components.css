@@ -1,6 +1,8 @@
 /* ================================================================
-   SHOPFLOW COMPONENT STYLES
-   Navy · Cream · Warm Grey · Brown design system
+   COMPONENT STYLES
+   Merchant-One's components, restyled at the foot of this file to the
+   customer app's (frontend/customer/src/styles/global.css) so a button,
+   a field or a card looks the same in both apps.
    ================================================================ */
 
 /* ===== BUTTONS ===== */
@@ -839,4 +841,169 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.5; }
+}
+
+
+/* ================================================================
+   THE CUSTOMER APP'S COMPONENTS
+   These come last so they win. Each mirrors a rule in
+   frontend/customer/src/styles/global.css: change both together.
+   ================================================================ */
+
+/* Buttons: 44px, semibold, the same corner. */
+.btn {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  line-height: 1.2;
+}
+.btn-sm {
+  min-height: var(--tap-target-dense);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+.btn-lg { min-height: 3rem; font-size: var(--text-base); }
+
+.btn-secondary {
+  background: var(--color-surface);
+  border-color: var(--ink-250);
+  color: var(--green-700);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--green-50);
+  border-color: var(--green-200);
+  color: var(--green-800);
+}
+
+.btn-ghost { color: var(--color-text-secondary); }
+.btn-ghost:hover:not(:disabled) { background: var(--green-50); color: var(--green-700); }
+/* An icon-only row action: a real 36px target, not a 20px glyph. */
+.btn-ghost.btn-sm { min-width: var(--tap-target-dense); justify-content: center; }
+.btn-ghost.btn-sm svg { width: 18px; height: 18px; }
+
+/* Fields: 44px, a 3:1 edge you can find (WCAG 1.4.11), green when focused. */
+.input-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text);
+  letter-spacing: 0;
+}
+.input-field {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border-color: var(--ink-250);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+}
+.input-field:hover { border-color: var(--ink-400); }
+.input-field:focus { border-color: var(--green-600); box-shadow: 0 0 0 3px var(--navy-10); }
+.textarea-field { padding: var(--space-3); line-height: var(--leading-normal); }
+.input-helper { font-size: var(--text-sm); color: var(--color-text-secondary); }
+
+/* Badges: the customer app's pill. */
+.badge {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0;
+}
+.badge-primary { background: var(--green-50); color: var(--green-700); }
+.badge-info { background: var(--color-info-bg); color: var(--color-info-text); }
+
+/* Cards and tables sit on the page the way the customer app's cards do. */
+.card,
+.table-container {
+  border-color: var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.card { padding: var(--space-5); }
+.table { font-size: var(--text-sm); }
+.table th {
+  background: var(--ink-50);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.table td { padding: var(--space-3) var(--space-4); }
+.table tbody tr:hover td { background: var(--green-50); }
+
+/* Page tabs are the customer app's filter chips: outlined, filled green when chosen. */
+.tabs {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  border-bottom: 0;
+}
+.tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-target-dense);
+  margin: 0;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--ink-250);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+.tab:hover { background: var(--green-50); color: var(--green-700); }
+.tab-active,
+.tab-active:hover {
+  background: var(--green-600);
+  border-color: var(--green-600);
+  color: #ffffff;
+}
+
+/* Headings: the customer app's weight and spacing. */
+.page-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  letter-spacing: -0.01em;
+}
+.page-subtitle { font-size: var(--text-base); }
+
+.dialog-content { border-radius: var(--radius-lg); }
+
+.empty-state { border-radius: var(--radius-lg); }
+
+.page-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* Phones: a page's title, then its buttons; filters one per line. */
+@media (max-width: 47.99rem) {
+  .page-header { flex-direction: column; align-items: stretch; gap: var(--space-3); }
+  .page-header > .btn, .page-actions > .btn { flex: 1; }
+  .filters-bar > * { flex: 1 1 100%; max-width: none !important; width: 100%; }
+}
+.badge { white-space: nowrap; }
+
+/* Phones: each order is a card — number and total, when and status, who and
+   how — the way the customer app lists their orders. */
+@media (max-width: 47.99rem) {
+  .orders-table { min-width: 0; }
+  .orders-table thead { display: none; }
+  .orders-table, .orders-table tbody { display: block; }
+  .table.orders-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: 'num total' 'when status' 'who mode';
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .table.orders-table td { display: block; padding: 0; border: 0; background: none; }
+  .orders-table td:nth-child(1) { grid-area: num; }
+  .orders-table td:nth-child(2) { grid-area: when; color: var(--color-text-secondary); }
+  .orders-table td:nth-child(3) { grid-area: who; }
+  .orders-table td:nth-child(4) { grid-area: mode; justify-self: end; }
+  .orders-table td:nth-child(5) { display: none; }
+  .orders-table td:nth-child(6) { grid-area: status; justify-self: end; }
+  .orders-table td:nth-child(7) { grid-area: total; justify-self: end; }
 }

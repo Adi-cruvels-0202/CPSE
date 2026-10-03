@@ -42,6 +42,7 @@ function renderAt(path, { signedIn = false } = {}) {
     '/products/': ok(productDetailFixture()),
     '/products': ok(list.data, list.meta),
     '/stores/sharma-kirana': ok({ store: storeFixture() }),
+    '/stores': ok({ stores: [storeFixture()] }, { page: 1, limit: 20, total: 1, totalPages: 1, hasNextPage: false }),
     '/cart': ok({ cart: cartFixture() }),
     '/addresses': ok({ addresses: [] }),
     '/payments/methods': ok({ methods: [{ code: 'cash', label: 'Cash', description: 'Pay at the shop' }] }),
@@ -272,5 +273,17 @@ describe('the shell', () => {
       '#main',
     );
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main');
+  });
+});
+
+describe('the home page', () => {
+  it('lists the shops on CPSE for a visitor, each linking to its store', async () => {
+    renderAt('/');
+
+    const directory = await screen.findByRole('region', { name: 'Shops on CPSE' });
+    expect(within(directory).getByRole('link', { name: /sharma kirana store/i })).toHaveAttribute(
+      'href',
+      '/store/sharma-kirana',
+    );
   });
 });

@@ -169,3 +169,16 @@
   background: var(--bg-brand-subtle);
   color: var(--text-brand);
 }
+
+/* No cover: a short strip in the brand's lightest green, capped so it stays a
+   strip on a wide screen too. */
+.store__banner--plain {
+  max-height: 6rem;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+.store__banner--plain .store__cover {
+  background: linear-gradient(135deg, var(--green-100), var(--green-50));
+}
+/* The fallback's initials belong on the logo just below, not here as well. */
+.store__banner--plain .remote-image__fallback { color: transparent; }

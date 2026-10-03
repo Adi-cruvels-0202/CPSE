@@ -181,11 +181,12 @@ export default function NewSalePage() {
 
   return (
     <div className="sale-layout">
+      <h1 className="sr-only">New counter sale</h1>
       <div className="sale-products-zone">
         <div className="sale-products-header">
           <div className="sale-search-bar">
             <IconSearch size={18} className="search-input-icon" />
-            <input id="pos-search" className="input-field" placeholder="Search by name or SKU…" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus style={{ width: '100%' }} />
+            <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search by name or SKU…" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus style={{ width: '100%' }} />
             {!search && <div className="sale-search-shortcut">⌘K</div>}
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
           </div>

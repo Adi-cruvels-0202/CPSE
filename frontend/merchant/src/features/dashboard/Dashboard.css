@@ -95,7 +95,9 @@
 /* --- Grid --- */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): a plain 1fr never shrinks below its widest content, so the
+     recent-orders table pushed the page sideways on a phone. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-6);
 }
 
@@ -158,7 +160,7 @@
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dashboard-metric-divider {

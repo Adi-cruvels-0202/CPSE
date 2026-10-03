@@ -84,13 +84,13 @@ export default function ProductsPage() {
       <div className="filters-bar">
         <div className="search-input-wrap">
           <IconSearch size={16} className="search-input-icon" />
-          <input className="input-field search-input" placeholder="Search products…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          <input aria-label="Search products" className="input-field search-input" placeholder="Search products…" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
         </div>
-        <select className="input-field select-field" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPage(1); }} style={{ maxWidth: 200 }}>
+        <select aria-label="Category" className="input-field select-field" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setPage(1); }} style={{ maxWidth: 200 }}>
           <option value="">All categories</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <select className="input-field select-field" value={filter} onChange={(e) => { setFilter(e.target.value as typeof filter); setPage(1); }} style={{ maxWidth: 180 }}>
+        <select aria-label="Show" className="input-field select-field" value={filter} onChange={(e) => { setFilter(e.target.value as typeof filter); setPage(1); }} style={{ maxWidth: 180 }}>
           <option value="">Everything</option>
           <option value="active">Available</option>
           <option value="inactive">Unavailable</option>
@@ -205,6 +205,8 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
 
   const setVariant = (index: number, field: keyof VariantRow, value: string) =>
     setVariants(variants.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
+  // The table's inputs have only a column header above them, so each carries its own name.
+  const cellLabel = (column: string, index: number) => (hasOptions ? `${column}, option ${index + 1}` : column);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -244,38 +246,38 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
           <div className="dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <div className="form-row">
               <div className="input-wrapper" style={{ flex: 2 }}>
-                <label className="input-label">Name *</label>
-                <input className="input-field" required maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. India Gate Basmati Rice" autoFocus />
+                <label className="input-label" htmlFor="product-name">Name *</label>
+                <input id="product-name" className="input-field" required maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. India Gate Basmati Rice" autoFocus />
               </div>
               <div className="input-wrapper" style={{ flex: 1 }}>
-                <label className="input-label">Category</label>
-                <select className="input-field select-field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+                <label className="input-label" htmlFor="product-category">Category</label>
+                <select id="product-category" className="input-field select-field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
                   <option value="">None</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
             </div>
             <div className="input-wrapper">
-              <label className="input-label">Description</label>
-              <textarea className="input-field textarea-field" maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+              <label className="input-label" htmlFor="product-description-2">Description</label>
+              <textarea id="product-description-2" className="input-field textarea-field" maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </div>
             <div className="form-row" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
               <div className="input-wrapper">
-                <label className="input-label">GST %</label>
-                <select className="input-field select-field" value={form.taxPercent} onChange={(e) => setForm({ ...form, taxPercent: e.target.value })}>
+                <label className="input-label" htmlFor="product-gst">GST %</label>
+                <select id="product-gst" className="input-field select-field" value={form.taxPercent} onChange={(e) => setForm({ ...form, taxPercent: e.target.value })}>
                   {['0', '5', '12', '18', '28'].map((rate) => <option key={rate} value={rate}>{rate}%</option>)}
                 </select>
                 <span className="input-helper">Added on top of the price at checkout.</span>
               </div>
               <div className="input-wrapper">
-                <label className="input-label">Sold by</label>
-                <select className="input-field select-field" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
+                <label className="input-label" htmlFor="product-sold-by">Sold by</label>
+                <select id="product-sold-by" className="input-field select-field" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>
                   {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               <div className="input-wrapper">
-                <label className="input-label">Low-stock alert at</label>
-                <input type="number" min="0" className="input-field" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} disabled={!form.trackInventory} />
+                <label className="input-label" htmlFor="product-low-stock-alert-at">Low-stock alert at</label>
+                <input id="product-low-stock-alert-at" type="number" min="0" className="input-field" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} disabled={!form.trackInventory} />
               </div>
             </div>
             <label className="switch" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -301,12 +303,12 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
                 <tbody>
                   {variants.map((row, index) => (
                     <tr key={index}>
-                      {hasOptions && <td><input className="input-field" required maxLength={120} value={row.name} onChange={(e) => setVariant(index, 'name', e.target.value)} placeholder="1 kg" /></td>}
-                      <td><input className="input-field" inputMode="decimal" required value={row.price} onChange={(e) => setVariant(index, 'price', e.target.value)} placeholder="129" /></td>
-                      <td><input className="input-field" inputMode="decimal" value={row.mrp} onChange={(e) => setVariant(index, 'mrp', e.target.value)} /></td>
-                      <td><input className="input-field" inputMode="decimal" value={row.cost} onChange={(e) => setVariant(index, 'cost', e.target.value)} title="What you paid — never shown to customers" /></td>
-                      <td><input className="input-field mono" maxLength={50} value={row.sku} onChange={(e) => setVariant(index, 'sku', e.target.value)} placeholder="auto" /></td>
-                      {form.trackInventory && <td><input type="number" min="0" className="input-field" value={row.opening} onChange={(e) => setVariant(index, 'opening', e.target.value)} placeholder="0" /></td>}
+                      {hasOptions && <td><input aria-label={`Option ${index + 1} name`} className="input-field" required maxLength={120} value={row.name} onChange={(e) => setVariant(index, 'name', e.target.value)} placeholder="1 kg" /></td>}
+                      <td><input aria-label={cellLabel('Price ₹', index)} className="input-field" inputMode="decimal" required value={row.price} onChange={(e) => setVariant(index, 'price', e.target.value)} placeholder="129" /></td>
+                      <td><input aria-label={cellLabel('MRP ₹', index)} className="input-field" inputMode="decimal" value={row.mrp} onChange={(e) => setVariant(index, 'mrp', e.target.value)} /></td>
+                      <td><input aria-label={cellLabel('Cost ₹', index)} className="input-field" inputMode="decimal" value={row.cost} onChange={(e) => setVariant(index, 'cost', e.target.value)} title="What you paid — never shown to customers" /></td>
+                      <td><input aria-label={cellLabel('SKU', index)} className="input-field mono" maxLength={50} value={row.sku} onChange={(e) => setVariant(index, 'sku', e.target.value)} placeholder="auto" /></td>
+                      {form.trackInventory && <td><input aria-label={cellLabel('Opening stock', index)} type="number" min="0" className="input-field" value={row.opening} onChange={(e) => setVariant(index, 'opening', e.target.value)} placeholder="0" /></td>}
                       {hasOptions && <td>{variants.length > 1 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setVariants(variants.filter((_, i) => i !== index))} aria-label="Remove option"><IconX size={14} /></button>}</td>}
                     </tr>
                   ))}
@@ -520,25 +522,25 @@ function ProductDetailsForm({ storeId, product, categories, onSaved }: { storeId
   return (
     <form onSubmit={save} style={{ marginTop: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
       <div className="form-section-title">Details</div>
-      <div className="input-wrapper"><label className="input-label">Name</label><input className="input-field" required maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-      <div className="input-wrapper"><label className="input-label">Description</label><textarea className="input-field textarea-field" maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+      <div className="input-wrapper"><label className="input-label" htmlFor="product-name-2">Name</label><input id="product-name-2" className="input-field" required maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+      <div className="input-wrapper"><label className="input-label" htmlFor="product-description">Description</label><textarea id="product-description" className="input-field textarea-field" maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
       <div className="form-row">
-        <div className="input-wrapper"><label className="input-label">Category</label>
-          <select className="input-field select-field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+        <div className="input-wrapper"><label className="input-label" htmlFor="product-category-2">Category</label>
+          <select id="product-category-2" className="input-field select-field" value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
             <option value="">None</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-        <div className="input-wrapper"><label className="input-label">GST %</label>
-          <input type="number" min="0" max="100" step="0.01" className="input-field" value={form.taxPercent} onChange={(e) => setForm({ ...form, taxPercent: e.target.value })} />
+        <div className="input-wrapper"><label className="input-label" htmlFor="product-gst-2">GST %</label>
+          <input id="product-gst-2" type="number" min="0" max="100" step="0.01" className="input-field" value={form.taxPercent} onChange={(e) => setForm({ ...form, taxPercent: e.target.value })} />
         </div>
       </div>
       <div className="form-row">
-        <div className="input-wrapper"><label className="input-label">Sold by</label>
-          <select className="input-field select-field" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
+        <div className="input-wrapper"><label className="input-label" htmlFor="product-sold-by-2">Sold by</label>
+          <select id="product-sold-by-2" className="input-field select-field" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })}>{UNITS.map((u) => <option key={u} value={u}>{u}</option>)}</select>
         </div>
-        <div className="input-wrapper"><label className="input-label">Low-stock alert at</label>
-          <input type="number" min="0" className="input-field" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} placeholder="No alert" />
+        <div className="input-wrapper"><label className="input-label" htmlFor="product-low-stock-alert-at-2">Low-stock alert at</label>
+          <input id="product-low-stock-alert-at-2" type="number" min="0" className="input-field" value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} placeholder="No alert" />
         </div>
       </div>
       <label className="switch" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -582,8 +584,8 @@ function VariantModal({ storeId, product, variant, onClose, onSaved }: { storeId
 
   const field = (name: keyof VariantRow, label: string, props: Record<string, unknown> = {}) => (
     <div className="input-wrapper">
-      <label className="input-label">{label}</label>
-      <input className="input-field" value={row[name]} onChange={(e) => setRow({ ...row, [name]: e.target.value })} {...props} />
+      <label className="input-label" htmlFor={`variant-${name}`}>{label}</label>
+      <input id={`variant-${name}`} className="input-field" value={row[name]} onChange={(e) => setRow({ ...row, [name]: e.target.value })} {...props} />
     </div>
   );
 

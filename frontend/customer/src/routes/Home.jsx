@@ -5,22 +5,14 @@ import { useApiQuery } from '../hooks/useApiQuery.js';
 import { formatPaise } from '../lib/money.js';
 import { describeStatus } from '../lib/storeHours.js';
 import { formatSince, isTerminal, meaningFor, toneFor } from '../lib/orderStatus.js';
-import { RemoteImage } from '../components/RemoteImage.jsx';
+import { RemoteImage, hasImage } from '../components/RemoteImage.jsx';
 import { Skeleton } from '../components/states/States.jsx';
 import './Home.css';
 
 /**
- * The landing screen.
- *
- * It used to be a greeting and a hard-coded link to the seeded store — a
- * developer's front door, not a customer's. The app has no network-wide store
- * discovery (explicitly out of scope), so a customer arrives here from a shared
- * link or from a shop they already know. That makes this screen's job narrow and
- * clear: answer "what is happening with my order" and "take me back to my shop",
- * which is exactly what the home tab of a delivery app is for.
- *
- * Both lists come from endpoints that already exist. Nothing here is new data —
- * it is the data that was three taps away being put where it is looked for.
+ * The landing screen: what is happening with my order, the shops I go back
+ * to, and every shop on CPSE — the last from the public directory
+ * (GET /stores), so a first-time visitor has somewhere to go besides a link.
  */
 export function Home() {
   const { status, customer } = useAuth();
@@ -33,7 +25,7 @@ export function Home() {
         <p className="muted">
           {signedIn
             ? 'Your shops and your orders, in one place.'
-            : 'Open a store from a link your shop shared, or sign in to see the ones you saved.'}
+            : 'Order from the shops around you — pick one below to start.'}
         </p>
       </header>
 
@@ -41,22 +33,26 @@ export function Home() {
         <>
           <ActiveOrders />
           <SavedShops />
+          <ShopDirectory />
         </>
       ) : (
-        <section className="card stack">
-          <h2 className="home__section-title">Have an account?</h2>
-          <p className="muted">
-            You can browse any store without signing in. You will need an account to order.
-          </p>
-          <div className="row">
-            <Link to="/login" className="btn">
-              Sign in
-            </Link>
-            <Link to="/register" className="btn btn--secondary">
-              Create account
-            </Link>
-          </div>
-        </section>
+        <>
+          <ShopDirectory />
+          <section className="card stack">
+            <h2 className="home__section-title">Have an account?</h2>
+            <p className="muted">
+              You can browse any store without signing in. You will need an account to order.
+            </p>
+            <div className="row">
+              <Link to="/login" className="btn">
+                Sign in
+              </Link>
+              <Link to="/register" className="btn btn--secondary">
+                Create account
+              </Link>
+            </div>
+          </section>
+        </>
       )}
     </div>
   );
@@ -127,19 +123,8 @@ function SavedShops() {
 
   const saved = data?.savedStores ?? [];
 
-  if (saved.length === 0) {
-    return (
-      <section className="card stack">
-        <h2 className="home__section-title">No shops yet</h2>
-        <p className="muted">
-          Open a shop from a link and tap the heart. It will be waiting here next time.
-        </p>
-        <Link to="/store/sharma-kirana" className="btn btn--secondary btn--block">
-          Browse a shop
-        </Link>
-      </section>
-    );
-  }
+  // Nothing saved yet: the directory below is where to find one.
+  if (saved.length === 0) return null;
 
   return (
     <section className="home__section" aria-labelledby="shops-heading">
@@ -169,6 +154,65 @@ function SavedShops() {
                 <span className="home__shop-name">{store.name}</span>
                 <span className={`home__shop-state${open ? ' home__shop-state--open' : ''}`}>
                   {open ? 'Open' : 'Closed'}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Every shop on CPSE, as cards a customer can choose between: the cover (or
+ * the shop's initials), whether it is open now, and how it hands orders over.
+ */
+function ShopDirectory() {
+  const { data, loading, error } = useApiQuery(() => endpoints.stores.list({ limit: 20 }), []);
+
+  if (loading) return <Skeleton height="10rem" radius="var(--radius-lg)" />;
+  if (error) return null;
+
+  const stores = data?.stores ?? [];
+  if (stores.length === 0) return null;
+
+  return (
+    <section className="home__section" aria-labelledby="directory-heading">
+      <h2 id="directory-heading" className="home__section-title">
+        Shops on CPSE
+      </h2>
+
+      <ul className="home__directory">
+        {stores.map((store) => {
+          const open = describeStatus(store.hours).isOpen;
+          const ways = [
+            store.fulfilment.deliveryEnabled && 'Delivery',
+            store.fulfilment.pickupEnabled && 'Pickup',
+          ].filter(Boolean);
+
+          // A cover gets a picture card; without one the logo (or initials)
+          // sits beside the name, rather than a block of letters on its own.
+          const cover = hasImage(store.coverImageUrl);
+
+          return (
+            <li key={store.id}>
+              <Link to={`/store/${store.slug}`} className={`home__listing${cover ? '' : ' home__listing--compact'}`}>
+                {cover ? (
+                  <RemoteImage src={store.coverImageUrl} name={store.name} alt="" ratio="16 / 9" className="home__listing-image" />
+                ) : (
+                  <RemoteImage src={store.logoUrl} name={store.name} alt="" className="home__listing-mark" rounded="var(--radius-md)" />
+                )}
+                <span className="home__listing-body">
+                  <span className="home__listing-top">
+                    <span className="home__listing-name">{store.name}</span>
+                    <span className={`home__shop-state${open ? ' home__shop-state--open' : ''}`}>
+                      {open ? 'Open' : 'Closed'}
+                    </span>
+                  </span>
+                  <span className="home__listing-meta">
+                    {[store.location.city, ...ways].filter(Boolean).join(' · ')}
+                  </span>
                 </span>
               </Link>
             </li>

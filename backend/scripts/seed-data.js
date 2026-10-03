@@ -417,7 +417,10 @@ export function photoSlug(fileName) {
 /**
  * The image rows with uploaded photos in place of the placeholders: a product
  * that has a photo keeps one row — its first, so the id stays stable across
- * re-seeds — pointing at the photo. `photoUrls` maps product id → public URL.
+ * re-seeds — pointing at the photo. A photographed product that had no
+ * placeholder at all gets a row of its own, with an id derived from the
+ * product's, so re-seeding updates it rather than adding another.
+ * `photoUrls` maps product id → public URL.
  */
 export function applyPhotos(imageRows, photoUrls) {
   const kept = new Set();
@@ -430,6 +433,16 @@ export function applyPhotos(imageRows, photoUrls) {
       kept.add(row.product_id);
       result.push({ ...row, url, alt_text: row.alt_text ?? null });
     }
+  }
+  for (const [productId, url] of photoUrls) {
+    if (kept.has(productId)) continue;
+    result.push({
+      id: `61111111-1111-4111-8111-9${productId.slice(-11)}`,
+      product_id: productId,
+      url,
+      alt_text: null,
+      sort_order: 1,
+    });
   }
   return result;
 }

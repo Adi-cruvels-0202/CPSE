@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import multer from 'multer';
+import sharp from 'sharp';
 import { supabaseAdmin } from './supabase.js';
 import { AppError, internal, unprocessable } from './errors.js';
 import { logger } from './logger.js';
@@ -18,6 +19,11 @@ import { logger } from './logger.js';
  *     traverse paths or overwrite another file.
  *
  * The bucket (migration 0033) repeats the size and type limits, behind these.
+ *
+ * What is stored is not the file that was sent: every photo is re-encoded
+ * (shrinkImage) — a phone camera's 4 MB original becomes ~100 KB of WebP, the
+ * page loads in a moment on a shop's mobile data, and anything hidden in the
+ * original's metadata (a GPS location, a payload) is not carried over.
  */
 
 export const IMAGE_BUCKET = 'catalogue';
@@ -71,22 +77,45 @@ export function sniffImageType(buffer) {
   return null;
 }
 
+/** The longest side a stored photo keeps; plenty for a full-width cover. */
+export const MAX_IMAGE_SIDE = 1600;
+
+/**
+ * Re-encodes a photo as WebP no larger than MAX_IMAGE_SIDE on either side,
+ * turned the way the camera meant (EXIF orientation) and with the metadata
+ * dropped. Bytes that look like an image but do not decode as one are refused
+ * here, as IMAGE_INVALID.
+ */
+export async function shrinkImage(buffer) {
+  try {
+    return await sharp(buffer, { limitInputPixels: 50_000_000 })
+      .rotate()
+      .resize({ width: MAX_IMAGE_SIDE, height: MAX_IMAGE_SIDE, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch {
+    throw invalidImage();
+  }
+}
+
+const invalidImage = () =>
+  unprocessable('IMAGE_INVALID', 'Use a JPEG, PNG or WebP photo.', {
+    issues: [{ source: 'body', field: 'file', message: 'That file is not a JPEG, PNG or WebP image.' }],
+  });
+
 /**
  * Stores the photo under `folder` and answers its public URL. `folder` is built
  * by the caller from ids it has already checked the merchant owns.
  */
 export async function storeImage(file, folder) {
-  const type = sniffImageType(file.buffer);
-  if (!type) {
-    throw unprocessable('IMAGE_INVALID', 'Use a JPEG, PNG or WebP photo.', {
-      issues: [{ source: 'body', field: 'file', message: 'That file is not a JPEG, PNG or WebP image.' }],
-    });
-  }
+  // The type check comes first: sharp reads many formats, and this API takes three.
+  if (!sniffImageType(file.buffer)) throw invalidImage();
+  const body = await shrinkImage(file.buffer);
 
-  const path = `${folder}/${randomUUID()}.${type.ext}`;
+  const path = `${folder}/${randomUUID()}.webp`;
   const { error } = await supabaseAdmin.storage
     .from(IMAGE_BUCKET)
-    .upload(path, file.buffer, { contentType: type.mime, upsert: false, cacheControl: '31536000' });
+    .upload(path, body, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' });
 
   if (error) {
     logger.error('image upload failed', { message: error.message, path });

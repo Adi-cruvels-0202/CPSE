@@ -61,6 +61,9 @@ export function isUnreachableHost(src) {
   }
 }
 
+/** True when there is a photo worth leaving room for — set, and on a real host. */
+export const hasImage = (src) => Boolean(src) && !isUnreachableHost(src);
+
 /** "Sharma Kirana Store" → "SK". Two letters is what fits legibly. */
 export function initialsOf(name) {
   if (!name) return '?';

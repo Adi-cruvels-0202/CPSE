@@ -10,6 +10,7 @@ import {
   productListQuery,
   storeProductParams,
   searchQuery,
+  storeDirectoryQuery,
 } from './store.schemas.js';
 
 /**
@@ -39,6 +40,9 @@ storeRouter.delete(
   validate({ params: savedStoreParams, body: emptyBody }),
   savedStoreController.unsaveStore,
 );
+
+// The shop directory — public, like every page a shared link can open.
+storeRouter.get('/', validate({ query: storeDirectoryQuery }), controller.listStores);
 
 storeRouter.get('/:slug', validate({ params: storeSlugParams }), controller.getStore);
 

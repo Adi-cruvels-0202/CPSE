@@ -6,7 +6,10 @@
   display: grid;
   grid-template-columns: 1fr 420px;
   gap: var(--space-6);
-  height: calc(100vh - var(--topnav-height) - var(--space-12)); /* Fixed height for scrolling inner zones */
+  /* The screen less the header, the tab row and the page's padding, so the
+     products and the cart scroll inside and Charge is always in view. */
+  height: calc(100dvh - var(--header-height) - 3.25rem - var(--space-6) - var(--space-8));
+  min-height: 32rem;
   overflow: hidden;
 }
 
@@ -199,7 +202,8 @@
 }
 
 .sale-product-price {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--font-bold);
   font-size: var(--text-base);
   color: var(--navy);
@@ -261,7 +265,8 @@
 }
 
 .cart-item-price {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   color: var(--color-text-secondary);
@@ -309,11 +314,13 @@
   text-align: center;
   font-size: var(--text-sm);
   font-weight: var(--font-bold);
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
 }
 
 .cart-item-total {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
   font-weight: var(--font-bold);
   font-size: var(--text-sm);
   color: var(--navy);
@@ -395,7 +402,17 @@
     height: auto;
     overflow: visible;
   }
-  .sale-products-zone {
-    height: 60vh;
+  /* Phones and tablets: one column that scrolls with the page, not boxes
+     scrolling inside boxes. */
+  .sale-layout { min-height: 0; }
+  .sale-layout > * { min-width: 0; }
+  .sale-products-zone { height: auto; }
+  .sale-product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    grid-auto-rows: max-content;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    overflow: visible;
   }
+  .sale-product-image { height: 6.5rem; }
 }

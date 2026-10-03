@@ -5,7 +5,7 @@ import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { rememberStore } from '../../lib/activeStore.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { describeStatus } from '../../lib/storeHours.js';
-import { RemoteImage } from '../../components/RemoteImage.jsx';
+import { RemoteImage, hasImage } from '../../components/RemoteImage.jsx';
 import { SaveStoreButton } from '../../components/SaveStoreButton.jsx';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { Catalogue } from './Catalogue.jsx';
@@ -119,6 +119,8 @@ export function StorePage() {
 }
 
 function StoreHeader({ store, status, onSaveChange }) {
+  const hasCover = hasImage(store.coverImageUrl);
+
   return (
     <header className="store__header">
       {/*
@@ -127,12 +129,14 @@ function StoreHeader({ store, status, onSaveChange }) {
         They used to live in the row below, which is pulled up over the cover so the
         logo overlaps it — and the heart came up with it and landed on the image.
       */}
-      <div className="store__banner">
+      {/* No cover photo: a short tinted strip, not a screen of initials —
+          the controls and the logo still have something to sit on. */}
+      <div className={`store__banner${hasCover ? '' : ' store__banner--plain'}`}>
         <RemoteImage
           src={store.coverImageUrl}
           name={store.name}
           alt=""
-          ratio="16 / 9"
+          ratio={hasCover ? '16 / 9' : '5 / 1'}
           className="store__cover"
         />
 

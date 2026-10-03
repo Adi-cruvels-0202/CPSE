@@ -190,6 +190,7 @@ All five accept an optional bearer token and personalise when one is present.
 
 | | |
 |---|---|
+| `GET /stores` | **public.** The shop directory: every active, published store, newest first, each in the same shape as `GET /stores/:slug` (with `isSaved: null`). `q` matches the name or city; paged with `page` / `limit` (max 50). |
 | `GET /stores/:slug` | **public.** The store page: contact, location, `hours` (with `isOpen` and `opensAt`, computed in the store's own timezone), `fulfilment` (`minOrderPaise`, `deliveryFeePaise`, and `freeDeliveryThresholdPaise` — delivery is free once the subtotal reaches it; `null` = never), `isSaved`. |
 | `GET /stores/:slug/categories` | **public.** Active categories, in sort order. |
 | `GET /stores/:slug/products` | **public.** `?categoryId=&page=&limit=&availableOnly=`. Sold-out and withdrawn products are **listed**, with `isPurchasable: false`. `stock` is what can still be ordered across the product's variants — on hand minus what open orders hold — and `null` means not counted. `pricePaise` is the cheapest variant's. `taxPercent` is added on top at checkout: show "+ GST" when it is above 0. |

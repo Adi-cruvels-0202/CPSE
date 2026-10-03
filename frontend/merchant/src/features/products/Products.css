@@ -136,3 +136,29 @@
   .drawer-content { width: 100vw; }
   .search-input-wrap { max-width: none; }
 }
+
+/* Phones: each product is a card — photo, name and price, then its badges —
+   as a product looks in the customer app, not a squeezed table row. */
+@media (max-width: 47.99rem) {
+  .products-table thead { display: none; }
+  .products-table, .products-table tbody { display: block; }
+  .table.products-table tr {
+    display: grid;
+    grid-template-columns: 3rem auto 1fr auto;
+    grid-template-areas: 'thumb name name price' 'thumb stock status actions';
+    align-items: center;
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .products-table { min-width: 0; width: 100%; }
+  .table.products-table td { display: block; padding: 0; border: 0; background: none; }
+  .products-table td:nth-child(1) { grid-area: thumb; }
+  .products-table td:nth-child(2) { grid-area: name; }
+  .products-table td:nth-child(3) { display: none; }
+  .products-table td:nth-child(4) { grid-area: price; text-align: right; }
+  .products-table td:nth-child(5) { grid-area: stock; }
+  .products-table td:nth-child(6) { grid-area: status; }
+  .products-table td:nth-child(7) { grid-area: actions; }
+}

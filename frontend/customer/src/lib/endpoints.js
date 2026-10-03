@@ -33,6 +33,7 @@ export const endpoints = {
   },
 
   stores: {
+    list: (query) => api.get('/stores', { auth: 'optional', query }),
     get: (slug) => api.get(`/stores/${slug}`, { auth: 'optional' }),
     categories: (slug) => api.get(`/stores/${slug}/categories`, { auth: 'optional' }),
     products: (slug, query) => api.get(`/stores/${slug}/products`, { auth: 'optional', query }),

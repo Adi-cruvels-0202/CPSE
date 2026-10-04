@@ -59,6 +59,7 @@ below are written in paise.
 | S-14 | **Fix.** The delivery fee, minimum order and free-delivery threshold were **never applied** to an order: the order total was subtotal + tax only. | CPSE's checkout quote already applies fee and minimum; the free-delivery threshold is added to it (fee = 0 when subtotal ≥ threshold). |
 | S-15 | **Fix.** A delivery order was accepted even when delivery was disabled — only pickup was checked. | Both modes are checked at checkout (CPSE already refuses a disabled mode). At least one mode must stay on (contract, 422). |
 | S-16 | Payment methods `CASH, UPI, CARD, NET_BANKING`, each on/off per store. | **Changed.** Online orders: `cash` / `online` switches (contract question 3). POS keeps `cash, upi, card, other`. |
+| S-19 | No way to delete a store. | **New** (migration 0035): a store can be deleted **permanently**, with its catalogue, stock history, orders, counter sales, khata and photos. The merchant types the store name to confirm; refused (409) while an order is still in progress. |
 
 ### Images
 

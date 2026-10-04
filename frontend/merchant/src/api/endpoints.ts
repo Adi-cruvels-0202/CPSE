@@ -44,6 +44,8 @@ export const storeApi = {
   get: (storeId: string) => api.get<{ store: Store }>(store(storeId)),
   create: (body: Record<string, unknown>) => api.post<{ store: Store }>('/merchant/stores', body),
   update: (storeId: string, body: Record<string, unknown>) => api.patch<{ store: Store }>(store(storeId), body),
+  /** Permanent. `confirmName` is the store's name, typed by the merchant. */
+  remove: (storeId: string, confirmName: string) => api.delete<void>(store(storeId), { confirmName }),
   publish: (storeId: string) => api.post<{ store: Store }>(`${store(storeId)}/publish`),
   unpublish: (storeId: string) => api.post<{ store: Store }>(`${store(storeId)}/unpublish`),
   setHours: (storeId: string, body: { timezone: string; openingHours: OpeningHours }) =>

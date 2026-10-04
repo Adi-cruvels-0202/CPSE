@@ -144,7 +144,7 @@ export const api = {
     (await send<T>({ method: 'post', url, data: body ?? {}, headers })).data,
   patch: async <T>(url: string, body: unknown) => (await send<T>({ method: 'patch', url, data: body })).data,
   put: async <T>(url: string, body: unknown) => (await send<T>({ method: 'put', url, data: body })).data,
-  delete: async <T>(url: string) => (await send<T>({ method: 'delete', url })).data,
+  delete: async <T>(url: string, body?: unknown) => (await send<T>({ method: 'delete', url, data: body })).data,
   /** One file, as the multipart field `file`. */
   upload: async <T>(url: string, file: File) => {
     const form = new FormData();

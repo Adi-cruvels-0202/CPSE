@@ -96,48 +96,11 @@ export default function MerchantLayout() {
   );
 }
 
-/** Which store every screen is working on; a merchant may run several. */
-function StoreSwitcher() {
-  const { stores } = useAuth();
-  const { activeStoreId, setActiveStoreId } = useActiveStore();
-  const navigate = useNavigate();
-  const current = stores.find((store) => store.id === activeStoreId);
-
-  if (stores.length === 0) return null;
-
-  return (
-    <div className="shell__store">
-      <span className={`shell__store-dot${current?.isPublished ? ' shell__store-dot--live' : ''}`} title={current?.isPublished ? 'Published' : 'Not published'} aria-hidden="true" />
-      <select
-        className="shell__store-select"
-        value={activeStoreId ?? ''}
-        aria-label="Store"
-        onChange={(event) => {
-          if (event.target.value === '__new') {
-            navigate('/store/new');
-            return;
-          }
-          setActiveStoreId(event.target.value);
-          navigate('/dashboard');
-        }}
-      >
-        {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
-        <option value="__new">+ New store…</option>
-      </select>
-    </div>
-  );
-}
-
-function AccountMenu() {
-  const { merchant, stores, logout } = useAuth();
-  const { activeStoreId } = useActiveStore();
-  const navigate = useNavigate();
+/** Closes a header menu on a click outside it, on Escape, and on navigating. */
+function useMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { pathname } = useLocation();
-  const current = stores.find((store) => store.id === activeStoreId);
-  const name = merchant?.fullName || merchant?.email || 'Merchant';
-  const initials = name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
@@ -152,6 +115,66 @@ function AccountMenu() {
       document.removeEventListener('keydown', close);
     };
   }, [open]);
+
+  return { open, setOpen, ref };
+}
+
+/** Which store every screen is working on; a merchant may run several. */
+function StoreSwitcher() {
+  const { stores } = useAuth();
+  const { activeStoreId, setActiveStoreId } = useActiveStore();
+  const navigate = useNavigate();
+  const { open, setOpen, ref } = useMenu();
+  const current = stores.find((store) => store.id === activeStoreId);
+
+  if (stores.length === 0) return null;
+
+  const choose = (id: string) => {
+    setOpen(false);
+    if (id !== activeStoreId) setActiveStoreId(id);
+    navigate('/dashboard');
+  };
+
+  return (
+    <div className="shell__store-wrap" ref={ref}>
+      <button type="button" className="shell__store" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu" aria-label={`Store: ${current?.name ?? 'choose a store'}`}>
+        <StoreDot live={current?.isPublished} />
+        <span className="shell__store-name">{current?.name ?? 'Choose a store'}</span>
+        <svg className="shell__store-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="shell__menu shell__menu--stores" role="menu" aria-label="Your stores">
+          <div className="shell__menu-label">Your stores</div>
+          {stores.map((store) => {
+            const active = store.id === activeStoreId;
+            return (
+              <button key={store.id} role="menuitemradio" aria-checked={active} type="button" className={`shell__menu-item shell__store-option${active ? ' shell__store-option--active' : ''}`} onClick={() => choose(store.id)}>
+                <StoreDot live={store.isPublished} />
+                <span className="shell__store-option-name">{store.name}</span>
+                <span className="shell__store-option-state">{store.isPublished ? 'Live' : 'Draft'}</span>
+              </button>
+            );
+          })}
+          <div className="shell__menu-divider" role="separator" />
+          <NavLink role="menuitem" className="shell__menu-item shell__menu-item--accent" to="/store/new">+ New store</NavLink>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StoreDot({ live }: { live?: boolean }) {
+  return <span className={`shell__store-dot${live ? ' shell__store-dot--live' : ''}`} title={live ? 'Published' : 'Not published'} aria-hidden="true" />;
+}
+
+function AccountMenu() {
+  const { merchant, stores, logout } = useAuth();
+  const { activeStoreId } = useActiveStore();
+  const navigate = useNavigate();
+  const { open, setOpen, ref } = useMenu();
+  const current = stores.find((store) => store.id === activeStoreId);
+  const name = merchant?.fullName || merchant?.email || 'Merchant';
+  const initials = name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <div className="shell__account" ref={ref}>
@@ -170,7 +193,9 @@ function AccountMenu() {
           <NavLink role="menuitem" className="shell__menu-item" to="/categories">Categories</NavLink>
           <NavLink role="menuitem" className="shell__menu-item" to="/inventory/history">Stock history</NavLink>
           <NavLink role="menuitem" className="shell__menu-item" to="/sales">Counter sales history</NavLink>
+          <NavLink role="menuitem" className="shell__menu-item" to="/account">Account settings</NavLink>
           <a role="menuitem" className="shell__menu-item" href="/">Go shopping</a>
+          <div className="shell__menu-divider" role="separator" />
           <button role="menuitem" type="button" className="shell__menu-item shell__menu-item--danger" onClick={async () => { await logout(); navigate('/login'); }}>
             Sign out
           </button>

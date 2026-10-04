@@ -120,6 +120,7 @@ The customer app ignores it.
 | `POST /merchant/stores` | `{ name, slug?, description?, shopCategory?, phone?, email?, address?, latitude?, longitude?, timezone? }` → **201** `{ store }`. Created **unpublished**, pickup on, delivery off, no hours. `slug` defaults to one made from the name. |
 | `GET /merchant/stores/:storeId` | `{ store }` |
 | `PATCH /merchant/stores/:storeId` | Any subset of the create fields. `slug` can change **only while unpublished** — after that it is in shared links and QR codes, so a change is **409**. |
+| `DELETE /merchant/stores/:storeId` | `{ confirmName }` → **204**. Deletes the store **permanently** with everything in it. Name mismatch → **422**; an order still in progress → **409**. |
 | `POST /merchant/stores/:storeId/publish` | No body. Makes the store visible to customers. **422 `STORE_INCOMPLETE`** if anything in `details.missing` is absent; already published → **409**. |
 | `POST /merchant/stores/:storeId/unpublish` | No body. Customers get **404** on the store page again; existing orders are unaffected. |
 | `PUT /merchant/stores/:storeId/hours` | `{ timezone, openingHours }` → `{ store }`. Replaces the whole week. |

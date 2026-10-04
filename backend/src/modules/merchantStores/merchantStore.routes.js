@@ -15,6 +15,7 @@ import {
   storeParams,
   holidayParams,
   holidaySchema,
+  deleteStoreSchema,
 } from './merchantStore.schemas.js';
 
 /**
@@ -44,6 +45,13 @@ merchantStoreRouter.patch(
   ...ownStore,
   validate({ body: updateStoreSchema }),
   controller.updateStore,
+);
+merchantStoreRouter.delete(
+  '/:storeId',
+  writeLimiter,
+  ...ownStore,
+  validate({ body: deleteStoreSchema }),
+  controller.deleteStore,
 );
 
 merchantStoreRouter.post(

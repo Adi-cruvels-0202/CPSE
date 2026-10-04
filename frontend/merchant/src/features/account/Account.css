@@ -1,0 +1,31 @@
+.account { display: flex; flex-direction: column; gap: var(--space-4); max-width: 44rem; }
+.account__section { display: flex; flex-direction: column; gap: var(--space-3); }
+.account__muted { color: var(--color-text-secondary); }
+
+.account__facts { display: grid; gap: var(--space-3); margin: 0; }
+.account__facts div { display: grid; grid-template-columns: 6rem 1fr; gap: var(--space-3); }
+.account__facts dt { color: var(--color-text-secondary); font-size: var(--text-sm); }
+.account__facts dd { margin: 0; font-size: var(--text-sm); font-weight: var(--font-medium); overflow-wrap: anywhere; }
+
+.account__danger { border-color: var(--color-danger-bg); }
+.account__danger .form-section-title { color: var(--color-danger-text); }
+
+.account__stores { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.account__store { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--color-border-subtle); }
+.account__store-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.account__store-name { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.account__store-name strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.account__delete-start { flex-shrink: 0; color: var(--color-danger); }
+
+.account__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-danger-bg);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-danger-bg) 40%, var(--color-surface));
+}
+.account__warning { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; color: var(--color-danger-text); }
+.account__warning svg { flex-shrink: 0; margin-top: 2px; }
+.account__confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }

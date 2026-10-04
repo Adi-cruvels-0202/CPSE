@@ -1033,6 +1033,39 @@ export function recordStockMovementRpc({ payload }) {
 }
 
 /**
+ * Stand-in for delete_store (migration 0035): refuses while an order is in
+ * progress, otherwise removes the store and every row that hangs off it.
+ * tests/storeDeleteSql.test.js tests the SQL itself.
+ */
+export function deleteStoreRpc({ p_store_id: storeId }) {
+  if (!tableRows('stores').some((row) => row.id === storeId)) {
+    return { data: null, error: { code: 'P0002', message: 'STORE_NOT_FOUND' } };
+  }
+  const open = tableRows('orders').some(
+    (row) => row.store_id === storeId && !['completed', 'cancelled', 'rejected'].includes(row.status),
+  );
+  if (open) return { data: null, error: { code: 'P0001', message: 'ORDERS_IN_PROGRESS' } };
+
+  const remove = (table, gone) => db.tables.set(table, tableRows(table).filter((row) => !gone(row)));
+  const ids = (table) => new Set(tableRows(table).filter((row) => row.store_id === storeId).map((row) => row.id));
+  const products = ids('products');
+  const orders = ids('orders');
+  const sales = ids('sales');
+  const carts = ids('carts');
+  const khata = ids('khata_accounts');
+
+  remove('product_images', (row) => products.has(row.product_id));
+  remove('product_variants', (row) => products.has(row.product_id));
+  remove('cart_items', (row) => carts.has(row.cart_id));
+  for (const table of ['order_items', 'order_status_history', 'payments']) remove(table, (row) => orders.has(row.order_id));
+  remove('sale_items', (row) => sales.has(row.sale_id));
+  remove('khata_transactions', (row) => khata.has(row.account_id));
+  for (const table of KNOWN_TABLES) remove(table, (row) => row.store_id === storeId);
+  remove('stores', (row) => row.id === storeId);
+  return { data: null, error: null };
+}
+
+/**
  * Stand-in for create_sale (migration 0033): idempotent replay, invoice number
  * from the store's counter, available-stock check, deduction and ledger rows.
  * tests/salesSql.test.js tests the SQL itself.
@@ -1261,6 +1294,7 @@ export function createSupabaseMock() {
         if (name === 'replace_product_images') return replaceProductImagesRpc(args);
         if (name === 'record_stock_movement') return recordStockMovementRpc(args);
         if (name === 'create_sale') return createSaleRpc(args);
+        if (name === 'delete_store') return deleteStoreRpc(args);
         throw new Error(`No mock for RPC "${name}"`);
       }),
     },

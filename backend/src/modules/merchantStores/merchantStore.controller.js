@@ -28,6 +28,11 @@ export const unpublishStore = asyncHandler(async (req, res) => {
   sendSuccess(res, { store: await storeService.unpublishStore(req.store) });
 });
 
+export const deleteStore = asyncHandler(async (req, res) => {
+  await storeService.deleteStore(req.store, req.body);
+  sendNoContent(res);
+});
+
 export const setHours = asyncHandler(async (req, res) => {
   sendSuccess(res, { store: await storeService.setHours(req.store, req.body) });
 });

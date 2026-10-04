@@ -37,7 +37,9 @@
 .shell__header {
   position: sticky;
   top: 0;
-  z-index: var(--z-topnav);
+  /* Above the tab row, which comes later in the page: the header's menus
+     open down over it. */
+  z-index: calc(var(--z-topnav) + 1);
   height: var(--header-height);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border-subtle);
@@ -57,9 +59,9 @@
 
 .shell__actions { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 
-/* The store switcher: a quiet pill, not a form field. */
+/* The store switcher: a quiet pill that opens the same menu as the account. */
+.shell__store-wrap { position: relative; min-width: 0; }
 .shell__store {
-  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -70,28 +72,36 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
   background: var(--color-surface);
-}
-.shell__store:hover { background: var(--green-50); border-color: var(--green-200); }
-.shell__store-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: var(--radius-full); background: var(--ink-250); }
-.shell__store-dot--live { background: var(--green-600); }
-.shell__store-select {
-  appearance: none;
-  min-width: 0;
-  border: 0;
-  background: transparent;
   color: var(--color-text);
   font: inherit;
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-  text-overflow: ellipsis;
   cursor: pointer;
-  padding-right: var(--space-4);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235c7268' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right center;
 }
-.shell__store-select:focus { outline: none; }
-.shell__store:focus-within { outline: 2px solid var(--green-600); outline-offset: 2px; }
+.shell__store:hover,
+.shell__store[aria-expanded='true'] { background: var(--green-50); border-color: var(--green-200); }
+.shell__store:focus-visible { outline: 2px solid var(--green-600); outline-offset: 2px; }
+.shell__store-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: var(--radius-full); background: var(--ink-250); }
+.shell__store-dot--live { background: var(--green-600); }
+.shell__store-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.shell__store-chevron { flex-shrink: 0; color: var(--color-text-secondary); transition: transform var(--transition-fast); }
+.shell__store[aria-expanded='true'] .shell__store-chevron { transform: rotate(180deg); }
+
+.shell__menu--stores { min-width: 16rem; max-width: min(20rem, calc(100vw - 2 * var(--shell-gutter))); }
+.shell__menu-label {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.shell__menu-item.shell__store-option { display: flex; align-items: center; gap: var(--space-2); }
+.shell__store-option-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.shell__store-option-state { flex-shrink: 0; color: var(--color-text-tertiary); font-size: var(--text-xs); }
+.shell__menu-item.shell__store-option--active { background: var(--green-50); color: var(--green-700); font-weight: var(--font-semibold); }
+.shell__menu-divider { height: 1px; margin: var(--space-1) 0; background: var(--color-border-subtle); }
+.shell__menu-item.shell__menu-item--accent { color: var(--green-700); font-weight: var(--font-semibold); }
 
 .shell__account { position: relative; }
 .shell__avatar {
@@ -232,5 +242,6 @@
 
 @media (max-width: 30rem) {
   .shell__store { max-width: 10rem; }
+  .shell__menu--stores { position: fixed; left: var(--shell-gutter); right: var(--shell-gutter); top: calc(var(--header-height) - var(--space-1)); max-width: none; }
   .shell__brand .brand > span:last-child { display: none; }
 }

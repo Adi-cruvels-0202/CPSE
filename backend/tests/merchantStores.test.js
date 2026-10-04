@@ -18,6 +18,7 @@ const {
   seedStore,
   seedCategory,
   seedProduct,
+  seedProductImage,
 } = await import('./helpers/supabaseMock.js');
 const { slugify } = await import('../src/modules/merchantStores/merchantStore.service.js');
 
@@ -392,5 +393,76 @@ describe('PUT /api/v1/merchant/stores/:storeId/payments (S-16)', () => {
 
     const cash = await placeOrder(customer, { storeId: STORE_ID, paymentMethod: 'cash' });
     expect(cash.status).toBe(201);
+  });
+});
+
+describe('DELETE /api/v1/merchant/stores/:storeId (S-19)', () => {
+  const remove = (body, id = STORE_ID) => api().delete(storesUrl(`/${id}`)).set(signIn()).send(body);
+  const rows = (table) => db.tables.get(table) ?? [];
+
+  it('deletes the store and everything in it once its name is typed', async () => {
+    seedOwnStore({ name: 'Sharma Kirana' });
+    seedCategory();
+    const product = seedProduct();
+    seedProductImage({ product_id: product.id });
+
+    const res = await remove({ confirmName: 'Sharma Kirana' });
+
+    expect(res.status).toBe(204);
+    expect(storeRow(STORE_ID)).toBeUndefined();
+    expect(rows('products')).toEqual([]);
+    expect(rows('product_variants')).toEqual([]);
+    expect(rows('product_images')).toEqual([]);
+    expect(rows('categories')).toEqual([]);
+  });
+
+  it('refuses when the typed name does not match, and keeps the store', async () => {
+    seedOwnStore({ name: 'Sharma Kirana' });
+
+    const res = await remove({ confirmName: 'Sharma' });
+
+    expect(res.status).toBe(422);
+    expect(res.body.error.details.issues[0].field).toBe('confirmName');
+    expect(storeRow(STORE_ID)).toBeDefined();
+  });
+
+  it('requires the confirmation', async () => {
+    seedOwnStore();
+    expect((await remove({})).status).toBe(422);
+  });
+
+  it('refuses while an order is still in progress (409)', async () => {
+    seedOwnStore({ name: 'Sharma Kirana', is_published: true, opening_hours: ALWAYS_OPEN, min_order_paise: 0 });
+    seedCategory();
+    const product = seedProduct();
+    const customer = signIn();
+    await addToCart(customer, { storeId: STORE_ID, productId: product.id });
+    expect((await placeOrder(customer, { storeId: STORE_ID, paymentMethod: 'cash' })).status).toBe(201);
+
+    const res = await remove({ confirmName: 'Sharma Kirana' });
+
+    expect(res.status).toBe(409);
+    expect(storeRow(STORE_ID)).toBeDefined();
+  });
+
+  it('takes past orders with it once they are finished', async () => {
+    seedOwnStore({ name: 'Sharma Kirana', is_published: true, opening_hours: ALWAYS_OPEN, min_order_paise: 0 });
+    seedCategory();
+    const product = seedProduct();
+    const customer = signIn();
+    await addToCart(customer, { storeId: STORE_ID, productId: product.id });
+    const order = await placeOrder(customer, { storeId: STORE_ID, paymentMethod: 'cash' });
+    rows('orders').find((row) => row.id === order.body.data.order.id).status = 'completed';
+
+    expect((await remove({ confirmName: 'Sharma Kirana' })).status).toBe(204);
+    expect(rows('orders')).toEqual([]);
+    expect(rows('order_items')).toEqual([]);
+  });
+
+  it("answers 404 for another merchant's store and leaves it alone", async () => {
+    seedStore({ id: OTHER_STORE_ID, slug: 'other', name: 'Other', owner_id: OTHER_MERCHANT_ID });
+
+    expect((await remove({ confirmName: 'Other' }, OTHER_STORE_ID)).status).toBe(404);
+    expect(storeRow(OTHER_STORE_ID)).toBeDefined();
   });
 });

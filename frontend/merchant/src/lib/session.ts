@@ -1,12 +1,12 @@
 /**
- * Where the signed-in session lives — shared with the customer app.
+ * Where the signed-in session lives — this app's own, not the customer app's.
  *
  * Both apps are served from the same origin (the backend hosts the customer
- * app at / and this one at /merchant) and both use the same Supabase login
- * (MERGE_MAPPING D-2), so they read and write the same localStorage entry. A
- * shopkeeper signed in on one is signed in on the other; signing out of
- * either signs out of both. The key and shape match
- * frontend/customer/src/lib/tokens.js.
+ * app at / and this one at /merchant), but a shop account and a customer
+ * account are separate logins (MERGE_MAPPING D-2, revised). So each app keeps
+ * its own localStorage entry: signing in here does not sign anyone in to the
+ * customer app, and signing out of one leaves the other alone. The shape
+ * matches frontend/customer/src/lib/tokens.js; the key does not.
  *
  * localStorage, with the customer app's reasoning: the API returns Supabase's
  * tokens rather than a cookie, and the defence against theft is not having an
@@ -19,7 +19,7 @@ export interface Session {
   expiresAt: number | null;
 }
 
-const KEY = 'cpse.session';
+const KEY = 'cpse.merchant.session';
 let memoryFallback: string | null = null;
 
 function readRaw(): string | null {
@@ -73,7 +73,7 @@ export function clearSession() {
 
 const listeners = new Set<(session: Session | null) => void>();
 
-/** Called when the session changes here, or in the other app in another tab. */
+/** Called when the session changes here, or in this app in another tab. */
 export function onSessionChange(listener: (session: Session | null) => void) {
   listeners.add(listener);
   return () => {
@@ -85,7 +85,7 @@ function notify(session: Session | null) {
   for (const listener of listeners) listener(session);
 }
 
-// Another tab — this app or the customer app — signed in or out.
+// This app in another tab signed in or out.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key === KEY) notify(readSession());

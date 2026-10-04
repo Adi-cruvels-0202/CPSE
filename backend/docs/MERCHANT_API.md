@@ -51,8 +51,10 @@ Pickers that loaded 200–500 products at once (POS, purchases) should use `?sea
 
 ## Roles and ownership
 
-- **One login for everyone** (Supabase Auth, D-2). A merchant is an auth user with a row in
-  `merchants`. The same person can also be a customer.
+- **One Supabase Auth, two kinds of account** (D-2, revised 2026-10-04). A merchant is an auth
+  user with a row in `merchants`. A shop account cannot shop: `POST /auth/login` and every
+  signed-in customer route answer it **403 `SHOP_ACCOUNT`**, and `POST /merchant/auth/login`
+  answers a customer account **403 `CUSTOMER_ACCOUNT`**. One email is one kind of account.
 - A signed-in user who is **not a merchant** calling any `/merchant/*` route → **403
   `MERCHANT_REQUIRED`**. This is a role check, not an ownership check, so 403 is correct here.
 - A `storeId` that does not exist **or belongs to another merchant** → **404 `NOT_FOUND`**. Same
@@ -67,6 +69,8 @@ Pickers that loaded 200–500 products at once (POS, purchases) should use `?sea
 | Status | Code | When |
 |---|---|---|
 | 403 | `MERCHANT_REQUIRED` | Signed in, but the account is not a merchant |
+| 403 | `CUSTOMER_ACCOUNT` | A customer account at `POST /merchant/auth/login` |
+| 403 | `SHOP_ACCOUNT` | A shop account at `POST /auth/login` or on a customer route |
 | 409 | `SLUG_TAKEN` | Store slug already used by another store |
 | 409 | `CATEGORY_NAME_TAKEN` | A category with that name already exists in this store |
 | 409 | `SKU_TAKEN` | SKU already used in this store |
@@ -87,17 +91,18 @@ Everything in `docs/API.md` → *Errors* also applies.
 > ✅ **Built** (`backend/merchant-auth`). The authoritative description is now
 > `docs/API.md` → *Merchant account*; the table below is kept as the agreed original.
 
-Login, refresh, logout, forgot and reset password are the **existing** `/auth/*` endpoints.
+Refresh, logout, forgot and reset password are the **existing** `/auth/*` endpoints. Sign-in is
+`POST /merchant/auth/login` (D-2, revised: separate shop and customer accounts).
 
 | | |
 |---|---|
 | `POST /merchant/auth/register` | **public.** `{ email, password, fullName, phone? }` → **201** `{ merchant, session, emailConfirmationRequired }`. Same rules as customer register: duplicate email **409**, same wording whether or not it exists elsewhere. |
-| `POST /merchant/onboard` | Bearer. `{ fullName?, phone? }` → **201** `{ merchant }`. Turns an existing signed-in account into a merchant. Already a merchant → **200** with the same shape. |
+| `POST /merchant/auth/login` | **public.** `{ email, password }` → `{ merchant, session, roles }`. A customer account → **403 `CUSTOMER_ACCOUNT`**. *(Replaced `POST /merchant/onboard`, removed 2026-10-04.)* |
 | `GET /merchant/me` | Bearer. `{ merchant, stores: [{ id, name, slug, isPublished, logoUrl }] }`. The app calls this after login to pick the active store. **403 `MERCHANT_REQUIRED`** means "offer onboarding". |
 | `PATCH /merchant/me` | Bearer. `{ fullName?, phone? }` → `{ merchant }`. |
 
-`POST /auth/login` gains one **additive** field: `roles: ["customer"] | ["customer", "merchant"]`.
-The customer app ignores it.
+`POST /auth/login` gains one **additive** field, `roles`, now always `["customer"]`: a shop
+account is refused there (403 `SHOP_ACCOUNT`).
 
 ```json
 "merchant": {

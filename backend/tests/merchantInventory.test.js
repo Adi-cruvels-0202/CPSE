@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { api, url } from './helpers/app.js';
-import { ALWAYS_OPEN, addToCart, placeOrder, advance } from './helpers/shopping.js';
+import { ALWAYS_OPEN, addToCart, placeOrder, advance, asShopper } from './helpers/shopping.js';
 
 vi.mock('../src/lib/supabase.js', async () => {
   const { createSupabaseMock } = await import('./helpers/supabaseMock.js');
@@ -11,6 +11,7 @@ const { supabaseAdmin } = await import('../src/lib/supabase.js');
 const {
   db,
   CUSTOMER_ID,
+  SHOPPER_ID,
   STORE_ID,
   resetDb,
   seedCustomer,
@@ -55,7 +56,7 @@ const history = (query = '') => api().get(at(`/history${query}`)).set(signIn());
 
 /** A customer order holding `quantity` units, as the cart and checkout make it. */
 async function customerOrder(quantity) {
-  const auth = signIn();
+  const auth = asShopper();
   await addToCart(auth, { storeId: STORE_ID, productId: rice.id, quantity });
   const { body } = await placeOrder(auth, { storeId: STORE_ID });
   return body.data.order;
@@ -195,7 +196,7 @@ describe('GET …/inventory/history', () => {
       reservedChange: 2,
       availableAfter: 13,
       reference: { type: 'order', id: order.id, number: order.orderNumber },
-      performedBy: { type: 'customer', id: CUSTOMER_ID },
+      performedBy: { type: 'customer', id: SHOPPER_ID },
     });
     expect(body.data.entries[0].performedBy).toEqual({ type: 'system', id: null });
     expect(body.meta).toMatchObject({ page: 1, total: 3 });

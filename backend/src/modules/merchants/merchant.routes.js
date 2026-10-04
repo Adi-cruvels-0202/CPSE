@@ -10,15 +10,13 @@ import { merchantOrderRouter } from '../merchantOrders/merchantOrder.routes.js';
 import { saleRouter } from '../merchantSales/sale.routes.js';
 import { dashboardRouter } from '../merchantDashboard/dashboard.routes.js';
 import * as controller from './merchant.controller.js';
-import {
-  registerMerchantSchema,
-  onboardMerchantSchema,
-  updateMerchantSchema,
-} from './merchant.schemas.js';
+import { loginSchema } from '../auth/auth.schemas.js';
+import { registerMerchantSchema, updateMerchantSchema } from './merchant.schemas.js';
 
 /**
- * Everything under /merchant (MERGE_MAPPING D-11). Login, refresh, logout and
- * password reset are the shared /auth endpoints — one auth for both apps.
+ * Everything under /merchant (MERGE_MAPPING D-11). Refresh, logout and
+ * password reset are the shared /auth endpoints; sign-in is not, because a
+ * shop account and a customer account are separate logins (D-2, revised).
  *
  * Guard order on every route:
  *
@@ -39,13 +37,10 @@ merchantRouter.post(
   controller.register,
 );
 
-merchantRouter.post(
-  '/onboard',
-  writeLimiter,
-  requireAuth,
-  validate({ body: onboardMerchantSchema }),
-  controller.onboard,
-);
+// The shop app's own sign-in: it refuses a customer account, as /auth/login
+// refuses a shop account (D-2, revised). Refresh, logout and password reset
+// stay the shared /auth endpoints.
+merchantRouter.post('/auth/login', authLimiter, validate({ body: loginSchema }), controller.login);
 
 merchantRouter.get('/me', requireAuth, requireMerchant, controller.getMe);
 merchantRouter.patch(

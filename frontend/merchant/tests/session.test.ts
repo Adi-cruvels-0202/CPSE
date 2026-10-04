@@ -8,18 +8,18 @@ describe('the shared session', () => {
   // which is what makes one login work in both apps.
   it('lives under the key the customer app uses', () => {
     writeSession({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 });
-    expect(JSON.parse(window.localStorage.getItem('cpse.session')!)).toEqual({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 });
+    expect(JSON.parse(window.localStorage.getItem('cpse.merchant.session')!)).toEqual({ accessToken: 'a', refreshToken: 'r', expiresAt: 1 });
   });
 
   it('reads what the customer app wrote', () => {
-    window.localStorage.setItem('cpse.session', JSON.stringify({ accessToken: 'c', refreshToken: 'd', expiresAt: null }));
+    window.localStorage.setItem('cpse.merchant.session', JSON.stringify({ accessToken: 'c', refreshToken: 'd', expiresAt: null }));
     expect(readSession()).toEqual({ accessToken: 'c', refreshToken: 'd', expiresAt: null });
   });
 
   it('treats a corrupt entry as signed out, and clears it', () => {
-    window.localStorage.setItem('cpse.session', '{nope');
+    window.localStorage.setItem('cpse.merchant.session', '{nope');
     expect(readSession()).toBeNull();
-    expect(window.localStorage.getItem('cpse.session')).toBeNull();
+    expect(window.localStorage.getItem('cpse.merchant.session')).toBeNull();
   });
 
   it('tells listeners when it changes', () => {

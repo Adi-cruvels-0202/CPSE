@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
+import { requireCustomer } from '../../middleware/requireAuth.js';
 import * as controller from './cart.controller.js';
 import {
   cartQuery,
@@ -13,7 +13,7 @@ import {
 /** A cart always belongs to somebody, so the whole router is authenticated. */
 export const cartRouter = Router();
 
-cartRouter.use(requireAuth);
+cartRouter.use(requireCustomer);
 
 cartRouter.get('/', validate({ query: cartQuery }), controller.getCart);
 cartRouter.delete('/', validate({ query: cartQuery }), controller.clearCart);

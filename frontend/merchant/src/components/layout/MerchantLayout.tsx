@@ -194,7 +194,6 @@ function AccountMenu() {
           <NavLink role="menuitem" className="shell__menu-item" to="/inventory/history">Stock history</NavLink>
           <NavLink role="menuitem" className="shell__menu-item" to="/sales">Counter sales history</NavLink>
           <NavLink role="menuitem" className="shell__menu-item" to="/account">Account settings</NavLink>
-          <a role="menuitem" className="shell__menu-item" href="/">Go shopping</a>
           <div className="shell__menu-divider" role="separator" />
           <button role="menuitem" type="button" className="shell__menu-item shell__menu-item--danger" onClick={async () => { await logout(); navigate('/login'); }}>
             Sign out

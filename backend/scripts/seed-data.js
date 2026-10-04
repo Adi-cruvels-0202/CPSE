@@ -22,7 +22,8 @@ export const testCustomer = {
 /**
  * The shopkeeper who owns every seeded store, so the merchant side can be
  * walked end to end with the same catalogue the customer sees (WORK_PLAN Day 5).
- * Also a customer, like every account (D-2).
+ * A shop account only: it cannot sign in to the customer app (D-2, revised) —
+ * shop as testCustomer.
  */
 export const demoMerchant = {
   email: 'demo.merchant@cpse.local',

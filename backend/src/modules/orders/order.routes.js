@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
+import { requireCustomer } from '../../middleware/requireAuth.js';
 import { writeLimiter } from '../../middleware/rateLimit.js';
 import * as controller from './order.controller.js';
 import { emptyBody } from '../../lib/schemas.js';
@@ -14,7 +14,7 @@ import {
 /** Every order belongs to somebody, so the whole router is authenticated. */
 export const orderRouter = Router();
 
-orderRouter.use(requireAuth);
+orderRouter.use(requireCustomer);
 
 // Checklist 10.7: order creation runs a transaction, reserves stock and can
 // open a payment intent. It is metered more tightly than a read.

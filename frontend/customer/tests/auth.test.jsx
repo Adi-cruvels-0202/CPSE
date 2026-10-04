@@ -85,6 +85,32 @@ describe('boot', () => {
     expect(readSession()).toBeNull();
   });
 
+  it('discards a stored shop-account session (SHOP_ACCOUNT)', async () => {
+    // Left over from when both apps shared one session: a shop account is
+    // not a customer (D-2, revised).
+    writeSession(sessionFixture());
+    mockFetch([fail(403, 'SHOP_ACCOUNT')]);
+
+    renderAuth();
+
+    await waitFor(() => expect(status()).toBe('signedOut'));
+    expect(readSession()).toBeNull();
+  });
+
+  it('leaves a shop account signed out at sign-in, with the server\'s reason', async () => {
+    mockFetch([fail(403, 'SHOP_ACCOUNT', 'This email is a shop account.')]);
+
+    renderAuth();
+    await waitFor(() => expect(status()).toBe('signedOut'));
+
+    await act(async () => {
+      screen.getByText('sign in').click();
+    });
+
+    expect(shownError()).toBe('SHOP_ACCOUNT: This email is a shop account.');
+    expect(readSession()).toBeNull();
+  });
+
   it('keeps the session when the profile call fails for any other reason', async () => {
     writeSession(sessionFixture());
     mockFetch([fail(500, 'INTERNAL_ERROR')]);

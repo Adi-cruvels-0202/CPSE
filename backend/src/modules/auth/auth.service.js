@@ -6,6 +6,7 @@ import {
   badRequest,
   unprocessable,
   serviceUnavailable,
+  shopAccount,
 } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
@@ -137,8 +138,8 @@ export async function loadCustomer(id) {
 export const MERCHANT_COLUMNS = 'id, email, full_name, phone, created_at, updated_at';
 
 /**
- * The merchants row (migration 0024), or null for someone who is only a
- * customer. Lives beside loadCustomer because sign-in needs both.
+ * The merchants row (migration 0024), or null for a customer account. Lives
+ * beside loadCustomer because sign-in needs both.
  */
 export async function loadMerchant(id) {
   const { data, error } = await supabaseAdmin
@@ -149,14 +150,6 @@ export async function loadMerchant(id) {
 
   if (error) throw internal('Could not load the merchant profile.');
   return data ?? null;
-}
-
-/**
- * What the account can act as. Everyone is a customer — the signup trigger
- * gives every auth user a customers row — and some are merchants too (D-2).
- */
-export async function rolesFor(userId) {
-  return (await loadMerchant(userId)) ? ['customer', 'merchant'] : ['customer'];
 }
 
 /**
@@ -189,8 +182,11 @@ export async function register({ email, password, fullName, phone }) {
   };
 }
 
-/** Checklist 2.2. */
-export async function login({ email, password }) {
+/**
+ * Checks the email and password with Supabase and returns its answer — the
+ * part both sign-ins share (this one and POST /merchant/auth/login).
+ */
+export async function signInWithPassword({ email, password }) {
   const { data, error } = await supabaseAnon.auth.signInWithPassword({ email, password });
 
   // An auth service that is briefly unreachable is not a wrong password. D19 says
@@ -207,11 +203,32 @@ export async function login({ email, password }) {
   }
 
   if (error || !data?.session) throw unauthorized(INVALID_CREDENTIALS);
+  return data;
+}
 
-  const [customer, roles] = await Promise.all([loadCustomer(data.user.id), rolesFor(data.user.id)]);
-  // `roles` is additive: the customer app ignores it, the merchant app uses it
-  // to decide between its dashboard and onboarding.
-  return { customer: toPublicCustomer(customer), session: toSession(data.session), roles };
+/**
+ * Ends the one session a refused sign-in just opened — only that one
+ * ('local'), so the account's sessions in its own app carry on.
+ */
+export async function endSession(accessToken) {
+  const { error } = await supabaseAdmin.auth.admin.signOut(accessToken, 'local');
+  if (error) logger.warn('Could not end a refused session', { status: error.status });
+}
+
+/**
+ * Checklist 2.2 — the customer app's sign-in. A shop account is refused
+ * (403 SHOP_ACCOUNT): shop and customer accounts are separate logins with
+ * separate emails (MERGE_MAPPING D-2, revised).
+ */
+export async function login(credentials) {
+  const data = await signInWithPassword(credentials);
+
+  const [customer, merchant] = await Promise.all([loadCustomer(data.user.id), loadMerchant(data.user.id)]);
+  if (merchant) {
+    await endSession(data.session.access_token);
+    throw shopAccount();
+  }
+  return { customer: toPublicCustomer(customer), session: toSession(data.session), roles: ['customer'] };
 }
 
 /** Checklist 2.3. Rotates the session; Supabase invalidates the old refresh token. */

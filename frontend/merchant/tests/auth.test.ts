@@ -71,9 +71,10 @@ describe('AuthProvider', () => {
     expect(seen?.status).toBe('unavailable');
   });
 
-  it('still offers onboarding to an account that is only a customer', async () => {
-    me.mockRejectedValue(new ApiError({ status: 403, code: 'MERCHANT_REQUIRED', message: 'Merchant account required.' }));
+  it('drops a session that is not a shop account’s, rather than offering to turn it into one', async () => {
+    me.mockRejectedValue(new ApiError({ status: 403, code: 'MERCHANT_REQUIRED', message: 'This account is not a shop account.' }));
     await mount();
-    expect(seen?.status).toBe('needsOnboarding');
+    expect(seen?.status).toBe('signedOut');
+    expect(localStorage.getItem('cpse.merchant.session')).toBeNull();
   });
 });

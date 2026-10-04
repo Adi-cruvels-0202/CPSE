@@ -31,17 +31,6 @@ export const registerMerchantSchema = z
   })
   .strict();
 
-/**
- * An existing signed-in account becoming a merchant. Both fields optional:
- * anything left out is taken from the customer profile.
- */
-export const onboardMerchantSchema = z
-  .object({
-    fullName: fullName.optional(),
-    phone: phone.optional(),
-  })
-  .strict();
-
 export const updateMerchantSchema = z
   .object({
     fullName: fullName.optional(),

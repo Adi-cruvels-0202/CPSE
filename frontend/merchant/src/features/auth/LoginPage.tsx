@@ -12,7 +12,7 @@ export function AuthBrand() {
         <div style={{ marginBottom: 'var(--space-8)' }}><Logo size="xl" variant="inverse" /></div>
         <h1 className="auth-brand-heading">Your shop, online and at the counter.</h1>
         <p className="auth-brand-text">
-          Take orders from your neighbourhood, keep stock straight and ring up walk-ins — with the same login you shop with.
+          Take orders from your neighbourhood, keep stock straight and ring up walk-ins.
         </p>
       </div>
     </div>
@@ -20,8 +20,9 @@ export function AuthBrand() {
 }
 
 /**
- * The same login as the customer app (one Supabase account): a shopkeeper who
- * also shops signs in with the same email and password.
+ * Shop accounts only (MERGE_MAPPING D-2, revised). A customer account gets the
+ * server's CUSTOMER_ACCOUNT message; a shopkeeper who also shops has a
+ * separate customer account with another email.
  */
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -35,7 +36,8 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
     try {
-      // The route guards move on to the dashboard or onboarding by themselves.
+      // The route guards move on to the dashboard by themselves. A customer
+      // account is refused by the server (CUSTOMER_ACCOUNT) and its message shown.
       await login(email, password);
     } catch (err) {
       setError(errorMessage(err, 'Sign in failed. Please try again.'));

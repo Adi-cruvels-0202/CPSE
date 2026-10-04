@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
+import { requireCustomer } from '../../middleware/requireAuth.js';
 import * as controller from './address.controller.js';
 import { addressParams, createAddressSchema, updateAddressSchema } from './address.schemas.js';
 import { emptyBody } from '../../lib/schemas.js';
@@ -8,7 +8,7 @@ import { emptyBody } from '../../lib/schemas.js';
 /** Checklist 6.6: authenticated throughout — an address always has an owner. */
 export const addressRouter = Router();
 
-addressRouter.use(requireAuth);
+addressRouter.use(requireCustomer);
 
 addressRouter.get('/', controller.listAddresses);
 addressRouter.post('/', validate({ body: createAddressSchema }), controller.createAddress);

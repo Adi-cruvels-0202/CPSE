@@ -109,7 +109,9 @@ anonymous and a boolean when signed in.
 | 400 | `MALFORMED_JSON` | The body is not valid JSON |
 | 401 | `UNAUTHORIZED` | No token, a junk token, or an expired one |
 | 403 | `FORBIDDEN` | Disallowed CORS origin. Never used for ownership |
-| 403 | `MERCHANT_REQUIRED` | Signed in, but not a merchant, on a `/merchant` route. A role check, not ownership — the merchant app offers onboarding |
+| 403 | `MERCHANT_REQUIRED` | Signed in with a customer account on a `/merchant` route. A role check, not ownership |
+| 403 | `SHOP_ACCOUNT` | A shop account signing in to the customer app, or on any signed-in customer route. Shop and customer accounts are separate logins — to shop, sign up with another email |
+| 403 | `CUSTOMER_ACCOUNT` | A customer account signing in to the shop app. To open a shop, sign up with another email |
 | 404 | `NOT_FOUND` | The resource does not exist **or belongs to someone else** |
 | 404 | `ROUTE_NOT_FOUND` | No such endpoint |
 | 409 | `CONFLICT` | An illegal state change — cancelling a delivered order, settling a settled payment, publishing a published store |
@@ -168,7 +170,7 @@ addresses, cart items, orders, payments, notifications and khata accounts.
 | | |
 |---|---|
 | `POST /auth/register` | **public.** `{ email, password, fullName, phone? }` → **201** `{ customer, session, emailConfirmationRequired }`. `session` is `null` when email confirmation is on. A duplicate email is **409**. |
-| `POST /auth/login` | **public.** `{ email, password }` → `{ customer, session, roles }`. `roles` is `["customer"]` or `["customer", "merchant"]`; the customer app can ignore it. **401** on bad credentials, with the same message for an unknown email as for a wrong password. |
+| `POST /auth/login` | **public.** `{ email, password }` → `{ customer, session, roles }`, `roles` always `["customer"]`. **401** on bad credentials, with the same message for an unknown email as for a wrong password. A shop account is **403 `SHOP_ACCOUNT`**, and the session the sign-in opened is ended. |
 | `POST /auth/refresh` | **public.** `{ refreshToken }` → a rotated `{ session }`. |
 | `POST /auth/logout` | Bearer. No body. **204**. Revokes refresh tokens globally. |
 | `POST /auth/forgot-password` | **public.** `{ email }` → always **200**, whether or not the address is registered. |
@@ -372,15 +374,18 @@ on is the one to show.
 
 ### Merchant account
 
-The shopkeeper side shares this login (one Supabase Auth, MERGE_MAPPING D-2): a
-merchant is an account with a merchant profile, and is still a customer too.
-Sign-in, refresh, logout and password reset are the `/auth` endpoints above.
+The shopkeeper side uses the same Supabase Auth, but a **shop account and a
+customer account are separate logins with separate emails** (MERGE_MAPPING D-2,
+revised). A shop account cannot sign in to the customer app or use any customer
+route (**403 `SHOP_ACCOUNT`**); a shopkeeper who wants to shop creates a customer
+account with another email. Refresh, logout and password reset are the shared
+`/auth` endpoints above; sign-in is not.
 
 | | |
 |---|---|
 | `POST /merchant/auth/register` | **public.** `{ email, password, fullName, phone? }` → **201** `{ merchant, session, emailConfirmationRequired }`. Same rules and wording as `/auth/register`: a taken email is **409**; with email confirmation on, `merchant` and `session` are `null`. |
-| `POST /merchant/onboard` | Bearer. `{ fullName?, phone? }` → **201** `{ merchant }`: an existing account becomes a merchant, taking any field left out from its customer profile. Already a merchant → **200**, same shape. |
-| `GET /merchant/me` | Bearer, merchant. `{ merchant, stores: [{ id, name, slug, isPublished, logoUrl }] }`, stores newest first. **403 `MERCHANT_REQUIRED`** means "offer onboarding". |
+| `POST /merchant/auth/login` | **public.** `{ email, password }` → `{ merchant, session, roles: ["merchant"] }`. **401** on bad credentials, worded as `/auth/login`. A customer account is **403 `CUSTOMER_ACCOUNT`**, and the session the sign-in opened is ended. A shop sign-up whose merchant profile was never written is finished here. |
+| `GET /merchant/me` | Bearer, merchant. `{ merchant, stores: [{ id, name, slug, isPublished, logoUrl }] }`, stores newest first. |
 | `PATCH /merchant/me` | Bearer, merchant. `{ fullName?, phone? }` (`phone: null` clears it) → `{ merchant }`. `email` or `id` is a **422**. |
 
 ```json

@@ -33,12 +33,16 @@ export const unauthorized = (message = 'Authentication is required.') =>
 export const forbidden = (message = 'You are not allowed to perform this action.') =>
   new AppError(403, 'FORBIDDEN', message);
 /**
- * A role check, not an ownership check — the caller is signed in but is not a
- * merchant — so 403 is right here, and it tells the merchant app to offer
- * onboarding (MERCHANT_API.md, Roles and ownership).
+ * Role checks, not ownership checks — the caller is signed in as the wrong
+ * kind of account — so 403 is right here. A shop account and a customer
+ * account are separate logins with separate emails (MERGE_MAPPING D-2, revised).
  */
 export const merchantRequired = () =>
-  new AppError(403, 'MERCHANT_REQUIRED', 'This account is not set up as a merchant yet.');
+  new AppError(403, 'MERCHANT_REQUIRED', 'This account is not a shop account.');
+export const shopAccount = () =>
+  new AppError(403, 'SHOP_ACCOUNT', 'This email is a shop account. To shop, create a customer account with a different email.');
+export const customerAccount = () =>
+  new AppError(403, 'CUSTOMER_ACCOUNT', 'This email is a customer account. To open a shop, create a shop account with a different email.');
 /** Category names are unique per store, ignoring case (MERCHANT_RULES C-2). */
 export const categoryNameTaken = (name) =>
   new AppError(409, 'CATEGORY_NAME_TAKEN', `This store already has a category called "${name}".`, { name });

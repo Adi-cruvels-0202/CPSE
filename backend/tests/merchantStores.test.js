@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { api, url } from './helpers/app.js';
-import { ALWAYS_OPEN, addToCart, placeOrder } from './helpers/shopping.js';
+import { ALWAYS_OPEN, addToCart, placeOrder, asShopper } from './helpers/shopping.js';
 
 vi.mock('../src/lib/supabase.js', async () => {
   const { createSupabaseMock } = await import('./helpers/supabaseMock.js');
@@ -12,6 +12,7 @@ const {
   db,
   CUSTOMER_ID,
   STORE_ID,
+  SHOPPER_ID,
   resetDb,
   seedCustomer,
   seedMerchant,
@@ -276,16 +277,16 @@ describe('publishing (S-8, S-9)', () => {
     seedOwnStore({ is_published: true });
     seedCategory();
     const product = seedProduct();
-    db.tables.set('saved_stores', [{ customer_id: CUSTOMER_ID, store_id: STORE_ID, created_at: '2026-10-01T09:00:00Z' }]);
+    db.tables.set('saved_stores', [{ customer_id: SHOPPER_ID, store_id: STORE_ID, created_at: '2026-10-01T09:00:00Z' }]);
 
     const res = await unpublish();
 
     expect(res.status).toBe(200);
     expect((await customerPage()).status).toBe(404);
     expect(
-      (await addToCart(signIn(), { storeId: STORE_ID, productId: product.id })).status,
+      (await addToCart(asShopper(), { storeId: STORE_ID, productId: product.id })).status,
     ).toBe(404);
-    const saved = await api().get(url('/saved-stores')).set(signIn());
+    const saved = await api().get(url('/saved-stores')).set(asShopper());
     expect(saved.body.data.savedStores).toEqual([]);
   });
 
@@ -382,7 +383,7 @@ describe('PUT /api/v1/merchant/stores/:storeId/payments (S-16)', () => {
     const page = await api().get(url(`/stores/${storeRow(STORE_ID).slug}`));
     expect(page.body.data.store.payment).toEqual({ online: false, cashOnDelivery: true });
 
-    const customer = signIn();
+    const customer = asShopper();
     await addToCart(customer, { storeId: STORE_ID, productId: product.id });
     const online = await placeOrder(customer, { storeId: STORE_ID, paymentMethod: 'online' });
     expect(online.status).toBe(422);
@@ -435,7 +436,7 @@ describe('DELETE /api/v1/merchant/stores/:storeId (S-19)', () => {
     seedOwnStore({ name: 'Sharma Kirana', is_published: true, opening_hours: ALWAYS_OPEN, min_order_paise: 0 });
     seedCategory();
     const product = seedProduct();
-    const customer = signIn();
+    const customer = asShopper();
     await addToCart(customer, { storeId: STORE_ID, productId: product.id });
     expect((await placeOrder(customer, { storeId: STORE_ID, paymentMethod: 'cash' })).status).toBe(201);
 
@@ -449,7 +450,7 @@ describe('DELETE /api/v1/merchant/stores/:storeId (S-19)', () => {
     seedOwnStore({ name: 'Sharma Kirana', is_published: true, opening_hours: ALWAYS_OPEN, min_order_paise: 0 });
     seedCategory();
     const product = seedProduct();
-    const customer = signIn();
+    const customer = asShopper();
     await addToCart(customer, { storeId: STORE_ID, productId: product.id });
     const order = await placeOrder(customer, { storeId: STORE_ID, paymentMethod: 'cash' });
     rows('orders').find((row) => row.id === order.body.data.order.id).status = 'completed';

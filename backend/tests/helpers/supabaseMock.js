@@ -19,6 +19,10 @@ import { vi } from 'vitest';
  */
 
 export const CUSTOMER_ID = '9f8a1c2e-5b3d-4a7f-9c1e-2d4b6a8c0e12';
+/** A second customer, for tests where the usual test account is a shop. */
+export const SHOPPER_ID = '9f8a1c2e-5b3d-4a7f-9c1e-2d4b6a8c0e34';
+/** The shop account that advance() acts as, separate from any shopper. */
+export const SHOP_OWNER_ID = '81111111-1111-4111-8111-0000000000a1';
 export const STORE_ID = '11111111-1111-4111-8111-000000000001';
 export const CATEGORY_ID = '21111111-1111-4111-8111-000000000001';
 
@@ -178,8 +182,11 @@ export function customerRow(overrides = {}) {
 export const seedCustomer = (overrides = {}) => insert('customers', customerRow(overrides));
 
 /**
- * A merchants row (migration 0024). Defaults to the test customer's id: the
- * same person, also a merchant, which is the normal case (D-2).
+ * A merchants row (migration 0024). Defaults to the test customer's id, so a
+ * merchant test can sign in with the usual helper; that account is then a shop
+ * account and the customer routes refuse it (D-2, revised). A test that needs
+ * someone to shop at the same time signs in a separate shopper
+ * (helpers/shopping.js, asShopper).
  */
 export function seedMerchant(overrides = {}) {
   return insert('merchants', {

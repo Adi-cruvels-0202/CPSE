@@ -6,15 +6,14 @@ import type { Merchant, StoreSummary } from '../api/types';
 import { readSession, writeSession, clearSession, onSessionChange } from '../lib/session';
 
 /**
- * Who is signed in, and whether they are a merchant (MERGE_MAPPING D-2).
- *
- * One login for both apps, so there are four states, not two:
+ * Who is signed in to the shop app (MERGE_MAPPING D-2, revised: a shop account
+ * and a customer account are separate logins). Sign-in goes through
+ * /merchant/auth/login, which refuses a customer account, so a session here is
+ * always a shop account's. The states:
  *
  *   loading     — a session exists and /merchant/me is being asked;
- *   signedOut   — no session;
- *   needsOnboarding — signed in, but the account is only a customer so far
- *                 (/merchant/me says 403 MERCHANT_REQUIRED). The app offers
- *                 "set up my shop" rather than an error;
+ *   signedOut   — no session (or a session that turned out not to be a
+ *                 shop account's — /merchant/me 403 — which is dropped);
  *   merchant    — signed in as a merchant;
  *   unavailable — signed in, but /merchant/me failed for another reason
  *                 (offline, rate-limited, server down) before we ever knew
@@ -22,7 +21,7 @@ import { readSession, writeSession, clearSession, onSessionChange } from '../lib
  *                 store", which an empty store list would otherwise mean.
  */
 
-type Status = 'loading' | 'signedOut' | 'needsOnboarding' | 'merchant' | 'unavailable';
+type Status = 'loading' | 'signedOut' | 'merchant' | 'unavailable';
 
 interface AuthContextType {
   status: Status;
@@ -30,7 +29,6 @@ interface AuthContextType {
   stores: StoreSummary[];
   login: (email: string, password: string) => Promise<void>;
   register: (input: { fullName: string; email: string; password: string; phone?: string }) => Promise<{ confirmEmail: boolean }>;
-  onboard: (input: { fullName?: string; phone?: string }) => Promise<void>;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -56,12 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStores(me.stores);
       setStatus('merchant');
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'MERCHANT_REQUIRED') {
+      if (error instanceof ApiError && (error.code === 'MERCHANT_REQUIRED' || error.status === 401)) {
+        clearSession();
         setMerchant(null);
         setStores([]);
-        setStatus('needsOnboarding');
-      } else if (error instanceof ApiError && error.status === 401) {
-        clearSession();
         setStatus('signedOut');
       } else {
         // Stay signed in. A merchant already loaded keeps their stores; one
@@ -74,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refresh().catch(() => undefined);
-    // Signing in or out in the customer app (another tab) applies here too.
+    // Signing in or out of this app in another tab applies here too.
     return onSessionChange(() => {
       queryClient.clear();
       refresh().catch(() => undefined);
@@ -83,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const { session } = await authApi.login({ email, password });
+      const { session } = await merchantApi.login({ email, password });
       writeSession(session);
       await refresh();
     },
@@ -97,14 +93,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeSession(result.session);
       await refresh();
       return { confirmEmail: false };
-    },
-    [refresh],
-  );
-
-  const onboard = useCallback(
-    async (input: { fullName?: string; phone?: string }) => {
-      await merchantApi.onboard(input);
-      await refresh();
     },
     [refresh],
   );
@@ -123,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient]);
 
   return (
-    <AuthContext.Provider value={{ status, merchant, stores, login, register, onboard, refresh, logout }}>
+    <AuthContext.Provider value={{ status, merchant, stores, login, register, refresh, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -31,8 +31,9 @@ export const authApi = {
 export const merchantApi = {
   register: (body: { email: string; password: string; fullName: string; phone?: string }) =>
     api.post<{ merchant: Merchant | null; session: Session | null; emailConfirmationRequired: boolean }>('/merchant/auth/register', body),
-  /** Turns the signed-in account (a customer) into a merchant too. */
-  onboard: (body: { fullName?: string; phone?: string }) => api.post<{ merchant: Merchant }>('/merchant/onboard', body),
+  /** The shop sign-in: a customer account is refused (403 CUSTOMER_ACCOUNT). */
+  login: (body: { email: string; password: string }) =>
+    api.post<{ merchant: Merchant; session: Session; roles: string[] }>('/merchant/auth/login', body),
   me: () => api.get<{ merchant: Merchant; stores: StoreSummary[] }>('/merchant/me'),
   updateMe: (body: { fullName?: string; phone?: string | null }) => api.patch<{ merchant: Merchant }>('/merchant/me', body),
 };

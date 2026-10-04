@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
+import { requireCustomer } from '../../middleware/requireAuth.js';
 import * as controller from './savedStore.controller.js';
 import { savedStoreListQuery } from './savedStore.schemas.js';
 
@@ -13,5 +13,5 @@ import { savedStoreListQuery } from './savedStore.schemas.js';
  */
 export const savedStoreRouter = Router();
 
-savedStoreRouter.use(requireAuth);
+savedStoreRouter.use(requireCustomer);
 savedStoreRouter.get('/', validate({ query: savedStoreListQuery }), controller.listSavedStores);

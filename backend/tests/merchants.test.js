@@ -112,83 +112,116 @@ describe('POST /api/v1/merchant/auth/register', () => {
   });
 });
 
-describe('POST /api/v1/auth/login — roles', () => {
-  const login = () =>
-    api().post(url('/auth/login')).send({ email: 'test.customer@cpse.local', password: 'CpseTest!2026' });
+/**
+ * A shop account and a customer account are separate logins with separate
+ * emails (MERGE_MAPPING D-2, revised): each sign-in refuses the other kind,
+ * and the customer routes refuse a shop account.
+ */
+describe('separate shop and customer accounts (D-2, revised)', () => {
+  const credentials = { email: 'test.customer@cpse.local', password: 'CpseTest!2026' };
+  const customerLogin = () => api().post(url('/auth/login')).send(credentials);
+  const shopLogin = () => api().post(url('/merchant/auth/login')).send(credentials);
+  const signInAs = (user) =>
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: CUSTOMER_ID, email: credentials.email, user_metadata: {}, ...user }, session: sessionFixture() },
+      error: null,
+    });
 
   beforeEach(() => {
     seedCustomer();
-    supabaseAnon.auth.signInWithPassword.mockResolvedValue({
-      data: { user: { id: CUSTOMER_ID }, session: sessionFixture() },
-      error: null,
-    });
+    signInAs();
+    supabaseAdmin.auth.admin.signOut.mockResolvedValue({ error: null });
   });
 
-  it('is just a customer without a merchant profile', async () => {
-    const { body } = await login();
+  it('signs a customer in to the customer app', async () => {
+    const { status, body } = await customerLogin();
+    expect(status).toBe(200);
     expect(body.data.roles).toEqual(['customer']);
   });
 
-  it('is both with one', async () => {
+  it('refuses a shop account at the customer sign-in, and ends that session only', async () => {
     seedMerchant();
-    const { body } = await login();
-    expect(body.data.roles).toEqual(['customer', 'merchant']);
-  });
-});
 
-describe('POST /api/v1/merchant/onboard', () => {
-  beforeEach(() => {
-    seedCustomer({ full_name: 'Test Customer', phone: '+919876543210' });
+    const res = await customerLogin();
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('SHOP_ACCOUNT');
+    expect(res.body.data).toBeUndefined();
+    expect(supabaseAdmin.auth.admin.signOut).toHaveBeenCalledWith('access-token-abc', 'local');
   });
 
-  it('turns a signed-in customer into a merchant, taking their profile', async () => {
-    const res = await api().post(url('/merchant/onboard')).set(signIn()).send({});
+  it('signs a shop account in to the shop app', async () => {
+    seedMerchant();
 
-    expect(res.status).toBe(201);
-    expect(res.body.data.merchant).toMatchObject({
-      id: CUSTOMER_ID,
-      email: 'test.customer@cpse.local',
-      fullName: 'Test Customer',
-      phone: '+919876543210',
-    });
+    const { status, body } = await shopLogin();
+
+    expect(status).toBe(200);
+    expect(body.data.merchant).toMatchObject({ id: CUSTOMER_ID, fullName: 'Test Merchant' });
+    expect(body.data.session.accessToken).toBe('access-token-abc');
+    expect(body.data.roles).toEqual(['merchant']);
   });
 
-  it('uses the name and phone sent, when sent', async () => {
-    const res = await api()
-      .post(url('/merchant/onboard'))
-      .set(signIn())
-      .send({ fullName: 'Sharma Stores', phone: '+911234567890' });
+  it('refuses a customer account at the shop sign-in', async () => {
+    const res = await shopLogin();
 
-    expect(res.body.data.merchant).toMatchObject({ fullName: 'Sharma Stores', phone: '+911234567890' });
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('CUSTOMER_ACCOUNT');
+    expect(supabaseAdmin.auth.admin.signOut).toHaveBeenCalledWith('access-token-abc', 'local');
+    expect(merchants()).toHaveLength(0);
   });
 
-  it('is idempotent: a second call answers 200 with the same merchant', async () => {
-    const auth = signIn();
-    await api().post(url('/merchant/onboard')).set(auth).send({});
+  it('finishes a shop sign-up whose merchant profile was never written', async () => {
+    signInAs({ user_metadata: { account_type: 'merchant', full_name: 'Sharma Stores', phone: '+911234567890' } });
 
-    const res = await api().post(url('/merchant/onboard')).set(auth).send({ fullName: 'Ignored' });
+    const { status, body } = await shopLogin();
 
-    expect(res.status).toBe(200);
-    expect(res.body.data.merchant.fullName).toBe('Test Customer');
+    expect(status).toBe(200);
+    expect(body.data.merchant).toMatchObject({ id: CUSTOMER_ID, fullName: 'Sharma Stores', phone: '+911234567890' });
     expect(merchants()).toHaveLength(1);
   });
 
-  it('survives two onboard calls racing for the same account', async () => {
-    const { onboardMerchant } = await import('../src/modules/merchants/merchant.service.js');
-    // This call looks first and finds no merchant…
-    const pending = onboardMerchant({ id: CUSTOMER_ID, email: 'test.customer@cpse.local' }, {});
-    // …then the other call's row lands, so this call's insert hits the primary key.
-    seedMerchant({ full_name: 'Won the race' });
-    db.uniqueViolationOnInsert = { code: '23505', message: 'duplicate key value violates unique constraint "merchants_pkey"' };
+  it('answers a wrong password the same at both sign-ins', async () => {
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({ data: { user: null, session: null }, error: authError('Invalid login credentials') });
 
-    const { merchant, created } = await pending;
-    expect(created).toBe(false);
-    expect(merchant.fullName).toBe('Won the race');
+    for (const res of [await customerLogin(), await shopLogin()]) {
+      expect(res.status).toBe(401);
+      expect(res.body.error.message).toBe('Email or password is incorrect.');
+    }
+  });
+
+  it('marks a shop sign-up as a shop account', async () => {
+    supabaseAnon.auth.signUp.mockResolvedValue({ data: { user: null, session: null }, error: null });
+    await api().post(url('/merchant/auth/register')).send({ email: 'owner@shop.in', password: 'CpseMerchant!2026', fullName: 'Owner' });
+
+    expect(supabaseAnon.auth.signUp.mock.calls[0][0].options.data.account_type).toBe('merchant');
+  });
+
+  it.each([
+    ['GET', '/me'],
+    ['GET', '/cart'],
+    ['GET', '/orders'],
+    ['GET', '/saved-stores'],
+  ])('refuses a shop account on %s %s (403 SHOP_ACCOUNT)', async (method, path) => {
+    seedMerchant();
+
+    const res = await api()[method.toLowerCase()](url(path)).set(signIn());
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('SHOP_ACCOUNT');
+  });
+
+  it('shows a shop account the storefront as a visitor', async () => {
+    seedMerchant();
+    seedStore({ is_published: true });
+
+    const res = await api().get(url(`/stores/sharma-kirana`)).set(signIn());
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.store.isSaved ?? false).toBe(false);
   });
 });
 
 describe('GET /api/v1/merchant/me', () => {
-  it('is 403 MERCHANT_REQUIRED for a customer, so the app can offer onboarding', async () => {
+  it('is 403 MERCHANT_REQUIRED for a customer account', async () => {
     seedCustomer();
 
     const res = await api().get(url('/merchant/me')).set(signIn());

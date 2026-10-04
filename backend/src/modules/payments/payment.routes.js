@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
+import { requireCustomer } from '../../middleware/requireAuth.js';
 import { webhookLimiter, writeLimiter } from '../../middleware/rateLimit.js';
 import * as controller from './payment.controller.js';
 import { orderIdParams, verifyPaymentSchema, webhookSchema } from './payment.schemas.js';
@@ -11,7 +11,7 @@ export const paymentRouter = Router();
 /** Checklist 7.3. Public: the checkout screen needs it before anything exists. */
 paymentRouter.get('/methods', controller.getMethods);
 
-/** Checklist 7.11. No requireAuth — the gateway authenticates with a signature. */
+/** Checklist 7.11. No requireCustomer — the gateway authenticates with a signature. */
 paymentRouter.post(
   '/webhook',
   webhookLimiter,
@@ -22,7 +22,7 @@ paymentRouter.post(
 paymentRouter.post(
   '/:orderId/initiate',
   writeLimiter,
-  requireAuth,
+  ...requireCustomer,
   validate({ params: orderIdParams, body: emptyBody }),
   controller.initiate,
 );
@@ -30,7 +30,7 @@ paymentRouter.post(
 paymentRouter.post(
   '/:orderId/verify',
   writeLimiter,
-  requireAuth,
+  ...requireCustomer,
   validate({ params: orderIdParams, body: verifyPaymentSchema }),
   controller.verify,
 );

@@ -8,7 +8,7 @@ vi.mock('../src/lib/supabase.js', async () => {
 });
 
 const { supabaseAdmin } = await import('../src/lib/supabase.js');
-const { CUSTOMER_ID, STORE_ID, resetDb, seedCustomer, seedStore } =
+const { CUSTOMER_ID, STORE_ID, resetDb, seedCustomer, seedMerchant, seedStore } =
   await import('./helpers/supabaseMock.js');
 const { apiRouter } = await import('../src/routes.js');
 
@@ -109,9 +109,9 @@ describe('10.1 — every route that touches owned data requires authentication',
 });
 
 describe('every /merchant route is for merchants (D-2)', () => {
-  // The two a non-merchant must reach: creating a merchant account, and
-  // turning their customer account into one.
-  const OPEN_TO_CUSTOMERS = new Set(['POST /merchant/auth/register', 'POST /merchant/onboard']);
+  // The two a non-merchant must reach: creating a shop account and signing in
+  // to one (which itself refuses a customer account).
+  const OPEN_TO_CUSTOMERS = new Set(['POST /merchant/auth/register', 'POST /merchant/auth/login']);
   const merchantOnly = ROUTES.filter(
     (route) => route.path.startsWith('/merchant/') && !OPEN_TO_CUSTOMERS.has(routeKey(route)),
   );
@@ -128,6 +128,31 @@ describe('every /merchant route is for merchants (D-2)', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('MERCHANT_REQUIRED');
+    },
+  );
+});
+
+describe('every customer route refuses a shop account (D-2, revised)', () => {
+  // Signed-in routes outside /merchant, except the shared session ones a shop
+  // account needs too.
+  const SHARED = new Set(['POST /auth/logout']);
+  const customerOnly = ROUTES.filter(
+    (route) =>
+      !route.path.startsWith('/merchant/') && !PUBLIC_ROUTES.has(routeKey(route)) && !SHARED.has(routeKey(route)),
+  );
+
+  it('there are customer routes to check', () => {
+    expect(customerOnly.length).toBeGreaterThanOrEqual(20);
+  });
+
+  it.each(customerOnly.map((route) => [routeKey(route), route]))(
+    '%s answers 403 SHOP_ACCOUNT to a signed-in shop account',
+    async (_key, route) => {
+      seedMerchant();
+      const res = await call(route, { slug: 'sharma-kirana', storeId: STORE_ID, default: CUSTOMER_ID }, signIn());
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe('SHOP_ACCOUNT');
     },
   );
 });

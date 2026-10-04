@@ -44,7 +44,10 @@ export function AuthProvider({ children }) {
       // A 401 here means the stored pair is dead and the refresh already failed.
       // Anything else — offline, a 500 — is not a reason to throw the session
       // away; the customer stays signed in and the screen shows its own error.
-      if (error instanceof ApiError && error.isUnauthorized) {
+      // A shop account's session (SHOP_ACCOUNT) is dropped too: shop and
+      // customer accounts are separate logins (D-2, revised), and a shop
+      // session left over from when the apps shared one is not a customer.
+      if (error instanceof ApiError && (error.isUnauthorized || error.code === 'SHOP_ACCOUNT')) {
         clearSession();
         setCustomer(null);
         setStatus('signedOut');

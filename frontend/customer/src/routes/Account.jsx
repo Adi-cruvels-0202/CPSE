@@ -95,13 +95,14 @@ export function Account() {
           label="Khata"
           hint="What you owe your stores"
         />
-        {/* The merchant app — same login, a separate app at /merchant. A
-            customer who is not a merchant yet is offered "set up selling". */}
+        {/* The merchant app, a separate app at /merchant. A shop is its own
+            account with its own email (MERGE_MAPPING D-2, revised), so this
+            opens shop sign-up rather than carrying this login across. */}
         <AccountLink
-          href="/merchant"
+          href="/merchant/register"
           icon={<ShopIcon />}
           label="Sell on CPSE"
-          hint="Your shop dashboard, with this same login"
+          hint="Open a shop — it needs its own email"
         />
       </nav>
 

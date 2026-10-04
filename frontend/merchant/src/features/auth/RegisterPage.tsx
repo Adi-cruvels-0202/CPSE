@@ -34,7 +34,7 @@ export default function RegisterPage() {
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 409
-          ? 'An account with that email already exists. Sign in, and you can set up your shop from there.'
+          ? 'An account with that email already exists. A shop needs its own email — if this one is your shopping account, use a different email for the shop.'
           : errorMessage(err, 'Could not create the account. Please try again.'),
       );
     } finally {

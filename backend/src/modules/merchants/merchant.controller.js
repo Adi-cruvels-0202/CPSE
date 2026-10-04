@@ -6,11 +6,8 @@ export const register = asyncHandler(async (req, res) => {
   sendCreated(res, await merchantService.registerMerchant(req.body));
 });
 
-/** 201 the first time, 200 for someone who is already a merchant. */
-export const onboard = asyncHandler(async (req, res) => {
-  const { merchant, created } = await merchantService.onboardMerchant(req.customer, req.body);
-  if (created) sendCreated(res, { merchant });
-  else sendSuccess(res, { merchant });
+export const login = asyncHandler(async (req, res) => {
+  sendSuccess(res, await merchantService.loginMerchant(req.body));
 });
 
 export const getMe = asyncHandler(async (req, res) => {

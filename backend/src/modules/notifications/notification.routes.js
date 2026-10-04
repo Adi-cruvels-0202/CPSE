@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
+import { requireCustomer } from '../../middleware/requireAuth.js';
 import * as controller from './notification.controller.js';
 import { notificationListQuery, notificationParams } from './notification.schemas.js';
 import { emptyBody } from '../../lib/schemas.js';
@@ -14,7 +14,7 @@ import { emptyBody } from '../../lib/schemas.js';
  */
 export const notificationRouter = Router();
 
-notificationRouter.use(requireAuth);
+notificationRouter.use(requireCustomer);
 
 notificationRouter.get('/', validate({ query: notificationListQuery }), controller.listNotifications);
 notificationRouter.get('/unread-count', controller.getUnreadCount);

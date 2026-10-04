@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
-import { requireAuth } from '../../middleware/requireAuth.js';
+import { requireCustomer } from '../../middleware/requireAuth.js';
 import * as controller from './khata.controller.js';
 import {
   khataAccountParams,
@@ -18,7 +18,7 @@ import {
  */
 export const khataRouter = Router();
 
-khataRouter.use(requireAuth);
+khataRouter.use(requireCustomer);
 
 khataRouter.get('/', controller.listAccounts);
 

@@ -139,7 +139,7 @@ async function ensureAuthUser(account) {
     email: account.email,
     password: account.password,
     email_confirm: true,
-    user_metadata: { full_name: account.full_name, phone: account.phone },
+    user_metadata: { full_name: account.full_name, phone: account.phone, ...(account.account_type && { account_type: account.account_type }) },
   });
 
   if (!error) {
@@ -164,11 +164,11 @@ async function ensureAuthUser(account) {
 const ensureTestCustomer = () => ensureAuthUser(testCustomer);
 
 /**
- * The demo shopkeeper: an auth user (the signup trigger gives them a customers
- * row) plus the merchants row that makes them a merchant (D-2).
+ * The demo shopkeeper: an auth user marked as a shop account plus the
+ * merchants row that makes it one (D-2, revised — a shop account cannot shop).
  */
 async function ensureDemoMerchant() {
-  const id = await ensureAuthUser(demoMerchant);
+  const id = await ensureAuthUser({ ...demoMerchant, account_type: 'merchant' });
   await upsert('merchants', [
     { id, email: demoMerchant.email, full_name: demoMerchant.full_name, phone: demoMerchant.phone },
   ]);

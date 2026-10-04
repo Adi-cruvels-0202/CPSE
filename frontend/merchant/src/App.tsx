@@ -7,7 +7,6 @@ import { StoreProvider } from './hooks/useStore';
 import MerchantLayout from './components/layout/MerchantLayout';
 import LoginPage from './features/auth/LoginPage';
 import RegisterPage from './features/auth/RegisterPage';
-import OnboardingPage from './features/auth/OnboardingPage';
 import DashboardPage from './features/dashboard/DashboardPage';
 import StoreSetupPage from './features/store/StoreSetupPage';
 import CategoriesPage from './features/categories/CategoriesPage';
@@ -71,7 +70,6 @@ function MerchantRoute({ children }: { children: ReactNode }) {
   if (status === 'loading') return <FullPageSpinner />;
   if (status === 'unavailable') return <UnavailableScreen />;
   if (status === 'signedOut') return <Navigate to="/login" replace />;
-  if (status === 'needsOnboarding') return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
@@ -79,17 +77,6 @@ function MerchantRoute({ children }: { children: ReactNode }) {
 function SignedOutRoute({ children }: { children: ReactNode }) {
   const { status } = useAuth();
   if (status === 'loading') return <FullPageSpinner />;
-  if (status === 'merchant') return <Navigate to="/dashboard" replace />;
-  if (status === 'needsOnboarding') return <Navigate to="/onboarding" replace />;
-  if (status === 'unavailable') return <UnavailableScreen />;
-  return <>{children}</>;
-}
-
-/** "Set up my shop": signed in, not yet a merchant. */
-function OnboardingRoute({ children }: { children: ReactNode }) {
-  const { status } = useAuth();
-  if (status === 'loading') return <FullPageSpinner />;
-  if (status === 'signedOut') return <Navigate to="/login" replace />;
   if (status === 'merchant') return <Navigate to="/dashboard" replace />;
   if (status === 'unavailable') return <UnavailableScreen />;
   return <>{children}</>;
@@ -105,7 +92,6 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<SignedOutRoute><LoginPage /></SignedOutRoute>} />
                 <Route path="/register" element={<SignedOutRoute><RegisterPage /></SignedOutRoute>} />
-                <Route path="/onboarding" element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
 
                 <Route path="/" element={<MerchantRoute><MerchantLayout /></MerchantRoute>}>
                   <Route index element={<Navigate to="/dashboard" replace />} />

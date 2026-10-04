@@ -442,11 +442,12 @@ describe('the account screen', () => {
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
   });
 
-  it('leads to the merchant app with the same login', async () => {
+  it('leads to shop sign-up, since a shop needs its own email', async () => {
     renderAccount();
 
     const link = await screen.findByRole('link', { name: /sell on cpse/i });
-    expect(link).toHaveAttribute('href', '/merchant');
+    expect(link).toHaveAttribute('href', '/merchant/register');
+    expect(link).toHaveTextContent(/its own email/i);
   });
 
   it('shows the email in the editor, but not as an input', async () => {

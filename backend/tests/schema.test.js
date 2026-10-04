@@ -589,6 +589,7 @@ describe('function privileges (checklist 10.1)', () => {
       'create_order',
       'create_product',
       'create_sale',
+      'delete_store',
       'expire_stale_pending_orders',
       'generate_order_number',
       'khata_statement',

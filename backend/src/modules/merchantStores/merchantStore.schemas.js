@@ -157,3 +157,6 @@ export const holidaySchema = z
     reason: z.string().trim().min(1).max(200).nullish(),
   })
   .strict();
+
+/** `DELETE …/:storeId` — the store's name, typed by the merchant to confirm. */
+export const deleteStoreSchema = z.object({ confirmName: z.string().min(1, 'Type the store name to confirm.').max(200) }).strict();

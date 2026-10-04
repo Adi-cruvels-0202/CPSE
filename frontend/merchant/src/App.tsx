@@ -17,6 +17,7 @@ import InventoryHistoryPage from './features/inventory/InventoryHistoryPage';
 import NewSalePage from './features/sales/NewSalePage';
 import SalesHistoryPage from './features/sales/SalesHistoryPage';
 import OrdersPage from './features/orders/OrdersPage';
+import AccountSettingsPage from './features/account/AccountSettingsPage';
 import { EmptyState } from './components/common/ui';
 import { IconStore } from './components/icons/Icons';
 
@@ -118,6 +119,7 @@ export default function App() {
                   <Route path="orders" element={<OrdersPage />} />
                   <Route path="sales/new" element={<NewSalePage />} />
                   <Route path="sales" element={<SalesHistoryPage />} />
+                  <Route path="account" element={<AccountSettingsPage />} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

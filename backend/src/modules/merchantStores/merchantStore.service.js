@@ -212,6 +212,47 @@ export async function unpublishStore(store) {
   return writeStore(store, { is_published: false }, 'Could not unpublish the store.');
 }
 
+/**
+ * `DELETE /merchant/stores/:storeId` — permanently, with everything in it
+ * (MERCHANT_RULES S-19). The merchant types the store's name to confirm, so a
+ * stray request cannot do it. Refused while an order is still in progress.
+ * The rows go in one transaction (delete_store); the photos are removed after,
+ * and a photo that fails to go is only logged.
+ */
+export async function deleteStore(store, { confirmName }) {
+  if (confirmName.trim() !== store.name.trim()) {
+    throw validationFailed({
+      issues: [{ source: 'body', field: 'confirmName', message: 'Type the store name exactly as it is shown.' }],
+    });
+  }
+
+  // The product photos to remove afterwards — read now, while the rows exist.
+  const { data: products, error: productError } = await supabaseAdmin
+    .from('products')
+    .select('id')
+    .eq('store_id', store.id);
+  if (productError) throw internal('Could not delete the store.');
+  let images = [];
+  if (products?.length) {
+    const { data, error: imageError } = await supabaseAdmin
+      .from('product_images')
+      .select('url')
+      .in('product_id', products.map((product) => product.id));
+    if (imageError) throw internal('Could not delete the store.');
+    images = data ?? [];
+  }
+
+  const { error } = await supabaseAdmin.rpc('delete_store', { p_store_id: store.id });
+  if (error?.message?.includes('ORDERS_IN_PROGRESS')) {
+    throw conflict('This store still has orders in progress. Complete or cancel them first.');
+  }
+  if (error?.message?.includes('STORE_NOT_FOUND')) throw notFound('Store');
+  if (error) throw internal('Could not delete the store.');
+
+  const photos = [store.logo_url, store.cover_image_url, ...images.map((image) => image.url)];
+  await Promise.all(photos.map((url) => removeStoredImage(url)));
+}
+
 /** `PUT …/hours` — replaces the whole week, in the format the customer side reads (D-8). */
 export function setHours(store, { timezone, openingHours }) {
   return writeStore(store, { timezone, opening_hours: openingHours });

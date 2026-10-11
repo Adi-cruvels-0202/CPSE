@@ -13,6 +13,7 @@ import { notificationRouter } from './modules/notifications/notification.routes.
 import { khataRouter } from './modules/khata/khata.routes.js';
 import { merchantRouter } from './modules/merchants/merchant.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
+import { meRouter, customerStoreRouter, publicOfferRouter, storeOffersHandler } from './modules/engagement/engagement.routes.js';
 
 /**
  * All v1 routes are mounted here. Each module owns its own router;
@@ -22,8 +23,14 @@ export const apiRouter = Router();
 
 apiRouter.use(healthRouter);
 apiRouter.use('/auth', authRouter);
+// Engagement (/me/preferences, /me/lists, …) before the profile router, whose
+// requireCustomer would otherwise run twice for these paths.
+apiRouter.use('/me', meRouter);
 apiRouter.use('/me', profileRouter);
+apiRouter.use('/stores', customerStoreRouter);
+apiRouter.get('/stores/:slug/offers', ...storeOffersHandler);
 apiRouter.use('/stores', storeRouter);
+apiRouter.use('/offers', publicOfferRouter);
 apiRouter.use('/cart', cartRouter);
 apiRouter.use('/addresses', addressRouter);
 apiRouter.use('/checkout', checkoutRouter);

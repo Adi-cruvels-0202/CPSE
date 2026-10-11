@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ORDER_STATUSES } from './order.state.js';
-import { fulfilmentMode } from '../checkout/checkout.schemas.js';
+import { fulfilmentMode, benefitFields } from '../checkout/checkout.schemas.js';
 
 /** Checklist 7.4. The order body is the quote's inputs plus a payment choice. */
 export const createOrderSchema = z
@@ -15,6 +15,7 @@ export const createOrderSchema = z
     // The totals the customer was shown. If the cart has moved since, the
     // order is refused rather than silently charging a different number.
     expectedTotalPaise: z.number().int().nonnegative().optional(),
+    ...benefitFields,
   })
   .strict();
 

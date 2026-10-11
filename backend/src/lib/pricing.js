@@ -94,6 +94,35 @@ export function priceTotals({ lines, store = null, fulfilmentMode = null, discou
 }
 
 /**
+ * Spreads an order-level discount (coupon, points) across its lines in
+ * proportion to each line's subtotal — the last line takes the rounding
+ * remainder, so the shares add up to the discount exactly. Each line's tax is
+ * then charged on its price after its share, which is what a discount given
+ * before the sale does to the taxable value.
+ *
+ * Returns new line objects; `lineTotalPaise` stays price × quantity + tax (the
+ * order_items CHECK), and the share is reported as `discountPaise`.
+ */
+export function allocateDiscount(lines, discountPaise) {
+  const subtotal = lines.reduce((sum, line) => sum + line.lineSubtotalPaise, 0);
+  const discount = Math.min(Math.max(discountPaise, 0), subtotal);
+  if (discount === 0 || subtotal === 0) {
+    return lines.map((line) => ({ ...line, discountPaise: 0 }));
+  }
+
+  let given = 0;
+  return lines.map((line, index) => {
+    const share =
+      index === lines.length - 1
+        ? discount - given
+        : Math.floor((discount * line.lineSubtotalPaise) / subtotal);
+    given += share;
+    const taxPaise = taxFor(line.lineSubtotalPaise - share, line.taxPercent);
+    return { ...line, discountPaise: share, taxPaise, lineTotalPaise: line.lineSubtotalPaise + taxPaise };
+  });
+}
+
+/**
  * Minimum-order rule (checklist 6.9). Evaluated on the subtotal, not the total:
  * a delivery fee must not be what lifts an order over the store's floor.
  */

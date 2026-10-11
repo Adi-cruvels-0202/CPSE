@@ -916,6 +916,100 @@ reported; the rest is applied product by product.
 | `POST /merchant/stores/:storeId/catalogue/import` | Bearer, merchant. Body: the CSV, `Content-Type: text/csv`, ≤ 2 MB, ≤ 5,000 rows. `?mode=preview` (default) → `{ rowCount, failedRows: [{ line, productName, errors }], products, summary }` and writes nothing; `?mode=commit` → `{ results: [{ line, status: created\|updated\|skipped\|failed, errors? }], summary }`. Matching is by SKU, then by product and variant name. A changed `quantity_on_hand` is a logged stock adjustment ("Catalogue import"). Missing `product_name`/`price` columns: **422 `IMPORT_HEADERS`**; empty: **422 `IMPORT_EMPTY`**; too many rows: **422 `IMPORT_TOO_LARGE`**. |
 | `POST /merchant/stores/:storeId/products/bulk` | Bearer, merchant. `{ action, productIds (≤ 200), preview (default true), … }` with `action` one of `archive`, `activate`, `deactivate`, `set_category { categoryId }`, `set_tax { taxPercent }`, `set_low_stock_threshold { threshold }`, `adjust_price_percent { percent }`, `stock_in { quantity, notes? }`. → `{ bulk: { results: [{ productId, status: ok\|applied\|failed, before, after, errors? }], summary } }`. A price change that would exceed a variant's MRP fails that product, not the batch. |
 
+### Customer preferences, lists and repeat shopping
+
+Bearer, customer — always the caller's own data. Nothing here bypasses the
+cart: adding a list or a usual basket goes through `POST /cart/items` rules, so
+price, stock and availability are checked as for any tap on "Add".
+
+| | |
+|---|---|
+| `GET /me/preferences` | Bearer. `{ preferences: { birthday, activityTracking, occasionOffers, preferredFulfilment, preferredPaymentMethod, preferredSubstitution, preferredLanguage, defaultAddressId } }`. A payment preference is a method name only — no card, UPI or bank detail is stored. |
+| `PATCH /me/preferences` | Bearer. Any of the above (birthday as `{ month, day }`, no year). Turning `activityTracking` off also deletes the recorded activity. |
+| `GET /me/store-preferences` | Bearer. Every store's communication choices the customer has set. |
+| `GET /stores/:storeId/preferences` | Bearer. This store's communication choices: `allowPromotions` (offers, announcements, occasion offers — off by default), `allowReminders`, `allowSms`, `allowWhatsapp`, `allowEmail`. Updates about an order you placed always reach you in the app. |
+| `PUT /stores/:storeId/preferences` | Bearer. Any of those switches. |
+| `POST /me/events` | Bearer. `{ eventType: store_view\|product_view\|search\|cart_add\|cart_remove\|checkout_start\|offer_view, storeId?, productId?, variantId?, query?, sessionId? }` → `{ recorded }`. Not recorded when tracking is off, or when the ids do not belong together. |
+| `GET /me/recently-viewed` | Bearer. `?storeId=` → `{ products }` (live price and availability). |
+| `GET /me/recently-purchased` | Bearer. `?storeId=` → `{ products }`, most recent first. |
+| `GET /me/buy-again` | Bearer. `?storeId=` → `{ products }` with `timesBought`, `usualQuantity`, `usualVariantId`, `lastBoughtAt`. |
+| `GET /me/smart-cart` | Bearer. `?storeId=` → `{ smartCart: { rule, basedOnOrders, usual, missingFromCart } }` — products in at least half of the customer's last ten completed orders at the store. |
+| `POST /me/smart-cart/add` | Bearer. `{ storeId, onlyMissing? }` → `{ added, failed, isComplete }`. |
+| `GET /me/insights` | Bearer. Deterministic metrics from the customer's own completed orders: frequent products and categories, favourite stores, purchase frequency, average order value, repeat rate, last purchase, common baskets, preferred fulfilment/payment/substitution, abandoned carts — each with its definition. |
+| `GET /me/favourites` | Bearer. `?storeId=` → `{ products }`. |
+| `POST /me/favourites/:productId` | Bearer. No body. Idempotent. |
+| `DELETE /me/favourites/:productId` | Bearer. Idempotent. |
+| `GET /me/lists` | Bearer. `?kind=list\|template` → `{ lists }`. |
+| `POST /me/lists` | Bearer. `{ name, kind?, storeId?, repeatEveryDays?, items? }` → **201**. A template (a recurring basket) belongs to one store; `repeatEveryDays` sets a reminder rhythm. |
+| `GET /me/lists/:listId` | Bearer. `{ list }` — items with the live product, or a free-text `label`. |
+| `PATCH /me/lists/:listId` | Bearer. `{ name?, repeatEveryDays? }`. |
+| `DELETE /me/lists/:listId` | Bearer. |
+| `POST /me/lists/:listId/items` | Bearer. `{ productId? \| label?, variantId?, quantity?, note? }` → **201**. |
+| `PATCH /me/lists/:listId/items/:itemId` | Bearer. `{ quantity?, note?, isChecked? }`. |
+| `DELETE /me/lists/:listId/items/:itemId` | Bearer. |
+| `POST /me/lists/:listId/add-to-cart` | Bearer. `{ storeId? }` → `{ added, failed, skipped, isComplete }`. Unchecked product lines of that store go into its cart. |
+| `POST /checkout/quick` | Bearer. `{ storeId }` → `{ settings: { fulfilmentMode, addressId, paymentMethod, substitutionPreference }, quote }` — the normal quote for the customer's saved choices, where the store allows them. Nothing is placed; the customer confirms with `POST /orders`. |
+
+**Coupons and points at checkout.** `POST /checkout/quote` and `POST /orders`
+also take `couponCode`, `redeemPoints` and `substitutionPreference`
+(`contact_me`, `allow_similar`, `no_substitutions`). The quote returns
+`benefits: { coupon, loyalty: { balancePoints, maxRedeemablePoints, pointsUsed, discountPaise, pointValuePaise } }`,
+`freeDelivery: { thresholdPaise, remainingPaise, isUnlocked }`, and blockers
+`COUPON_INVALID` (with `reason`), `NOT_STACKABLE`, `INSUFFICIENT_POINTS`,
+`BELOW_MIN_REDEEM`, `ABOVE_MAX_REDEEM`, `LOYALTY_UNAVAILABLE`. A discount is
+spread over the lines in proportion to their value, and each line's tax is on
+its price after its share (`lines[].discountPaise`). Order creation re-checks
+the coupon's window and both usage limits, the points balance and every offer
+under row locks, and refuses (**422 `COUPON_INVALID`**, **`INSUFFICIENT_POINTS`**,
+**`OFFER_ENDED`**) rather than honour what has gone. Cancelling or rejecting
+the order releases the coupon use and returns the points; completing it earns
+points.
+
+| | |
+|---|---|
+| `GET /me/loyalty` | Bearer. `{ accounts: [{ store, points, lifetimeEarned }] }`. |
+| `GET /stores/:storeId/loyalty` | Bearer. `{ loyalty: { store, program, balance: { points, valuePaise, … }, rewards (with canRedeem), history } }`. |
+| `POST /stores/:storeId/loyalty/rewards/:rewardId/redeem` | Bearer. No body → **201** `{ coupon, … }`: the points are taken and a personal single-use coupon is issued, in one transaction. Not enough points: **422 `INSUFFICIENT_POINTS`**. |
+
+**Local offers (public).** An offer is shown and priced only while it is live
+— inside its window, with offer units left, and short of its batch's safety
+cut-off — checked on every read and again when the order is placed. A cart
+line takes the offer price only if the offer can sell its whole quantity;
+otherwise a notice says how many are left at that price.
+
+| | |
+|---|---|
+| `GET /stores/:slug/offers` | **public.** `{ offers, coupons }` — live offers, and the store's coupons (personalised with eligibility when signed in). |
+| `GET /offers/nearby` | **public.** `?lat=&lng=&limit=` → `{ offers }`: live offers from published stores whose radius covers that point, nearest first, each with `store`, `distanceKm`, `offerPricePaise`, `listPricePaise`, `endsAt`, `unitsLeft`. |
+
+### Merchant CRM, loyalty, coupons and offers
+
+Bearer, merchant, on the caller's own store. CRM figures are computed from this
+store's own transactions only; segments are deterministic: **prospect** (no
+completed order), **new** (one, within 60 days), **active** (two or more, last
+within 60 days), **loyal** (five or more in 180 days, last within 60),
+**inactive** (none in 60 days).
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/customers` | Bearer, merchant. `?segment=&search=&sort=last_order\|total_spend\|orders\|name&page=&limit=` → `{ customers, segments, rules }`. Each: name, phone, segment, order count, total spend, average order, first/last order, median days between orders, follower, consent, khata balance, points, tags. |
+| `GET /merchant/stores/:storeId/customers/:customerId` | Bearer, merchant. `{ customer }` plus favourite products (repeat purchases and hearted), khata, purchase history at this store, notes. Someone who never dealt with the store is **404**. |
+| `PATCH /merchant/stores/:storeId/customers/:customerId` | Bearer, merchant. `{ notes?, tags? }`. |
+| `GET /merchant/stores/:storeId/customers/:customerId/points` | Bearer, merchant. `{ history }`. |
+| `POST /merchant/stores/:storeId/customers/:customerId/points` | Bearer, merchant. `{ points (signed), reason }` → **201** `{ balance, history }`. An adjustment entry, never an edit; below zero is **422 `INSUFFICIENT_POINTS`**. |
+| `GET /merchant/stores/:storeId/loyalty` | Bearer, merchant. `{ program }`. |
+| `PUT /merchant/stores/:storeId/loyalty` | Bearer, merchant. `{ isActive?, earnPointsPer100?, pointValuePaise?, minOrderPaiseToEarn?, minRedeemPoints?, maxRedeemPercent?, welcomeBonusPoints?, pointsExpireDays? }`. |
+| `GET /merchant/stores/:storeId/loyalty/rewards` | Bearer, merchant. `{ rewards }`. |
+| `POST /merchant/stores/:storeId/loyalty/rewards` | Bearer, merchant. `{ name, description?, pointsCost, discountType: flat\|percent\|free_delivery, amountOffPaise? \| percentOff? }` → **201**. A mismatched value is **422 `REWARD_INVALID`**. |
+| `PATCH /merchant/stores/:storeId/loyalty/rewards/:rewardId` | Bearer, merchant. Any of those, or `isActive`. |
+| `GET /merchant/stores/:storeId/loyalty/members` | Bearer, merchant. `{ members }`, highest balance first. |
+| `GET /merchant/stores/:storeId/coupons` | Bearer, merchant. `{ coupons }` with `timesUsed` and `totalDiscountPaise`. |
+| `POST /merchant/stores/:storeId/coupons` | Bearer, merchant. `{ code, title, discountType: percent\|flat\|free_delivery, percentOff? \| amountOffPaise?, maxDiscountPaise?, minOrderPaise?, startsAt?, endsAt?, maxUses?, maxUsesPerCustomer?, audience: all\|new\|returning\|loyal\|followers\|birthday, stackableWithLoyalty?, description? }` → **201**. A code used before: **409**; an impossible setup: **422 `COUPON_INVALID_SETUP`**. `new` is a first order at this store; `birthday` needs the customer's birthday week and their consent. |
+| `PATCH /merchant/stores/:storeId/coupons/:couponId` | Bearer, merchant. Any of those, or `isActive`. |
+| `GET /merchant/stores/:storeId/offers` | Bearer, merchant. `?status=all\|live\|scheduled\|ended` → `{ offers }`, each with `endReason`. |
+| `POST /merchant/stores/:storeId/offers` | Bearer, merchant. `{ kind: expiry\|promotion, variantId, batchId?, title, description?, offerPricePaise, startsAt?, endsAt, quantityLimit?, radiusKm?, expiryCutoffDays? }` → **201**. An expiry offer needs its batch (**422 `BATCH_REQUIRED`**), is capped at what is left of it, and is refused inside the safety cut-off (**422 `PAST_EXPIRY_CUTOFF`**); the price must be below the normal one (**422 `OFFER_NOT_LOWER`**); one live offer per variant (**409**). Also **422 `BATCH_EMPTY`**. |
+| `POST /merchant/stores/:storeId/offers/:offerId/end` | Bearer, merchant. No body. |
+
 ---
 
 ## Rate limits

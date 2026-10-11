@@ -10,6 +10,8 @@ import {
   isDefaultVariant,
 } from '../stores/store.service.js';
 import { MAX_QUANTITY } from './cart.schemas.js';
+import { liveOffersByVariant, offerUnitsLeft } from '../offers/offerPricing.js';
+import { offerEndReason } from '../../lib/offers.js';
 
 /**
  * Cart reads and writes — checklist 5.1 – 5.12.
@@ -134,8 +136,10 @@ export function availableStock(product, variant) {
  * that decides why a line cannot be ordered, so the cart screen (5.1), the
  * validate call (5.10) and order creation (7.16) all agree on the reason.
  */
-export function buildLine(item, product, variant, imageUrl) {
+export function buildLine(item, product, variant, imageUrl, liveOffer = null) {
   const issues = [];
+  // Never stop checkout: they say why a line is not at the price it could be.
+  const notices = [];
 
   // The product row is gone entirely — a merchant deleted it under us.
   if (!product) {
@@ -153,9 +157,12 @@ export function buildLine(item, product, variant, imageUrl) {
       taxPercent: 0,
       taxPaise: 0,
       lineTotalPaise: 0,
+      listUnitPricePaise: null,
+      offer: null,
       stock: 0,
       isPurchasable: false,
       issues: [{ code: 'PRODUCT_REMOVED', message: 'This item is no longer sold by this store.' }],
+      notices: [],
     };
   }
 
@@ -186,7 +193,32 @@ export function buildLine(item, product, variant, imageUrl) {
     });
   }
 
-  const priced = priceLine(variant?.price_paise ?? 0, item.quantity, product.tax_percent);
+  // An offer prices the line only if it can sell this whole quantity.
+  let offer = null;
+  let unitPrice = variant?.price_paise ?? 0;
+  if (liveOffer && variant) {
+    const reason = offerEndReason(liveOffer.offer, { ...liveOffer, quantity: item.quantity });
+    const left = offerUnitsLeft(liveOffer.offer);
+    if (reason === null) {
+      unitPrice = liveOffer.offer.offer_price_paise;
+      offer = {
+        id: liveOffer.offer.id,
+        title: liveOffer.offer.title,
+        offerPricePaise: liveOffer.offer.offer_price_paise,
+        listPricePaise: variant.price_paise,
+        endsAt: liveOffer.offer.ends_at,
+        unitsLeft: left,
+      };
+    } else if (reason === 'sold_out' && left > 0) {
+      notices.push({
+        code: 'OFFER_QUANTITY_LIMITED',
+        message: `Only ${left} left at the offer price of ${product.name}. Reduce the quantity to ${left} to get it.`,
+        available: left,
+      });
+    }
+  }
+
+  const priced = priceLine(unitPrice, item.quantity, product.tax_percent);
 
   return {
     id: item.id,
@@ -201,9 +233,12 @@ export function buildLine(item, product, variant, imageUrl) {
     // unitPricePaise, quantity, lineSubtotalPaise, taxPercent, taxPaise and
     // lineTotalPaise (tax included) — the one line shape everywhere.
     ...priced,
+    listUnitPricePaise: offer ? variant.price_paise : null,
+    offer,
     stock,
     isPurchasable: issues.length === 0,
     issues,
+    notices,
   };
 }
 
@@ -230,10 +265,11 @@ export async function loadCart(customerId, storeId) {
   const productIds = [...new Set(items.map((item) => item.product_id))];
   const variantIds = [...new Set(items.map((item) => item.variant_id))];
 
-  const [products, variants, images] = await Promise.all([
+  const [products, variants, images, offers] = await Promise.all([
     loadProducts(productIds),
     loadVariants(variantIds),
     loadImages(productIds),
+    liveOffersByVariant(store.id, store.timezone, variantIds),
   ]);
 
   const lines = items.map((item) => {
@@ -243,7 +279,7 @@ export async function loadCart(customerId, storeId) {
     const scoped = product && product.store_id === storeId ? product : null;
     const variant = variants.get(item.variant_id) ?? null;
     const sameProduct = variant && variant.product_id === item.product_id ? variant : null;
-    return buildLine(item, scoped, sameProduct, images.get(item.product_id));
+    return buildLine(item, scoped, sameProduct, images.get(item.product_id), sameProduct ? offers.get(sameProduct.id) : null);
   });
 
   return {

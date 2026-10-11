@@ -90,6 +90,23 @@ const KNOWN_TABLES = [
   'store_verifications',
   'verification_documents',
   'verification_events',
+  'suppliers',
+  'purchases',
+  'purchase_items',
+  'inventory_batches',
+  'customer_store_preferences',
+  'favourite_products',
+  'shopping_lists',
+  'shopping_list_items',
+  'customer_events',
+  'store_customer_notes',
+  'loyalty_programs',
+  'loyalty_accounts',
+  'loyalty_rewards',
+  'loyalty_ledger',
+  'coupons',
+  'coupon_redemptions',
+  'store_offers',
 ];
 
 /**

@@ -8,6 +8,7 @@ import { findActiveStoreById } from '../stores/store.service.js';
 import * as notifications from '../notifications/notification.service.js';
 import { emitToStore } from '../notifications/merchantNotification.service.js';
 import * as refunds from '../refunds/refund.service.js';
+import { COUPON_REASON_MESSAGES } from '../benefits/benefits.service.js';
 import {
   STATUS_LABELS,
   canCustomerCancel,
@@ -37,7 +38,7 @@ const fail = (error, message) => {
 
 const ORDER_COLUMNS = `
   id, order_number, store_id, customer_id, fulfilment_mode, status, payment_status,
-  payment_method, cancelled_by, address_id, delivery_address, store_snapshot,
+  payment_method, cancelled_by, coupon_code, loyalty_points_redeemed, substitution_preference, address_id, delivery_address, store_snapshot,
   subtotal_paise, discount_paise, delivery_fee_paise, tax_paise, total_paise,
   customer_note, cancellation_reason, idempotency_key,
   placed_at, completed_at, cancelled_at, created_at, updated_at
@@ -45,7 +46,8 @@ const ORDER_COLUMNS = `
 
 const ORDER_ITEM_COLUMNS = `
   id, order_id, product_id, variant_id, product_name, variant_name, sku, image_url,
-  unit_price_paise, quantity, tax_percent, tax_paise, line_total_paise, created_at
+  unit_price_paise, quantity, tax_percent, tax_paise, line_total_paise, created_at,
+  offer_id, list_unit_price_paise, discount_paise
 `;
 
 // ── Creation ────────────────────────────────────────────────────────────────
@@ -71,7 +73,7 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
   // the write, for a client that skipped quoting.
   assertQuotePlaceable(quote);
 
-  const { store, address, lines, totals } = quote._internal;
+  const { store, address, lines, totals, benefits } = quote._internal;
 
   // The customer agreed to a number; if the basket repriced since, they are
   // asked again rather than charged the new one.
@@ -125,6 +127,18 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
     total_paise: totals.totalPaise,
     customer_note: input.customerNote ?? null,
     idempotency_key: idempotencyKey,
+    substitution_preference: input.substitutionPreference ?? (await preferredSubstitution(customerId)),
+    coupon: benefits?.couponRow
+      ? {
+          coupon_id: benefits.couponRow.id,
+          code: benefits.couponRow.code,
+          discount_paise: benefits.coupon.discountPaise,
+          waived_delivery_paise: benefits.coupon.waivedDeliveryPaise,
+        }
+      : null,
+    loyalty: benefits?.loyalty?.pointsUsed
+      ? { points: benefits.loyalty.pointsUsed, discount_paise: benefits.loyalty.discountPaise }
+      : null,
     history_note: isOnline ? 'Awaiting online payment' : 'Order placed',
     items: lines.map((line) => ({
       product_id: line.productId,
@@ -139,6 +153,9 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
       tax_percent: line.taxPercent,
       tax_paise: line.taxPaise,
       line_total_paise: line.lineTotalPaise,
+      offer_id: line.offer?.id ?? null,
+      list_unit_price_paise: line.listUnitPricePaise ?? null,
+      discount_paise: line.discountPaise ?? 0,
     })),
     payment: isOnline
       ? { provider: 'mock', amount_paise: totals.totalPaise, currency: 'INR', status: 'pending' }
@@ -172,6 +189,11 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
   return { order, replayed };
 }
 
+async function preferredSubstitution(customerId) {
+  const { data } = await supabaseAdmin.from('customers').select('preferred_substitution').eq('id', customerId).maybeSingle();
+  return data?.preferred_substitution ?? 'contact_me';
+}
+
 /** The store's inbox hears about an order the moment it can act on it. */
 export function notifyStoreOfNewOrder(order) {
   return emitToStore(order.storeId, {
@@ -199,6 +221,17 @@ function translateCreateError(error) {
     );
   }
 
+  if (message.includes('OFFER_ENDED:')) {
+    const name = message.split('OFFER_ENDED:')[1]?.split('\n')[0]?.trim() || 'An item';
+    return unprocessable('OFFER_ENDED', `The offer on ${name} has just ended. Please review the new price.`);
+  }
+  if (message.includes('COUPON_INVALID:')) {
+    const reason = message.split('COUPON_INVALID:')[1]?.split(/\s/)[0];
+    return unprocessable('COUPON_INVALID', COUPON_REASON_MESSAGES[reason] ?? 'That coupon can no longer be used.', { reason });
+  }
+  if (message.includes('INSUFFICIENT_POINTS')) {
+    return unprocessable('INSUFFICIENT_POINTS', 'Your points balance has changed. Please review your order.');
+  }
   if (message.includes('KHATA_LIMIT_EXCEEDED')) {
     const available = Number(message.split('KHATA_LIMIT_EXCEEDED:')[1]?.split(/\D/)[0] ?? 0);
     return unprocessable(
@@ -299,6 +332,11 @@ export const toPublicOrderItem = (row) => ({
   taxPaise: row.tax_paise ?? 0,
   // Tax included (MERCHANT_RULES O-16).
   lineTotalPaise: row.line_total_paise,
+  // Priced by a local offer: what it would otherwise have cost.
+  offerId: row.offer_id ?? null,
+  listUnitPricePaise: row.list_unit_price_paise ?? null,
+  // This line's share of the order's coupon/points discount.
+  discountPaise: row.discount_paise ?? 0,
 });
 
 /** Never exposes the raw gateway payload or anything resembling a credential. */
@@ -383,6 +421,11 @@ export function toOrderDetail(row, { items, history, payment, refund = null }) {
     store: row.store_snapshot ?? null,
     payment: toPublicPayment(payment),
     refund,
+    benefits: {
+      couponCode: row.coupon_code ?? null,
+      loyaltyPointsRedeemed: row.loyalty_points_redeemed ?? 0,
+    },
+    substitutionPreference: row.substitution_preference ?? 'contact_me',
     cancellation: cancellationPolicy(row, payment),
     customerNote: row.customer_note ?? null,
     cancellationReason: row.cancellation_reason ?? null,

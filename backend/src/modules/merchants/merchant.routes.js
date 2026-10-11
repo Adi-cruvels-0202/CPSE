@@ -17,6 +17,7 @@ import { operationsRouter } from '../merchantCatalogue/operations.routes.js';
 import { relationshipRouter } from '../crm/relationship.routes.js';
 import { merchantMessagingRouter } from '../messaging/messaging.routes.js';
 import { automationRouter } from '../automation/automation.routes.js';
+import { merchantIntelligenceRouter } from '../intelligence/intelligence.routes.js';
 import * as controller from './merchant.controller.js';
 import { loginSchema } from '../auth/auth.schemas.js';
 import { registerMerchantSchema, updateMerchantSchema } from './merchant.schemas.js';
@@ -73,5 +74,6 @@ merchantRouter.use('/stores', merchantVerificationRouter);
 merchantRouter.use('/stores', relationshipRouter);
 merchantRouter.use('/stores', merchantMessagingRouter);
 merchantRouter.use('/stores', automationRouter);
+merchantRouter.use('/stores', merchantIntelligenceRouter);
 // Templates, defaults, purchases, import/export and bulk (full paths inside).
 merchantRouter.use(operationsRouter);

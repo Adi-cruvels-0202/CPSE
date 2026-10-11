@@ -1080,7 +1080,8 @@ Bearer, merchant, on the caller's own store.
 once each by `npm run db:maintenance`): expire unpaid orders, reconcile
 refunds, end offers, low-stock alerts (one per variant per day), expiry alerts
 (one per batch and state), recurring tasks, reorder and template reminders,
-khata reminders (opt-in), points expiry, and notification deliveries. Each
+khata reminders (opt-in), points expiry, support escalation (order conversations
+unanswered by the shop for 24 hours go to CPSE support), and notification deliveries. Each
 takes a lease so several instances never run the same job at once, and logs
 every run in `job_runs`.
 
@@ -1093,6 +1094,40 @@ as `skipped` with the reason — never claimed as sent.
 | | |
 |---|---|
 | `GET /notifications/:id/deliveries` | Bearer. `{ deliveries: [{ channel, status: delivered\|pending\|sent\|failed\|skipped, attempts, lastError, deliveredAt }] }`. |
+
+
+### Intelligence (forecasts, suggestions, assistants)
+
+Roadmap Phase D/E and §5 P6. **Every endpoint here is read-only** — the POSTs
+carry text to read, not changes to make. All of it is deterministic (no model
+is called; `AI_PROVIDER` stays `none`), so the same data gives the same answer.
+What they suggest is applied only when a person confirms it through the
+ordinary endpoint a proposal names.
+
+Merchant — bearer, merchant, on the caller's own store:
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/intelligence/stock` | `?horizonDays=14&leadDays=7` → `{ stock: { today, counts, items: [{ productId, variantId, name, available, soldLast30, forecast: { confidence: insufficient\|low\|medium\|high, reason, dailyAverage, nextDaysUnits }, health: { status: stockout\|at_risk\|overstock\|slow\|healthy\|unknown\|untracked, daysOfCover, note }, proposedReorderQuantity }], method } }`. No forecast with under 14 days of history or under 3 selling days — it says so instead. |
+| `POST /merchant/stores/:storeId/intelligence/product-suggestions` | `{ name }` → `{ suggestion: { suggestions: { category, unit, taxPercent, weightGrams, variants }, duplicates, related, nextActions, note } }`, each suggestion with its reason; from the store's own products first, then the industry templates. |
+| `POST /merchant/stores/:storeId/intelligence/invoice` | `{ text }` (pasted invoice) → `{ invoice: { invoiceNumber, invoiceDate, statedTotalPaise, computedTotalPaise, totalMatches, lines: [{ source, readAs, match, confidence, warnings, alternatives }], skipped } }`. **422 `NOTHING_READ`** when no line has a name, quantity and price. Nothing is saved; the purchase is created as usual. Reading images or PDFs needs an AI provider, which is not configured. |
+| `POST /merchant/stores/:storeId/intelligence/command` | `{ text }` (typed or spoken: "add 10 basmati rice 1 kg", "set price of sugar to 45", "mark ghee out of stock") → `{ command: { understood, proposal: { summary, apply: { method, path, body }, requiresConfirmation: true } \| null, problem, options } }`. |
+| `POST /merchant/stores/:storeId/intelligence/ask` | `{ question }` → `{ reply: { kind: answer\|proposal\|help, intent, answer, data, source, actions } }` — sales, best and slow sellers, what is running low, forecast, khata owed, open orders; commands are answered with a proposal. |
+| `GET /merchant/stores/:storeId/intelligence/area` | `{ area: { city, minStores, otherStores, benchmarks: [{ name, basis: per_kg\|per_pack, yourPricePaise, area: { stores, p25, median, p75 }, position }], popularNearby, note } }`. Only from **at least 5 other shops** in the same city, one figure per shop, never naming a shop. |
+| `GET /merchant/stores/:storeId/products/:productId/alternatives` | Similar, buyable products for a replacement — the same engine as the customer's. |
+
+Customer:
+
+| | |
+|---|---|
+| `GET /stores/:slug/smart-search` | Public. `?q=` in plain words ("2 kg basmati under 300", "cheapest atta", "milk on offer") → `{ search: { interpretation, parsed, results: [{ product, suggestion: { variantId, variantName, quantity, unitPricePaise, pricePerKgPaise }, totalPaise, reason, add }] } }`. |
+| `POST /stores/:slug/assistant` | Public; personal when signed in. `{ message }` → `{ reply: { kind: answer\|results\|proposal\|sign_in, intent, answer, … } }` — hours, delivery and minimum, offers, "my usual", a whole list (→ basket proposal), comparisons, search. It never adds to the cart. |
+| `GET /stores/:slug/products/:productId/recommendations` | Public. `{ recommendations: { items: [{ product, reason }], rule } }` — bought together in at least two completed orders here (180 days), then popular in the same category. |
+| `GET /stores/:slug/products/:productId/alternatives` | Public. `{ alternatives: { items: [{ product, reason, score }] } }` — similar name or category, buyable, within half to one-and-a-half times the price. |
+| `POST /stores/:storeId/basket/propose` | Bearer, customer. `{ text }` ("2 kg rice, 1 litre oil and 6 eggs") → `{ basket: { proposals: [{ text, product, suggestion, linePaise, reason, alternatives, add }], unmatched, estimatePaise } }`. Uses the customer's usual size when none is written. Nothing is added. |
+| `GET /me/replenishment` | Bearer, customer. `{ replenishment: { items: [{ product, everyDays, lastBoughtOn, dueOn, dueInDays, status: due\|soon\|later, usualQuantity, usualVariantId }], rule } }`. |
+| `GET /me/discover` | Bearer, customer. `?storeId=` → `{ discover: { basedOn, items: [{ product, reason }], offers } }` — new-to-you products from the categories you buy here. |
+
 
 ---
 

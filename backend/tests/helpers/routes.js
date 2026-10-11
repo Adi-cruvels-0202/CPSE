@@ -58,6 +58,10 @@ export const PUBLIC_ROUTES = new Map([
   ['GET /payments/methods', 'shown on checkout before anything exists'],
   ['GET /stores/:slug/offers', "a store's live offers, on its public page"],
   ['GET /offers/nearby', 'the local offer banner, before sign-in'],
+  ['GET /stores/:slug/smart-search', 'plain-words search on the public store page'],
+  ['POST /stores/:slug/assistant', 'the store page assistant — read-only, personal only when signed in'],
+  ['GET /stores/:slug/products/:productId/recommendations', 'bought-together, on the public product page'],
+  ['GET /stores/:slug/products/:productId/alternatives', 'similar products, on the public product page'],
   ['POST /payments/webhook', 'the gateway authenticates with an HMAC signature'],
 ]);
 

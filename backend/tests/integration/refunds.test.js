@@ -145,7 +145,7 @@ describe('a paid order that is cancelled is refunded, traceably', () => {
          select order_id, payment_id, store_id, customer_id, amount_paise, method, provider, 'system' from refunds where payment_id = $1`,
         [refund.payment_id],
       ),
-    ).rejects.toThrow(/refunds_one_live_per_payment/);
+    ).rejects.toThrow(/refunds_one_live_cancellation_per_payment/);
   });
 
   it('the merchant rejecting a paid order refunds it, attributed to the store', async () => {

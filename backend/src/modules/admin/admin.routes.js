@@ -9,6 +9,7 @@ import { forbidden } from '../../lib/errors.js';
 import { loginSchema } from '../auth/auth.schemas.js';
 import { signInWithPassword, endSession, toSession } from '../auth/auth.service.js';
 import * as verification from '../verification/verification.service.js';
+import { adminSupportRouter } from '../messaging/messaging.routes.js';
 
 /**
  * /admin — the platform's own reviewers, for store verification (roadmap §4
@@ -98,3 +99,6 @@ adminRouter.post(
     verification.decide(req.params.storeId, req.admin, { decision: 'reject', reason: req.body.reason, note: req.body.note ?? null }),
   ),
 );
+
+// Escalated customer support (roadmap §5 P5).
+adminRouter.use('/support', adminSupportRouter);

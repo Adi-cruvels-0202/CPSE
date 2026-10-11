@@ -57,6 +57,23 @@ const envSchema = z.object({
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
+  // Absolute public URL of this deployment, for links and QR codes a merchant
+  // shares. The app's own origin is used when it serves the request.
+  PUBLIC_APP_URL: z.string().url().default('http://localhost:4000'),
+
+  // SMS / WhatsApp / email delivery (src/lib/channels.js). 'none' records
+  // every attempt as skipped; 'webhook' posts signed messages to a gateway.
+  NOTIFY_CHANNEL_PROVIDER: z.enum(['none', 'webhook']).default('none'),
+  NOTIFY_WEBHOOK_URL: z.string().url().optional(),
+  NOTIFY_WEBHOOK_SECRET: z.string().min(16).default('dev-only-notify-secret-change-me'),
+
+  // Assisted intelligence (src/lib/ai). 'none' uses only the deterministic
+  // engines; 'anthropic' adds a Claude model for wording and image/invoice
+  // reading. Without a key the features fall back, and say so.
+  AI_PROVIDER: z.enum(['none', 'anthropic']).default('none'),
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  AI_MODEL: z.string().min(1).default('claude-sonnet-5-5'),
+
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),

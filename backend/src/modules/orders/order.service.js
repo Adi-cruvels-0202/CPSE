@@ -9,6 +9,7 @@ import * as notifications from '../notifications/notification.service.js';
 import { emitToStore } from '../notifications/merchantNotification.service.js';
 import * as refunds from '../refunds/refund.service.js';
 import { COUPON_REASON_MESSAGES } from '../benefits/benefits.service.js';
+import { substitutionsForOrder } from '../substitutions/substitution.service.js';
 import {
   STATUS_LABELS,
   canCustomerCancel,
@@ -47,7 +48,7 @@ const ORDER_COLUMNS = `
 const ORDER_ITEM_COLUMNS = `
   id, order_id, product_id, variant_id, product_name, variant_name, sku, image_url,
   unit_price_paise, quantity, tax_percent, tax_paise, line_total_paise, created_at,
-  offer_id, list_unit_price_paise, discount_paise
+  offer_id, list_unit_price_paise, discount_paise, is_active, replaced_by_substitution_id
 `;
 
 // ── Creation ────────────────────────────────────────────────────────────────
@@ -337,6 +338,9 @@ export const toPublicOrderItem = (row) => ({
   listUnitPricePaise: row.list_unit_price_paise ?? null,
   // This line's share of the order's coupon/points discount.
   discountPaise: row.discount_paise ?? 0,
+  // false: replaced by an approved substitution; kept so the bill shows it.
+  isActive: row.is_active ?? true,
+  replacedBySubstitutionId: row.replaced_by_substitution_id ?? null,
 });
 
 /** Never exposes the raw gateway payload or anything resembling a credential. */
@@ -397,10 +401,13 @@ export function cancellationPolicy(row, payment) {
 }
 
 /** Checklist 8.2 + 8.5 */
-export function toOrderDetail(row, { items, history, payment, refund = null }) {
+export function toOrderDetail(row, { items, history, payment, refund = null, adjustments = [], substitutions = [] }) {
   return {
-    ...toOrderSummary(row, items.length),
-    items: items.map(toPublicOrderItem),
+    ...toOrderSummary(row, items.filter((item) => item.is_active !== false).length),
+    items: items.filter((item) => item.is_active !== false).map(toPublicOrderItem),
+    replacedItems: items.filter((item) => item.is_active === false).map(toPublicOrderItem),
+    substitutions,
+    refundAdjustments: adjustments,
     totals: {
       subtotalPaise: row.subtotal_paise,
       discountPaise: row.discount_paise,
@@ -519,14 +526,16 @@ async function itemCounts(orderIds) {
 export async function getOrder(customerId, orderId) {
   const row = await findOwnedOrder(customerId, orderId);
 
-  const [items, history, payment, refund] = await Promise.all([
+  const [items, history, payment, refund, adjustments, substitutions] = await Promise.all([
     listOrderItems(row.id),
     listStatusHistory(row.id),
     latestPayment(row.id),
     refunds.refundViewForOrder(row.id),
+    refunds.adjustmentRefundsForOrder(row.id),
+    substitutionsForOrder(row.id),
   ]);
 
-  return toOrderDetail(row, { items, history, payment, refund });
+  return toOrderDetail(row, { items, history, payment, refund, adjustments, substitutions });
 }
 
 // ── Transitions ─────────────────────────────────────────────────────────────
@@ -687,7 +696,7 @@ export async function reorder(customerId, orderId) {
   // A store that has closed down cannot be reordered from at all.
   await findActiveStoreById(row.store_id);
 
-  const items = await listOrderItems(row.id);
+  const items = (await listOrderItems(row.id)).filter((item) => item.is_active !== false);
   const unavailable = [];
 
   for (const item of items) {

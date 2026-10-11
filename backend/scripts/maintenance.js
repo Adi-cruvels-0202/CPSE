@@ -15,6 +15,7 @@
  */
 import { supabaseAdmin } from '../src/lib/supabase.js';
 import { env } from '../src/config/env.js';
+import { runAllJobs } from '../src/jobs/index.js';
 
 const PENDING_ORDER_TTL = process.env.PENDING_ORDER_TTL ?? '2 hours';
 const CART_TTL = process.env.ABANDONED_CART_TTL ?? '90 days';
@@ -82,6 +83,13 @@ async function main() {
   await expireStaleOrders({ dryRun });
   console.log('Abandoned carts');
   await purgeCarts({ dryRun });
+  if (!dryRun) {
+    // The scheduled jobs (src/jobs), once each: a cron job's whole body for a
+    // deployment that runs with JOBS_ENABLED=false.
+    console.log('Scheduled jobs');
+    const results = await runAllJobs();
+    for (const [name, summary] of Object.entries(results)) console.log(`  ${name}: ${JSON.stringify(summary)}`);
+  }
   console.log(dryRun ? 'Dry run complete — nothing was changed.' : 'Done.');
 }
 

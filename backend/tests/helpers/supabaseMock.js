@@ -107,6 +107,14 @@ const KNOWN_TABLES = [
   'coupons',
   'coupon_redemptions',
   'store_offers',
+  'conversations',
+  'messages',
+  'store_announcements',
+  'order_substitutions',
+  'job_leases',
+  'job_runs',
+  'recurring_tasks',
+  'customer_reminders',
 ];
 
 /**

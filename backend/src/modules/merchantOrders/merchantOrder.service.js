@@ -2,7 +2,8 @@ import { supabaseAdmin } from '../../lib/supabase.js';
 import { conflict, internal, notFound } from '../../lib/errors.js';
 import { STATUS_LABELS, ORDER_STATUSES } from '../orders/order.state.js';
 import { transitionOrder } from '../orders/order.service.js';
-import { refundViewForOrder } from '../refunds/refund.service.js';
+import { refundViewForOrder, adjustmentRefundsForOrder } from '../refunds/refund.service.js';
+import { substitutionsForOrder } from '../substitutions/substitution.service.js';
 
 /**
  * A merchant's orders — MERCHANT_API.md, Orders; MERCHANT_RULES §6.
@@ -16,7 +17,7 @@ import { refundViewForOrder } from '../refunds/refund.service.js';
 
 const ORDER_COLUMNS = `
   id, order_number, store_id, customer_id, fulfilment_mode, status, payment_status,
-  payment_method, cancelled_by, delivery_address, subtotal_paise, discount_paise, delivery_fee_paise, tax_paise,
+  payment_method, cancelled_by, substitution_preference, delivery_address, subtotal_paise, discount_paise, delivery_fee_paise, tax_paise,
   total_paise, customer_note, cancellation_reason, placed_at, accepted_at, rejected_at,
   completed_at, cancelled_at, created_at, updated_at
 `;
@@ -82,6 +83,8 @@ const toItem = (row) => ({
   taxPercent: Number(row.tax_percent ?? 0),
   taxPaise: row.tax_paise ?? 0,
   lineTotalPaise: row.line_total_paise,
+  isActive: row.is_active ?? true,
+  replacedBySubstitutionId: row.replaced_by_substitution_id ?? null,
 });
 
 function toSummary(row, { customer, itemCount }) {
@@ -162,10 +165,10 @@ async function findStoreOrder(store, orderId) {
 export async function getOrder(store, orderId) {
   const row = await findStoreOrder(store, orderId);
 
-  const [items, history, extra, refund] = await Promise.all([
+  const [items, history, extra, refund, adjustments, substitutions] = await Promise.all([
     supabaseAdmin
       .from('order_items')
-      .select('id, product_id, variant_id, product_name, variant_name, sku, quantity, unit_price_paise, tax_percent, tax_paise, line_total_paise, created_at')
+      .select('id, product_id, variant_id, product_name, variant_name, sku, quantity, unit_price_paise, tax_percent, tax_paise, line_total_paise, created_at, is_active, replaced_by_substitution_id')
       .eq('order_id', row.id)
       .order('created_at', { ascending: true }),
     supabaseAdmin
@@ -175,14 +178,20 @@ export async function getOrder(store, orderId) {
       .order('created_at', { ascending: true }),
     related([row]),
     refundViewForOrder(row.id),
+    adjustmentRefundsForOrder(row.id),
+    substitutionsForOrder(row.id),
   ]);
   if (items.error || history.error) throw internal('Could not load the order.');
 
   return {
     ...summaryOf(row, extra),
     refund,
+    refundAdjustments: adjustments,
+    substitutions,
+    substitutionPreference: row.substitution_preference ?? 'contact_me',
     deliveryAddress: row.delivery_address ?? null,
-    items: (items.data ?? []).map(toItem),
+    items: (items.data ?? []).filter((item) => item.is_active !== false).map(toItem),
+    replacedItems: (items.data ?? []).filter((item) => item.is_active === false).map(toItem),
     history: (history.data ?? []).map((entry) => ({
       status: entry.to_status,
       changedBy: entry.changed_by,

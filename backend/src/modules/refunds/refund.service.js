@@ -28,7 +28,7 @@ export const REFUND_COLUMNS = `
   id, order_id, payment_id, store_id, customer_id, amount_paise, currency, method,
   provider, provider_refund_ref, status, reason, initiated_by, attempts, last_attempt_at,
   failure_reason, khata_transaction_id, initiated_at, processing_at, refunded_at, failed_at,
-  created_at, updated_at
+  created_at, updated_at, kind, substitution_id
 `;
 
 /** Attempts at the provider before an unreachable refund is declared failed. */
@@ -66,6 +66,9 @@ export function toPublicRefund(row, eventsList = []) {
     id: row.id,
     orderId: row.order_id,
     paymentId: row.payment_id,
+    // cancellation: the order ended; adjustment: part of it was refunded (a substitution cost less).
+    kind: row.kind ?? 'cancellation',
+    substitutionId: row.substitution_id ?? null,
     status: row.status,
     statusLabel: REFUND_STATUS_LABELS[row.status] ?? row.status,
     amountPaise: row.amount_paise,
@@ -118,13 +121,21 @@ export async function refundEvents(refundIds) {
   return data ?? [];
 }
 
-/** The refund to show for an order: the live one, or the latest if all failed. */
+/** The cancellation refund to show for an order: the live one, or the latest if all failed. */
 export async function refundViewForOrder(orderId) {
-  const rows = await refundsForOrder(orderId);
+  const rows = (await refundsForOrder(orderId)).filter((row) => (row.kind ?? 'cancellation') === 'cancellation');
   if (rows.length === 0) return null;
   const current = rows.find((row) => row.status !== 'failed') ?? rows[rows.length - 1];
   const history = await refundEvents([current.id]);
   return toPublicRefund(current, history);
+}
+
+/** Partial refunds on an order that still stands (e.g. a cheaper substitute). */
+export async function adjustmentRefundsForOrder(orderId) {
+  const rows = (await refundsForOrder(orderId)).filter((row) => row.kind === 'adjustment');
+  if (rows.length === 0) return [];
+  const events = await refundEvents(rows.map((row) => row.id));
+  return rows.map((row) => toPublicRefund(row, events.filter((event) => event.refund_id === row.id)));
 }
 
 async function loadRefund(refundId) {

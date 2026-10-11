@@ -67,12 +67,12 @@ const envSchema = z.object({
   NOTIFY_WEBHOOK_URL: z.string().url().optional(),
   NOTIFY_WEBHOOK_SECRET: z.string().min(16).default('dev-only-notify-secret-change-me'),
 
-  // Assisted intelligence (src/lib/ai). 'none' uses only the deterministic
-  // engines; 'anthropic' adds a Claude model for wording and image/invoice
-  // reading. Without a key the features fall back, and say so.
-  AI_PROVIDER: z.enum(['none', 'anthropic']).default('none'),
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  AI_MODEL: z.string().min(1).default('claude-sonnet-5-5'),
+  // Intelligence (src/modules/intelligence) is deterministic and needs no
+  // provider. 'none' is the only value this build accepts: a model provider
+  // (for photo recognition and photo/PDF invoices) would need the official
+  // Anthropic SDK added as a dependency first, so it is refused rather than
+  // accepted and silently ignored.
+  AI_PROVIDER: z.enum(['none']).default('none'),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),

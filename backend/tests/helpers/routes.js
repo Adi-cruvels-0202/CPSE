@@ -48,6 +48,7 @@ export const PUBLIC_ROUTES = new Map([
   ['POST /auth/reset-password', 'password reset completion'],
   ['POST /merchant/auth/register', 'creating a merchant account'],
   ['POST /merchant/auth/login', 'signing in to the shop app'],
+  ['POST /admin/auth/login', 'signing in as a platform reviewer'],
   ['GET /stores', 'shop directory on the public home page'],
   ['GET /stores/:slug', 'public store page — must open from a shared link'],
   ['GET /stores/:slug/categories', 'public store page'],

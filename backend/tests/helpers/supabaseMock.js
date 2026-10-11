@@ -86,6 +86,10 @@ const KNOWN_TABLES = [
   'merchant_notifications',
   'notification_deliveries',
   'khata_reminders',
+  'platform_admins',
+  'store_verifications',
+  'verification_documents',
+  'verification_events',
 ];
 
 /**
@@ -127,6 +131,10 @@ const COLUMN_DEFAULTS = {
     accepts_online: false,
     khata_enabled: false,
     khata_due_days: 30,
+    // The database default is 'not_submitted' (migration 0039). These mock
+    // tests predate verification and exercise publishing itself; the KYC gate
+    // in front of it is tested against real Postgres in tests/integration.
+    verification_status: 'verified',
   }),
 };
 
@@ -252,6 +260,10 @@ export function storeRow(overrides = {}) {
     accepts_cash: true,
     accepts_online: true,
     next_invoice_number: 1,
+    // Migrations 0037, 0039. A seeded store is a published one, so verified.
+    khata_enabled: false,
+    khata_due_days: 30,
+    verification_status: 'verified',
     created_at: '2026-09-01T10:00:00.000Z',
     updated_at: '2026-09-01T10:00:00.000Z',
     ...overrides,

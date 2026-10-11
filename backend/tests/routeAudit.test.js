@@ -124,7 +124,7 @@ describe('every /merchant route is for merchants (D-2)', () => {
     '%s answers 403 MERCHANT_REQUIRED to a signed-in customer',
     async (_key, route) => {
       // The seeded customer has no merchants row.
-      const res = await call(route, { storeId: STORE_ID, default: CUSTOMER_ID }, signIn());
+      const res = await call(route, { storeId: STORE_ID, docType: 'shop_photo', default: CUSTOMER_ID }, signIn());
 
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('MERCHANT_REQUIRED');
@@ -138,7 +138,10 @@ describe('every customer route refuses a shop account (D-2, revised)', () => {
   const SHARED = new Set(['POST /auth/logout']);
   const customerOnly = ROUTES.filter(
     (route) =>
-      !route.path.startsWith('/merchant/') && !PUBLIC_ROUTES.has(routeKey(route)) && !SHARED.has(routeKey(route)),
+      !route.path.startsWith('/merchant/') &&
+      !route.path.startsWith('/admin/') &&
+      !PUBLIC_ROUTES.has(routeKey(route)) &&
+      !SHARED.has(routeKey(route)),
   );
 
   it('there are customer routes to check', () => {
@@ -153,6 +156,27 @@ describe('every customer route refuses a shop account (D-2, revised)', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('SHOP_ACCOUNT');
+    },
+  );
+});
+
+describe('every /admin route is for platform reviewers (migration 0039)', () => {
+  const adminOnly = ROUTES.filter((route) => route.path.startsWith('/admin/') && !PUBLIC_ROUTES.has(routeKey(route)));
+
+  it('there are reviewer routes to check', () => {
+    expect(adminOnly.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it.each(adminOnly.map((route) => [routeKey(route), route]))(
+    '%s answers 403 to a customer and to a merchant',
+    async (_key, route) => {
+      const asCustomer = await call(route, { default: STORE_ID }, signIn());
+      expect(asCustomer.status).toBe(403);
+      expect(asCustomer.body.error.code).toBe('FORBIDDEN');
+
+      seedMerchant();
+      const asMerchant = await call(route, { default: STORE_ID }, signIn());
+      expect(asMerchant.status).toBe(403);
     },
   );
 });

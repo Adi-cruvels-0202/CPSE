@@ -786,6 +786,57 @@ expiring batches, customer messages.
 | `POST /merchant/stores/:storeId/notifications/read-all` | Bearer, merchant. No body → `{ updated, unreadCount }`. |
 | `POST /merchant/stores/:storeId/notifications/:notificationId/read` | Bearer, merchant. No body → `{ notification }`. Idempotent. |
 
+### Store verification (KYC)
+
+A store is **verified before it is published** (migration 0039; the database
+refuses `is_published = true` on an unverified store, behind the API's own
+check — `POST …/publish` lists `verification` in `details.missing`). A reviewer
+revoking a verification unpublishes the store at once.
+
+| `verificationStatus` | Meaning |
+|---|---|
+| `not_submitted` | Details and documents can be edited. |
+| `pending` | Submitted; locked while a reviewer looks at it. |
+| `verified` | Approved. The store may be published. |
+| `rejected` | `rejectionReason` says what to fix; editable again, then resubmitted. |
+
+Documents go to a **private** bucket: JPEG, PNG, WebP or PDF, at most 5 MB,
+type read from the bytes (**422 `DOCUMENT_INVALID`**), images re-encoded so
+their metadata (GPS, camera) is dropped. A document is never a public URL; the
+owner or a reviewer gets a link valid for 5 minutes. No identity number is
+collected as text — mask the Aadhaar number on an Aadhaar card.
+
+Required to submit: legal name, business type, owner name and phone, a shop
+photo, identity proof and address proof — plus a GSTIN and the GST certificate
+when `gstApplicable` (**422 `VERIFICATION_INCOMPLETE`** with
+`details.missing`).
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/verification` | Bearer, merchant. `{ verification: { status, statusLabel, isEditable, details, documents, requiredDocuments, missing, rejectionReason, reviewNote, events } }`. |
+| `PUT /merchant/stores/:storeId/verification` | Bearer, merchant. `{ legalName?, businessType?, gstApplicable?, gstin?, ownerName?, ownerPhone?, ownerEmail?, businessAddress? }`. While `pending` or `verified`: **409**. |
+| `POST /merchant/stores/:storeId/verification/documents/:docType` | Bearer, merchant. Multipart `file` → **201**. `docType`: `gst_certificate`, `shop_photo`, `identity_proof`, `business_proof`, `address_proof`, `other`. Replaces the current one of that type; the old one stays on record. |
+| `DELETE /merchant/stores/:storeId/verification/documents/:documentId` | Bearer, merchant. Withdraws a document before submission. |
+| `GET /merchant/stores/:storeId/verification/documents/:documentId/url` | Bearer, merchant. `{ document, url, expiresInSeconds }`. |
+| `POST /merchant/stores/:storeId/verification/submit` | Bearer, merchant. No body → `pending`. |
+
+### Platform review (admin)
+
+Reviewers are platform admins — an auth user with a `platform_admins` row that
+only an operator creates. Every decision is recorded in the store's
+verification events with the reviewer, the reason and a snapshot of what was
+reviewed. Anyone else gets **403 `FORBIDDEN`**.
+
+| | |
+|---|---|
+| `POST /admin/auth/login` | **public.** `{ email, password }` → `{ admin, session, roles: ["admin"] }`. Not a reviewer: **403**, and the session is ended. |
+| `GET /admin/me` | Bearer, admin. `{ admin }`. |
+| `GET /admin/verifications` | Bearer, admin. `?status=pending&page=&limit=` → `{ stores }`, oldest first. |
+| `GET /admin/verifications/:storeId` | Bearer, admin. `{ store, verification }`. |
+| `GET /admin/verifications/:storeId/documents/:documentId/url` | Bearer, admin. A 5-minute link to one document. |
+| `POST /admin/verifications/:storeId/approve` | Bearer, admin. `{ note? }`. `pending` → `verified`. |
+| `POST /admin/verifications/:storeId/reject` | Bearer, admin. `{ reason, note? }` (reason 3–500 characters). `pending` or `verified` → `rejected`. |
+
 ---
 
 ## Rate limits

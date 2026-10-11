@@ -55,6 +55,7 @@ export function toMerchantStore(row, { now = new Date(), holidays = [] } = {}) {
     },
     paymentMethods: { cash: row.accepts_cash, online: row.accepts_online },
     isPublished: row.is_published,
+    verificationStatus: row.verification_status ?? 'not_submitted',
     // What the "share / QR code" button links to — the customer store page.
     publicPath: `/store/${row.slug}`,
     createdAt: row.created_at,
@@ -187,6 +188,9 @@ export function missingForPublish(store) {
   const hours = store.opening_hours ?? {};
   if (!DAYS.some((day) => Array.isArray(hours[day]) && hours[day].length > 0)) missing.push('openingHours');
   if (!store.pickup_enabled && !store.delivery_enabled) missing.push('fulfilment');
+  // Roadmap §4 P1: only a verified store becomes visible (migration 0039 also
+  // enforces this on the row).
+  if (store.verification_status !== 'verified') missing.push('verification');
   return missing;
 }
 

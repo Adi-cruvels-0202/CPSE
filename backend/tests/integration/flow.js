@@ -4,8 +4,9 @@
  * so each one starts from a merchant with a published shop and a customer,
  * exactly as the two apps would produce them.
  */
+import sharp from 'sharp';
 import { api, url } from '../helpers/app.js';
-import { authHeader, createMerchantUser, createUser } from '../helpers/pgSupabase.js';
+import { authHeader, createMerchantUser, createUser, sql } from '../helpers/pgSupabase.js';
 
 export const ALWAYS_OPEN = Object.fromEntries(
   ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) => [day, [{ open: '00:00', close: '23:59' }]]),
@@ -59,7 +60,57 @@ export async function openShop({ name = 'Sharma Kirana', delivery = true, online
   return { merchantId, merchant, store };
 }
 
+let photo = null;
+/** A small real PNG, as a phone camera would upload one. */
+export async function samplePhoto() {
+  if (!photo) {
+    photo = await sharp({ create: { width: 64, height: 48, channels: 3, background: { r: 200, g: 120, b: 40 } } })
+      .png()
+      .toBuffer();
+  }
+  return photo;
+}
+
+export const SAMPLE_PDF = Buffer.from('%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n');
+
+export function uploadDocument(shop, docType, buffer, filename = 'doc.png') {
+  return api()
+    .post(url(`/merchant/stores/${shop.store.id}/verification/documents/${docType}`))
+    .set(shop.merchant)
+    .attach('file', buffer, filename);
+}
+
+/** A platform reviewer (migration 0039). */
+export async function newAdmin() {
+  const id = await createUser({ fullName: 'Platform Reviewer' });
+  await sql('insert into platform_admins (id, email, full_name) select id, email, full_name from customers where id = $1', [id]);
+  return { id, auth: authHeader(id) };
+}
+
+/** The merchant completes KYC and a reviewer approves it — all through the API. */
+export async function verify(shop, { admin } = {}) {
+  expectStatus(
+    await call('put', `/merchant/stores/${shop.store.id}/verification`, shop.merchant, {
+      legalName: `${shop.store.name} Traders`,
+      businessType: 'proprietorship',
+      ownerName: 'Ramesh Sharma',
+      ownerPhone: '+919876500000',
+    }),
+    200,
+  );
+  const image = await samplePhoto();
+  for (const type of ['shop_photo', 'identity_proof', 'address_proof']) {
+    expectStatus(await uploadDocument(shop, type, image), 201);
+  }
+  expectStatus(await call('post', `/merchant/stores/${shop.store.id}/verification/submit`, shop.merchant, {}), 200);
+  const reviewer = admin ?? (await newAdmin());
+  expectStatus(await call('post', `/admin/verifications/${shop.store.id}/approve`, reviewer.auth, {}), 200);
+  return reviewer;
+}
+
 export async function publish(shop) {
+  const [{ verification_status: status }] = await sql('select verification_status from stores where id = $1', [shop.store.id]);
+  if (status !== 'verified') await verify(shop);
   return expectStatus(await call('post', `/merchant/stores/${shop.store.id}/publish`, shop.merchant), 200);
 }
 

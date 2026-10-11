@@ -38,6 +38,12 @@ describe('multi-weight cart (roadmap: 1 kg + 500 g of the same item)', () => {
     const rice = await flow.addRice(shop, { stock1kg: 3, stock500g: 5 });
     const customer = await flow.newCustomer();
 
+    // The product page can compare the two packs per kilogram (roadmap §4 P1 units).
+    const page = expectStatus(await call('get', `/stores/${shop.store.slug}/products/${rice.product.id}`, null), 200).product;
+    const variant = (id) => page.variants.find((v) => v.id === id);
+    expect(variant(rice.kg.id)).toMatchObject({ weightGrams: 1000, pricePerKgPaise: 12000 });
+    expect(variant(rice.halfKg.id)).toMatchObject({ weightGrams: 500, pricePerKgPaise: 13000 });
+
     await flow.addToCart(customer, shop.store.id, rice.product.id, rice.kg.id, 1);
     const { cart } = await flow.addToCart(customer, shop.store.id, rice.product.id, rice.halfKg.id, 2);
 

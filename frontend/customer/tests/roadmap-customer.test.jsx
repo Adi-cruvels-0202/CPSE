@@ -570,3 +570,28 @@ describe('smaller paths', () => {
     expect(screen.getByText(/· Refund credited/)).toBeInTheDocument();
   });
 });
+
+describe('comparing pack sizes', () => {
+  it('shows the price per kg of each weight, and of the chosen one', async () => {
+    const product = {
+      id: 'p-1', storeId: STORE_ID, name: 'Basmati Rice', pricePaise: 6500, mrpPaise: null, taxPercent: 0, unit: 'kg', isPurchasable: true, stock: 8, images: [], imageUrl: null,
+      variants: [
+        { id: 'v-1', name: '1 kg', pricePaise: 12000, weightGrams: 1000, pricePerKgPaise: 12000, stock: 3, isPurchasable: true },
+        { id: 'v-2', name: '500 g', pricePaise: 6500, weightGrams: 500, pricePerKgPaise: 13000, stock: 5, isPurchasable: true },
+        { id: 'v-3', name: 'Loose', pricePaise: 100, weightGrams: null, pricePerKgPaise: null, stock: 5, isPurchasable: true },
+      ],
+    };
+    const { user } = renderAt('/store/sharma-kirana/product/p-1', {
+      '/stores/sharma-kirana/products/p-1': ok({ product }),
+      '/me/favourites': ok({ products: [] }),
+      '/me/events': created({ recorded: true }),
+    });
+    expect(await screen.findByText(/₹130\/kg/)).toBeInTheDocument();
+    expect(screen.getByText(/₹120\/kg/)).toBeInTheDocument();
+    expect(screen.queryByTestId('per-kg')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /500 g/ }));
+    expect(screen.getByTestId('per-kg')).toHaveTextContent('₹130.00 per kg');
+    await user.click(screen.getByRole('radio', { name: /Loose/ }));
+    expect(screen.queryByTestId('per-kg')).not.toBeInTheDocument();
+  });
+});

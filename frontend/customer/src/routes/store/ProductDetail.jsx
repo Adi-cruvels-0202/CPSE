@@ -94,6 +94,9 @@ export function ProductDetail() {
             <span className="product__tax">+ {product.taxPercent}% GST</span>
           ) : null}
         </p>
+        {selected?.pricePerKgPaise ? (
+          <p className="muted" data-testid="per-kg">{formatPaise(selected.pricePerKgPaise)} per kg</p>
+        ) : null}
 
         <Availability purchasable={purchasable} stock={stock} />
       </header>
@@ -230,7 +233,12 @@ function Variants({ variants, selectedId, onSelect }) {
               onChange={() => onSelect(variant.id)}
               disabled={soldOut}
             />
-            <span className="product__variant-name">{variant.name}</span>
+            <span className="product__variant-name">
+              {variant.name}
+              {!soldOut && variant.pricePerKgPaise ? (
+                <span className="muted"> · {formatPaiseShort(variant.pricePerKgPaise)}/kg</span>
+              ) : null}
+            </span>
             <span className="product__variant-price numeric">
               {soldOut ? 'Sold out' : formatPaiseShort(variant.pricePaise)}
             </span>

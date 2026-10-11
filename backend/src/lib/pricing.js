@@ -133,3 +133,16 @@ export function meetsMinimumOrder(store, subtotalPaise) {
 /** Paise → a display string. Used in customer-facing messages, never in maths. */
 export const formatPaise = (paise) =>
   `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Units whose quantity is a liquid volume: `weight_grams` cannot describe them. */
+const VOLUME_UNITS = new Set(['l', 'ml']);
+
+/**
+ * Roadmap §4 P1 "consistent quantity handling": the price per kilogram of a
+ * variant with a known weight, so a 500 g and a 1 kg pack can be compared.
+ * Rounded to the paisa. null when the weight is unknown or not a weight.
+ */
+export function pricePerKgPaise(pricePaise, weightGrams, unit = 'pcs') {
+  if (!Number.isInteger(weightGrams) || weightGrams <= 0 || VOLUME_UNITS.has(unit)) return null;
+  return Math.round((pricePaise * 1000) / weightGrams);
+}

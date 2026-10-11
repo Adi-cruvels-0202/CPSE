@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { notFound, upstreamFailure } from '../../lib/errors.js';
 import { resolveOpenState } from '../../lib/openingHours.js';
+import { pricePerKgPaise } from '../../lib/pricing.js';
 
 /**
  * Storefront reads. Checklist 3.1 – 3.6.
@@ -352,7 +353,7 @@ export async function listProducts(slug, { categoryId, page, limit, availableOnl
 // Never cost_paise: what the merchant paid is not the customer's business
 // (MERCHANT_RULES P-11).
 const VARIANT_COLUMNS = `
-  id, product_id, name, sku, price_paise, mrp_paise,
+  id, product_id, name, sku, price_paise, mrp_paise, weight_grams,
   quantity_on_hand, reserved_quantity, is_available, sort_order
 `;
 
@@ -366,6 +367,9 @@ export function toPublicVariant(row, product) {
     // Absolute, never a delta (decision D15) — the order snapshot copies it.
     pricePaise: row.price_paise,
     mrpPaise: row.mrp_paise ?? null,
+    weightGrams: row.weight_grams ?? null,
+    // For comparing pack sizes; null when the weight is unknown.
+    pricePerKgPaise: pricePerKgPaise(row.price_paise, row.weight_grams ?? null, product?.unit),
     // Available (on hand − reserved), never on hand: customer API change 3.
     stock,
     isAvailable: row.is_available,

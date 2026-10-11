@@ -22,8 +22,8 @@ test on real Postgres (`tests/integration/*`, PGlite with every migration);
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend (api + sql + integration) | `cd backend && npx vitest run` | 49 files, **2087 passed**, 0 failed (full run, includes automatic support escalation) |
-| Customer app | `cd frontend/customer && npx vitest run` | 20 files, **700 passed** (584 baseline + 116 new: endpoint contract vs `backend/docs/API.md`, screen tests for every new flow) |
+| Backend (api + sql + integration) | `cd backend && npx vitest run` | 49 files, **2090 passed**, 0 failed (full run) |
+| Customer app | `cd frontend/customer && npx vitest run` | 20 files, **701 passed** (584 baseline + 117 new: endpoint contract vs `backend/docs/API.md`, screen tests for every new flow) |
 | Customer build | `cd frontend/customer && npm run build` | clean |
 | Merchant app | `cd frontend/merchant && npx vitest run` | 10 files, **159 passed** (17 baseline + 142 new: API contract vs `backend/docs/API.md`, screen tests for every new screen, reviewer console) |
 | Merchant typecheck + build | `cd frontend/merchant && npm run build` | clean; main chunk 374 kB, tools/admin lazy-loaded |
@@ -45,7 +45,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | M-02 | Industry templates (Grocery, Pharmacy, Clothing, Electronics, Bakery, Stationery, General) with sensible defaults, not locking | VERIFIED | `src/lib/industryTemplates.js`; migration 0040 (`stationery`, store defaults); IT `merchantOperations.test.js` (apply, idempotent re-apply); FE Catalogue tools → Starter templates; FE `catalogue.test.tsx` (merchant prices, skipped report) | — |
 | M-03 | Categories: create, rename, remove, activate/deactivate, reorder; shared with customer browsing | VERIFIED | existing create/rename/(de)activate (API `merchantCatalogue.test.js`, FE CategoriesPage); remove + reorder: migration 0040, IT; FE CategoriesPage reorder ↑↓ + delete with move/uncategorise; FE `catalogue.test.tsx` (order sent, move target, uncategorise, 409 shown) | — |
 | M-04 | Product starter catalogues | VERIFIED | templates with starter products, merchant prices; IT; FE template product picker with per-size prices; FE `catalogue.test.tsx` | — |
-| M-05 | Units: piece, kg, g, litre, ml, box, packet, dozen and others, consistent quantity handling | IMPLEMENTED_NEEDS_TESTING | `product_unit` enum (0026: pcs, kg, g, l, ml, dozen, pack, box, …), `weight_grams` on variants; merchant product form | Customer-side price-per-kg display; unit conversion tests |
+| M-05 | Units: piece, kg, g, litre, ml, box, packet, dozen and others, consistent quantity handling | VERIFIED | `product_unit` enum (0026: pcs, kg, g, l, ml, dozen, pack, box, …), `weight_grams` on variants; merchant product form; `pricePerKgPaise` on public variants (`src/lib/pricing.js`, weight units only); API `pricing.test.js`, IT `commerceFlow.test.js`; customer product page shows ₹/kg per size; FE `roadmap-customer.test.jsx` | — |
 | M-06 | Workflow defaults (inventory, availability, low-stock, purchase, operational) | VERIFIED | store defaults (0040), new products inherit; IT; FE Catalogue tools → Defaults; FE `catalogue.test.tsx` | — |
 | M-07 | Purchase management: supplier, invoice/reference, date, product, quantity, price | VERIFIED | migration 0040 suppliers/purchases; `src/modules/merchantPurchases/*`; IT (draft→confirm, duplicate invoice 409, isolation); FE PurchasesPage (suppliers, draft, receive); FE `operations.test.tsx` (receive body, duplicate-invoice refusal) | — |
 | M-08 | Batch & expiry; expiring/expired visible; feeds alerts and offers | VERIFIED | `inventory_batches`, FEFO trigger, `GET …/inventory/batches`; IT (FEFO on sale, targeted write-off, expiring list), alerts IT; FE BatchesPage (expiring/expired, FEFO note, write-off, clearance offer); FE `operations.test.tsx` | — |
@@ -246,16 +246,15 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 | Status | Count |
 |---|---|
-| VERIFIED | 131 (incl. 2 "VERIFIED (simulated provider)", 2 "VERIFIED (in-app)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
-| IMPLEMENTED_NEEDS_TESTING | 2 (M-05 unit display, C-23 browser end-to-end run) |
+| VERIFIED | 132 (incl. 2 "VERIFIED (simulated provider)", 2 "VERIFIED (in-app)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
+| IMPLEMENTED_NEEDS_TESTING | 1 (C-23 browser end-to-end run) |
 | PARTIAL | 3 (C-62 external channels, E-01 and E-06 — both wait on the intelligence phase) |
 | MISSING_OR_BROKEN | 18 (M-52…M-60 and C-66…C-74: the Phase D/E intelligence features) |
 | BLOCKED | 0 whole requirements (live payment gateway, external SMS/WhatsApp/email delivery and AI image reading are blocked sub-parts, noted in their rows) |
 
-Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10). VERIFIED: 131 / 154 = **85%** (25% at `132e595`, 57% at `ab902b4`). Every non-AI requirement is implemented in the database, API, both apps and tests, except the three named above.
+Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10). VERIFIED: 132 / 154 = **86%** (25% at `132e595`, 57% at `ab902b4`). Every non-AI requirement is implemented in the database, API, both apps and tests, except C-23 (browser end-to-end run), C-62 (external channels, blocked) and E-01/E-06 (wait on the intelligence phase).
 
 ## Next incomplete requirement
 
-1. **M-05** — show price per kg/litre on the customer product page from `weight_grams`, with unit tests.
-2. **Phase D/E intelligence (M-52…M-60, C-66…C-74)**, deterministic engines first, each proposing and never applying without confirmation (E-06): demand forecast and stock-out risk (M-56/M-57), smart catalogue suggestions (M-55), co-purchase recommendations (C-69), replenishment prediction (C-70), smart substitutions (C-71), personalised discovery (C-72), natural-language search parser (C-66), smart basket (C-67), voice input → proposed actions via the browser speech API (M-52, C-73), k-anonymous cross-store insights (M-58), grounded assistants (M-59, C-68) and invoice text extraction (M-54). Provider-backed parts (image recognition M-53, image/PDF invoices) use an optional Claude provider behind `AI_PROVIDER`; with no key here they are reported BLOCKED, not claimed.
-3. **C-23** — a browser end-to-end run of the required flow against a running stack.
+1. **Phase D/E intelligence (M-52…M-60, C-66…C-74)**, deterministic engines first, each proposing and never applying without confirmation (E-06): demand forecast and stock-out risk (M-56/M-57), smart catalogue suggestions (M-55), co-purchase recommendations (C-69), replenishment prediction (C-70), smart substitutions (C-71), personalised discovery (C-72), natural-language search parser (C-66), smart basket (C-67), voice input → proposed actions via the browser speech API (M-52, C-73), k-anonymous cross-store insights (M-58), grounded assistants (M-59, C-68) and invoice text extraction (M-54). Provider-backed parts (image recognition M-53, image/PDF invoices) use an optional Claude provider behind `AI_PROVIDER`; with no key here they are reported BLOCKED, not claimed.
+2. **C-23** — a browser end-to-end run of the required flow against a running stack.

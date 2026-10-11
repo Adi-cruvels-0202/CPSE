@@ -7,6 +7,7 @@ import { reconcileRefunds } from '../modules/refunds/refund.service.js';
 import { expireOffers } from '../modules/offers/offer.service.js';
 import * as automation from '../modules/automation/automation.service.js';
 import { escalateUnanswered } from '../modules/messaging/messaging.service.js';
+import { recordAbandonedCarts } from '../modules/engagement/cartEvents.js';
 
 /**
  * Scheduled operations — roadmap Phase C, §7 (jobs idempotent, safe to retry).
@@ -80,6 +81,7 @@ export const JOBS = [
   { name: 'khata-reminders', everySeconds: 3600, run: automation.runKhataReminders },
   { name: 'points-expiry', everySeconds: 86_400, run: automation.runPointsExpiry },
   { name: 'support-escalation', everySeconds: 900, run: escalateUnanswered },
+  { name: 'abandoned-carts', everySeconds: 3600, run: recordAbandonedCarts },
   { name: 'notification-deliveries', everySeconds: 60, run: runDeliveries },
 ];
 

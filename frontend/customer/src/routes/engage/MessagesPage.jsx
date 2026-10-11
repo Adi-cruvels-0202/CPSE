@@ -180,7 +180,7 @@ export function ConversationPage() {
       {open ? (
         <>
           <form
-            className="field__with-action"
+            className="inline-form"
             onSubmit={(event) => {
               event.preventDefault();
               if (text.trim()) reply.submit();

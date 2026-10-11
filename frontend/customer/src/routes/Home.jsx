@@ -30,9 +30,6 @@ export function Home() {
         </p>
       </header>
 
-      {/* Outside the signed-in switch, so it keeps its state when the session resolves. */}
-      <NearbyOffers />
-
       {signedIn ? (
         <>
           <ActiveOrders />
@@ -58,6 +55,10 @@ export function Home() {
           </section>
         </>
       )}
+
+      {/* After the switch, at the same place for both: it keeps its state when
+          the session resolves, and never pushes a live order down the page. */}
+      <NearbyOffers />
     </div>
   );
 }

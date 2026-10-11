@@ -103,10 +103,10 @@ describe('reading an invoice', () => {
     const sent = fakeServer([
       ['GET', base('/purchases'), () => ({ data: { purchases: [] }, meta: { ...META, total: 0 } })],
       ['GET', base('/products'), () => ({ data: { products: [product] }, meta: META })],
-      ['GET', base('/suppliers'), () => ({ data: { suppliers: [] } })],
-      ['POST', base('/intelligence/invoice'), () => ({ data: { invoice: { invoiceNumber: 'GW-118', invoiceDate: '2026-10-09', statedTotalPaise: 100000, computedTotalPaise: 92000, totalMatches: false, skipped: ['Thank you'], lines: [
-        { source: 'Basmati Rice 1kg 10 x 92', readAs: { name: 'Basmati Rice 1kg', quantity: 10, unitCostPaise: 9200 }, match: { productId: A, variantId: V, name: 'Basmati Rice (1 kg)', lastCostPaise: 9000 }, confidence: 'high', warnings: [], alternatives: [] },
-        { source: 'Unicorn 1 x 5', readAs: { name: 'Unicorn', quantity: 1, unitCostPaise: 500 }, match: null, confidence: 'none', warnings: [], alternatives: [] },
+      ['GET', base('/suppliers'), () => ({ data: { suppliers: [{ id: B, name: 'Gupta Wholesale', isActive: true }] } })],
+      ['POST', base('/intelligence/invoice'), () => ({ data: { invoice: { supplier: { name: 'Gupta Wholesale', source: 'label', match: { supplierId: B, name: 'Gupta Wholesale' } }, warnings: [], invoiceNumber: 'GW-118', invoiceDate: '2026-10-09', statedTotalPaise: 100000, computedTotalPaise: 92000, totalMatches: false, skipped: ['Thank you'], lines: [
+        { source: 'Basmati Rice 1kg Batch R-77 Exp 06/2027 10 x 92', readAs: { name: 'Basmati Rice 1kg', quantity: 10, unitCostPaise: 9200, batchNumber: 'R-77', expiresOn: '2027-06-30' }, match: { productId: A, variantId: V, name: 'Basmati Rice (1 kg)', lastCostPaise: 9000 }, confidence: 'high', warnings: [], alternatives: [] },
+        { source: 'Unicorn Exp 13/2027 1 x 5', readAs: { name: 'Unicorn', quantity: 1, unitCostPaise: 500, batchNumber: null, expiresOn: null }, match: null, confidence: 'none', warnings: ['Expiry “13/2027” is not a valid date — left empty.'], alternatives: [] },
       ] } } })],
     ]);
     await render(<PurchasesPage />);
@@ -114,11 +114,17 @@ describe('reading an invoice', () => {
     await type(document.getElementById('inv-text') as HTMLTextAreaElement, 'Basmati Rice 1kg 10 x 92\nUnicorn 1 x 5');
     await click(byText('button', 'Read'));
     await waitFor(() => text().includes('the invoice says ₹1,000.00, check it'));
+    expect(text()).toContain('Supplier: Gupta Wholesale (your saved supplier)');
+    expect(text()).toContain('R-77');
+    expect(text()).toContain('Expiry “13/2027” is not a valid date — left empty.');
     expect(sent.filter((r) => r.method === 'POST' && r.url.endsWith('/purchases'))).toHaveLength(0);
     await click(byText('button', 'Use 1 lines'));
     await waitFor(() => (document.querySelector('input[aria-label="Quantity"]') as HTMLInputElement)?.value === '10');
     expect((document.querySelector('input[aria-label="Cost per unit (₹)"]') as HTMLInputElement).value).toBe('92.00');
     expect((byLabel('Invoice number') as HTMLInputElement).value).toBe('GW-118');
+    expect((byLabel('Supplier') as HTMLSelectElement).value).toBe(B);
+    expect((document.querySelector('input[aria-label="Batch number"]') as HTMLInputElement).value).toBe('R-77');
+    expect((document.querySelector('input[aria-label="Expiry date"]') as HTMLInputElement).value).toBe('2027-06-30');
   });
 });
 

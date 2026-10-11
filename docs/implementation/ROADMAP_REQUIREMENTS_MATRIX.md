@@ -1,7 +1,7 @@
 # Roadmap requirements matrix
 
 Source: `Local_Commerce_Final_Development_Functional_Roadmap.docx` (8 pages).
-Branch: `feature/roadmap-completion`. Updated with the intelligence milestone (after commit `f20f8ee`).
+Branch: `feature/roadmap-completion`. Updated after the gap fixes (invoice fields, cart events, phone-width check) on top of `a7765bc`.
 
 ## Status rules
 
@@ -22,10 +22,10 @@ test on real Postgres (`tests/integration/*`, PGlite with every migration);
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend (api + sql + integration) | `cd backend && npx vitest run` | 51 files, **2203 passed**, 0 failed (full run) |
-| Customer app | `cd frontend/customer && npx vitest run` | 20 files, **714 passed**, stable over repeated full runs (584 baseline + 130 new: endpoint contract vs `backend/docs/API.md`, screen tests for every new flow) |
+| Backend (api + sql + integration) | `cd backend && npx vitest run` | 52 files, **2228 passed**, 0 failed (full run) |
+| Customer app | `cd frontend/customer && npx vitest run` | 20 files, **716 passed**, stable over repeated full runs (584 baseline + 132 new: endpoint contract vs `backend/docs/API.md`, screen tests for every new flow) |
 | Customer build | `cd frontend/customer && npm run build` | clean |
-| Merchant app | `cd frontend/merchant && npx vitest run` | 11 files, **177 passed** (17 baseline + 160 new: API contract vs `backend/docs/API.md`, screen tests for every new screen, reviewer console, intelligence) |
+| Merchant app | `cd frontend/merchant && npx vitest run` | 12 files, **182 passed** (17 baseline + 165 new: API contract vs `backend/docs/API.md`, screen tests for every new screen, reviewer console, intelligence) |
 | Merchant typecheck + build | `cd frontend/merchant && npm run build` | clean; main chunk 374 kB, tools/admin lazy-loaded |
 | Merchant lint | `cd frontend/merchant && npx oxlint src tests` | 0 errors (warnings only, same rule families as existing code) |
 
@@ -114,7 +114,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 |---|---|---|---|---|
 | M-52 | Voice input → proposed structured actions | VERIFIED | `src/modules/intelligence/*` (deterministic, read-only): `parseMerchantCommand` → proposal naming the ordinary endpoint; browser speech input (feature-detected) on Insights → Ask; Confirm applies it; API `intelligence.test.js`, IT `integration/intelligence.test.js` (applied only after confirmation), FE merchant `intelligence.test.tsx` | — |
 | M-53 | Product recognition from images/scans | BLOCKED | camera barcode scanning at the till via the browser BarcodeDetector + `product-lookup` (FE merchant `intelligence.test.tsx`); barcode/SKU lookup VERIFIED under M-12 | Recognising a product from a photo needs an AI vision provider: none configured, and adding `@anthropic-ai/sdk` would rewrite `backend/package-lock.json`, which holds uncommitted changes I was told not to touch |
-| M-54 | Invoice extraction | VERIFIED (text invoices) | `parseInvoiceText` + catalogue matching → reviewable draft lines (Purchases → Read an invoice); total checked; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | Photo/PDF invoices BLOCKED for the same reason as M-53 (the screen says so) |
+| M-54 | Invoice extraction | VERIFIED (text invoices) | pasted text → supplier (labelled or heading line, matched to saved suppliers), invoice number, invoice date, products, quantities, prices, **batch/lot and expiry per line** (`parseInvoiceText`, `extractBatchAndExpiry` in `backend/src/modules/intelligence/engines.js`); impossible dates and malformed batches are left empty with a warning, never guessed; already-expired lines warned; batch, expiry and supplier carried into the draft purchase (Purchases → Read an invoice). API `intelligence.test.js` (supplier, batch, 6 expiry formats, 4 invalid dates, invalid invoice date, existing lines unchanged), IT `integration/intelligence.test.js` (supplier match, batch/expiry, nothing written), FE merchant `intelligence.test.tsx` (prefilled supplier, batch, expiry; invalid-expiry warning shown) | Photo/PDF invoices BLOCKED: need an AI provider (see M-53); the screen says so |
 | M-55 | Smart suggestions (categories, units, fields, related, actions) | VERIFIED | `suggestForProduct` (store products first, then templates; category, unit, size, GST, duplicates, each with a reason); "Suggest" in New product, applied only on "Use these"; IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | — |
 | M-56 | Demand forecasting | VERIFIED | `forecastDemand`: 28-day average shaped by weekday, confidence levels, refuses under 14 days / 3 selling days; Insights → Stock & demand; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | — |
 | M-57 | Inventory intelligence (stockout risk, slow, over/under) | VERIFIED | `stockHealth`: days of cover, stock-out / at risk / overstock / slow, proposed reorder quantity; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | — |
@@ -199,7 +199,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | C-61 | Customer support / escalation | VERIFIED | escalation to platform; IT; reviewer console Escalated support (FE `admin.test.tsx`); customer escalation (order/support only), automatic escalation after 24 h (backend `escalateUnanswered`, IT `messaging.test.js`), reviewer console; FE `roadmap-customer.test.jsx` | — |
 | C-62 | Notification reliability | VERIFIED (in-app) | in-app notification on every event, delivery records with retries and backoff (`runDeliveries`), `GET /notifications/:id/deliveries`; IT | External SMS/WhatsApp/email BLOCKED (no vendor credentials); attempts are recorded as skipped, never claimed sent |
 | C-63 | Refund tracking status (amount, times, reference, reason) | VERIFIED | `order.refund.events`, `nextStep`; IT; refund tracker (amount, method, status timeline, reference, reason); FE `roadmap-customer.test.jsx` | — |
-| C-64 | Behaviour events | VERIFIED | `customer_events`, consent; IT; store_view / product_view / search recorded only when signed in (`src/lib/track.js`); FE `roadmap-customer.test.jsx` | — |
+| C-64 | Behaviour events | VERIFIED | `customer_events` with consent. Views and searches from the app (`frontend/customer/src/lib/track.js`); **cart additions recorded by the server** when a line is saved (`recordCartAdd`, `backend/src/modules/engagement/cartEvents.js`, every add path); **abandoned carts** by the `abandoned-carts` job (`recordAbandonedCarts`: open cart with items, idle ≥ 24 h and ≤ 30 days, not ordered since, once per idle spell via unique `dedupe_key`, migration `0044_cart_behaviour_events.sql`); favourites and list saves from the server; purchases, repeats and saved shops come from their own tables (orders, saved_stores), not duplicated as events. Clients cannot post `cart_add`/`cart_abandon` (422). No prices or personal details in either. IT `integration/behaviourEvents.test.js` (10: once per add, nothing on a refused add, list path, tracking off, event failure never fails the add, client posting refused, 401/403, once per spell, concurrent runs, recent/empty/ordered/old/untracked carts excluded, DB dedupe), FE `roadmap-customer.test.jsx` | — |
 | C-65 | Deterministic customer metrics | VERIFIED | `GET /me/insights`; IT; "Your shopping at a glance" in My shopping; FE `roadmap-customer.test.jsx` | — |
 | C-66 | Natural-language search | VERIFIED | `GET /stores/:slug/smart-search` (size, budget, cheapest, on offer) shown as "Understood as …" in store search; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
 | C-67 | Smart basket generation | VERIFIED | `POST /stores/:storeId/basket/propose` (usual size when none written) and the shop assistant's list handling; "Add all" through the cart with failures reported; IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
@@ -237,7 +237,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | E-05 | Traceable inventory and financial records | VERIFIED | immutable ledgers (inventory, khata, loyalty, refund events, messages, verification events) |
 | E-06 | Automation/AI propose, confirm important changes | VERIFIED | automation notifies and drafts; intelligence only proposes, applied on Confirm through the ordinary endpoint; IT proves no writes |
 | E-07 | Templates are defaults only | VERIFIED | IT (explicit values win, no overwrite on re-apply) |
-| E-08 | Loading/empty/error/success states | VERIFIED | every new screen in both apps has loading, empty, error (with retry) and success states; FE tests exercise them |
+| E-08 | Loading/empty/error/success states | VERIFIED | every new screen in both apps has loading, empty, error (with retry) and success states; FE tests exercise them. Definition of Done "responsive UI": every merchant (26) and customer (21) screen inspected at 375 × 812 in a real browser on seeded data — 4 defects found and fixed (see TESTING_AND_VERIFICATION.md), regression guards in FE merchant `layout.test.tsx` and customer `roadmap-customer.test.jsx` |
 | E-09 | Failure paths tested | VERIFIED | backend thoroughly; FE tests in both apps assert server refusals reach the user (409/422/403/401/404) |
 | E-10 | A screen is not a feature | — | rule respected: nothing marked VERIFIED without its screen |
 | E-11 | Refund rule (paid cancellation linked & traceable) | VERIFIED (backend) | IT `refunds.test.js` |
@@ -253,6 +253,10 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | MISSING_OR_BROKEN | 0 |
 
 Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10). VERIFIED: 152 / 154 = **98.7%**; the other two are BLOCKED, each by a missing external credential or service named in its row.
+
+**Correction to the previous update.** The same count (152) was reported before, but a re-read of the roadmap against the code showed three rows overstated: M-54 did not extract supplier, batch or expiry; C-64 did not record cart additions or abandoned carts; and the Definition of Done's "responsive UI" had not been checked in a browser. All three are now implemented and verified; the count is unchanged because those rows had already been counted as verified — they are now actually verified.
+
+A matrix count is not completion: several VERIFIED rows carry qualifiers (simulated payment provider, in-app notifications only, text invoices only), listed below.
 
 **Not 100%, and why.** Blocked sub-parts that no code change here can unblock:
 

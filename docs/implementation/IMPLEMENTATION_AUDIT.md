@@ -31,12 +31,12 @@ verified, 2 blocked** by missing external credentials.
 
 ## What was added
 
-### Database (migrations 0036–0043)
+### Database (migrations 0036–0044)
 
 Notifications and deliveries, merchant khata, refunds, store verification,
 merchant operations (suppliers, purchases, FEFO batches, defaults), customer
 relationship (consent, events, favourites, lists), loyalty/coupons/offers,
-messaging/substitutions/jobs. Details: `ENVIRONMENT_AND_SETUP.md`.
+messaging/substitutions/jobs, cart behaviour events. Details: `ENVIRONMENT_AND_SETUP.md`.
 
 ### Backend modules (`backend/src/modules`)
 

@@ -37,7 +37,7 @@ one port. Run the backend and you have the whole thing.
 | `backend/` | Express 4 API, Node 20+, ESM. Supabase for data and auth, Zod for every request body. |
 | `frontend/customer/` | The customer app. React 18 + React Router, built with Vite. Plain JavaScript for now (moving to TypeScript gradually — see `docs/MERGE_MAPPING.md` D-9). |
 | `frontend/merchant/` | The shopkeeper app ("Merchant One", from Merchant-One), served at `/merchant`. React + TypeScript + TanStack Query, built with Vite. |
-| `backend/migrations/` | 43 numbered SQL files. The whole schema. |
+| `backend/migrations/` | 44 numbered SQL files. The whole schema. |
 | `backend/docs/API.md` | Every endpoint, its body and its errors. |
 | `backend/docs/MERCHANT_INTEGRATION.md` | The contract with the merchant side, which this repo does **not** contain. |
 
@@ -59,7 +59,7 @@ development. See `MERCHANT_INTEGRATION.md` before wiring the two together.
 ### 2. Create the database
 
 In the Supabase dashboard, open the **SQL editor** and apply
-`backend/migrations/` in filename order — `0001` first, `0043` last. Each file is
+`backend/migrations/` in filename order — `0001` first, `0044` last. Each file is
 idempotent, so re-running one is harmless. To do it in one paste:
 
 ```bash

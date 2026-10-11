@@ -334,19 +334,28 @@ export function parseMerchantCommand(text) {
  * "name qty price amount" and "qty name @ price"; header lines give the
  * invoice number and date; a "total" line is checked against the lines.
  */
-export function parseInvoiceText(text) {
+export function parseInvoiceText(text, { today = null } = {}) {
   const lines = String(text ?? '').slice(0, 20_000).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const result = { invoiceNumber: null, invoiceDate: null, statedTotalPaise: null, lines: [], skipped: [] };
-  for (const line of lines.slice(0, 300)) {
+  const result = { supplier: null, invoiceNumber: null, invoiceDate: null, statedTotalPaise: null, lines: [], skipped: [], warnings: [] };
+  let sawItem = false;
+  for (const [index, line] of lines.slice(0, 300).entries()) {
     const lower = line.toLowerCase();
     let m;
+    if (!result.supplier && (m = line.match(/^(?:supplier|vendor|from|sold\s+by|seller|billed\s+by)\s*[:-]\s*(.+)$/i))) {
+      const name = cleanSupplierName(m[1]);
+      if (name) result.supplier = { name, source: 'label' };
+      continue;
+    }
+    // A label with nothing after it: no supplier, and not a name either.
+    if (/^(?:supplier|vendor|from|sold\s+by|seller|billed\s+by)\s*[:-]?$/i.test(line)) continue;
     if (!result.invoiceNumber && (m = line.match(/\b(?:invoice|inv|bill)\s*(?:no\.?|number|#)?\s*[:#-]?\s*([A-Za-z0-9/-]{2,30})/i)) && /\d/.test(m[1])) {
       result.invoiceNumber = m[1];
       continue;
     }
     if (!result.invoiceDate && (m = line.match(/\b(?:date|dated)\s*[:-]?\s*(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})/i))) {
-      const year = m[3].length === 2 ? `20${m[3]}` : m[3];
-      result.invoiceDate = `${year}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+      const date = calendarDate(m[3], m[2], m[1]);
+      if (date) result.invoiceDate = date;
+      else result.warnings.push(`The invoice date “${m[0].trim()}” is not a real date — left empty.`);
       continue;
     }
     if (/^(grand\s+)?total\b|^net\s+amount|^amount\s+payable/.test(lower)) {
@@ -354,14 +363,85 @@ export function parseInvoiceText(text) {
       if (amount !== null) result.statedTotalPaise = Math.round(amount * 100);
       continue;
     }
-    const parsed = invoiceLine(line);
-    if (parsed) result.lines.push(parsed);
-    else if (/[a-z]/i.test(line) && /\d/.test(line)) result.skipped.push(line);
+    // Batch and expiry come off the line first, so their numbers are never
+    // read as a quantity or a price.
+    const { rest, batchNumber, expiresOn, warnings } = extractBatchAndExpiry(line);
+    const parsed = invoiceLine(rest);
+    if (parsed) {
+      sawItem = true;
+      const lineWarnings = [...warnings];
+      const reference = result.invoiceDate ?? today;
+      if (expiresOn && reference && expiresOn < reference) lineWarnings.push(`Expiry ${expiresOn} is before ${result.invoiceDate ? 'the invoice date' : 'today'}.`);
+      result.lines.push({ ...parsed, source: line, batchNumber, expiresOn, warnings: lineWarnings });
+      continue;
+    }
+    // A business name heading the invoice, before any item: the supplier,
+    // when no line says so explicitly.
+    if (!result.supplier && !sawItem && index < 3 && /[a-z]{3}/i.test(line) && !/\d{3,}/.test(line) && !/\b(tax|gst|invoice|bill|date|phone|ph|mob|address)\b/i.test(line)) {
+      const name = cleanSupplierName(line);
+      if (name) result.supplier = { name, source: 'first_line' };
+      continue;
+    }
+    if (/[a-z]/i.test(line) && /\d/.test(line)) result.skipped.push(line);
   }
   const computed = result.lines.reduce((sum, l) => sum + l.quantity * l.unitCostPaise, 0);
   result.computedTotalPaise = computed;
   result.totalMatches = result.statedTotalPaise === null ? null : Math.abs(result.statedTotalPaise - computed) <= Math.max(100, result.lines.length * 2);
   return result;
+}
+
+function cleanSupplierName(raw) {
+  const name = String(raw).replace(/\s+/g, ' ').replace(/[\s,;:.-]+$/, '').trim();
+  return name.length >= 2 && name.length <= 120 && /[a-z]/i.test(name) ? name : null;
+}
+
+/** "2027", "12", "31" → "2027-12-31", or null when it is not a real calendar date. */
+function calendarDate(year, month, day) {
+  const y = String(year).length === 2 ? 2000 + Number(year) : Number(year);
+  const mo = Number(month);
+  const d = Number(day);
+  if (!Number.isInteger(y) || y < 2000 || y > 2099 || mo < 1 || mo > 12 || d < 1) return null;
+  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  if (d > last) return null;
+  return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+const lastDayOf = (year, month) => {
+  const y = String(year).length === 2 ? 2000 + Number(year) : Number(year);
+  return calendarDate(y, month, new Date(Date.UTC(y, Number(month), 0)).getUTCDate());
+};
+
+/**
+ * Takes a batch/lot number and an expiry date off an invoice line. A month
+ * and year ("Exp 12/2027") means the last day of that month, as packs print
+ * it. A value that is present but not valid is left empty with a warning —
+ * never guessed.
+ */
+export function extractBatchAndExpiry(line) {
+  let rest = ` ${line} `;
+  const warnings = [];
+  let batchNumber = null;
+  let expiresOn = null;
+
+  const batch = rest.match(/\s(?:batch|b\.\s?no\.?|bno|lot)\s*(?:no\.?)?\s*[:#.-]?\s*([A-Za-z0-9][A-Za-z0-9/-]*)(?=\s)/i);
+  if (batch) {
+    if (/^[A-Za-z0-9/-]{1,30}$/.test(batch[1]) && /\d|^[A-Za-z]{2,}/.test(batch[1])) batchNumber = batch[1].toUpperCase();
+    else warnings.push(`Batch “${batch[1]}” is not a valid batch number — left empty.`);
+    rest = rest.replace(batch[0], ' ');
+  }
+
+  const expiry = rest.match(/\s(?:exp(?:iry|\.)?|expires?|use\s+by|best\s+before|bb)\s*(?:date)?\s*[:.-]?\s*(\d{1,4}[/.-]\d{1,4}(?:[/.-]\d{2,4})?)(?=\s)/i);
+  if (expiry) {
+    const parts = expiry[1].split(/[/.-]/);
+    let date = null;
+    if (parts.length === 3) date = parts[0].length === 4 ? calendarDate(parts[0], parts[1], parts[2]) : calendarDate(parts[2], parts[1], parts[0]);
+    else if (parts.length === 2 && parts[0].length === 4) date = Number(parts[1]) >= 1 && Number(parts[1]) <= 12 ? lastDayOf(parts[0], parts[1]) : null;
+    else if (parts.length === 2 && parts[0].length <= 2 && Number(parts[0]) >= 1 && Number(parts[0]) <= 12 && [2, 4].includes(parts[1].length)) date = lastDayOf(parts[1], parts[0]);
+    if (date) expiresOn = date;
+    else warnings.push(`Expiry “${expiry[1]}” is not a valid date — left empty.`);
+    rest = rest.replace(expiry[0], ' ');
+  }
+  return { rest: rest.replace(/\s+/g, ' ').trim(), batchNumber, expiresOn, warnings };
 }
 
 function invoiceLine(line) {

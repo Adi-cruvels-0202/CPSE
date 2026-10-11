@@ -698,3 +698,33 @@ describe('due again', () => {
     expect(byMethod(calls, 'POST', '/cart/items')[0].body).toEqual({ storeId: STORE_ID, productId: 'p-1', variantId: 'v-1kg', quantity: 2 });
   });
 });
+
+// ── Phone-width layout (found at 375 px in a real browser) ─────────────────
+
+describe('phone-width layout', () => {
+  it('rows of an input and buttons let the input shrink instead of widening the page', async () => {
+    const { readFileSync } = await import('node:fs');
+    const global = readFileSync(`${process.cwd()}/src/styles/global.css`, 'utf8').replace(/\s+/g, ' ');
+    expect(global).toMatch(/\.inline-form \.field__input \{ flex: 1; min-width: 0; \}/);
+    expect(global).toMatch(/\.inline-form \.btn \{ flex-shrink: 0; \}/);
+  });
+
+  it('the assistant, coupon, list and reply rows use it (not the password-toggle layout)', async () => {
+    renderAt('/store/sharma-kirana', {
+      '/stores/sharma-kirana': ok({ store: storeFixture() }),
+      '/stores/sharma-kirana/categories': ok({ categories: [] }),
+      '/stores/sharma-kirana/products': ok({ products: [] }, { page: 1, limit: 20, total: 0, totalPages: 0, hasNextPage: false }),
+      '/stores/sharma-kirana/offers': ok({ offers: [], coupons: [] }),
+      '/me/events': created({ recorded: true }),
+      '/me/discover': ok({ discover: { basedOn: 'popular_here', items: [], offers: [] } }),
+    });
+    const input = await screen.findByRole('textbox', { name: 'Ask the shop assistant' });
+    expect(input.closest('form')).toHaveClass('inline-form');
+    const { readFileSync } = await import('node:fs');
+    for (const file of ['src/routes/checkout/CheckoutSections.jsx', 'src/routes/engage/ListsPage.jsx', 'src/routes/engage/MessagesPage.jsx', 'src/routes/store/ShopAssistant.jsx']) {
+      const source = readFileSync(`${process.cwd()}/${file}`, 'utf8');
+      expect(source, file).toContain('className="inline-form"');
+      expect(source, file).not.toContain('field__with-action');
+    }
+  });
+});

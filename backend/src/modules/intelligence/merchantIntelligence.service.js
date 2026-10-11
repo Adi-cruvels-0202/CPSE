@@ -182,8 +182,8 @@ export async function suggestForProduct(store, { name }) {
 
 // ── Invoice text → draft purchase lines (Phase D "Invoice extraction") ──────
 
-export async function extractInvoice(store, { text }) {
-  const parsed = engines.parseInvoiceText(text);
+export async function extractInvoice(store, { text }, { now = new Date() } = {}) {
+  const parsed = engines.parseInvoiceText(text, { today: localDay(now.toISOString(), store.timezone ?? 'Asia/Kolkata') });
   if (parsed.lines.length === 0) {
     throw unprocessable('NOTHING_READ', 'No item lines could be read. Each line needs a name, a quantity and a price, e.g. “Basmati Rice 10 x 95”.', { skipped: parsed.skipped.slice(0, 20) });
   }
@@ -204,16 +204,33 @@ export async function extractInvoice(store, { text }) {
     const matched = best && best.score >= 0.5 ? best.c : null;
     return {
       source: line.source,
-      readAs: { name: line.name, quantity: line.quantity, unitCostPaise: line.unitCostPaise },
+      readAs: { name: line.name, quantity: line.quantity, unitCostPaise: line.unitCostPaise, batchNumber: line.batchNumber, expiresOn: line.expiresOn },
       match: matched ? { productId: matched.product.id, variantId: matched.variant.id, name: matched.label, lastCostPaise: matched.variant.cost_paise ?? null } : null,
       confidence: !matched ? 'none' : bySku ? 'high' : best.score >= 0.9 ? 'high' : best.score >= 0.65 ? 'medium' : 'low',
-      warnings: matched && matched.variant.cost_paise && Math.abs(line.unitCostPaise - matched.variant.cost_paise) > matched.variant.cost_paise * 0.25
-        ? [`Cost ${formatPaise(line.unitCostPaise)} is far from your last ${formatPaise(matched.variant.cost_paise)} — check the line.`]
-        : [],
+      warnings: [
+        ...line.warnings,
+        ...(matched && matched.variant.cost_paise && Math.abs(line.unitCostPaise - matched.variant.cost_paise) > matched.variant.cost_paise * 0.25
+          ? [`Cost ${formatPaise(line.unitCostPaise)} is far from your last ${formatPaise(matched.variant.cost_paise)} — check the line.`]
+          : []),
+      ],
       alternatives: ranked.slice(1, 4).filter((r) => r.score >= 0.34).map((r) => ({ variantId: r.c.variant.id, name: r.c.label })),
     };
   });
+  // The supplier as written, and which of the shop's saved suppliers it is (if any).
+  let supplier = null;
+  if (parsed.supplier) {
+    const { data: saved, error } = await supabaseAdmin.from('suppliers').select('id, name').eq('store_id', store.id).eq('is_active', true);
+    fail(error, 'Could not load the suppliers.');
+    const best = (saved ?? [])
+      .map((s) => ({ s, score: engines.similarity(parsed.supplier.name, s.name) }))
+      .sort((a, b) => b.score - a.score)[0];
+    supplier = {
+      ...parsed.supplier,
+      match: best && best.score >= 0.6 ? { supplierId: best.s.id, name: best.s.name } : null,
+    };
+  }
   return {
+    supplier,
     invoiceNumber: parsed.invoiceNumber,
     invoiceDate: parsed.invoiceDate,
     statedTotalPaise: parsed.statedTotalPaise,
@@ -221,6 +238,7 @@ export async function extractInvoice(store, { text }) {
     totalMatches: parsed.totalMatches,
     lines,
     skipped: parsed.skipped,
+    warnings: parsed.warnings,
     // Applied only by saving a purchase (POST /merchant/stores/:storeId/purchases) after review.
     note: 'Nothing is saved. Check each line, then create the purchase as a draft.',
   };

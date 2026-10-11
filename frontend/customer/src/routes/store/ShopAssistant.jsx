@@ -52,7 +52,7 @@ export function ShopAssistant({ store, isSignedIn }) {
     <section className="card stack" aria-labelledby="assistant-heading" style={{ gap: 'var(--space-2)' }}>
       <h2 id="assistant-heading" className="engage__title">Ask {store.name}</h2>
       <form
-        className="field__with-action"
+        className="inline-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (message.trim()) ask.submit();

@@ -86,7 +86,9 @@ meRouter.post(
   validate({
     body: z
       .object({
-        eventType: z.enum(['store_view', 'product_view', 'search', 'cart_add', 'cart_remove', 'checkout_start', 'offer_view']),
+        // cart_add and cart_abandon are recorded by the server from what really
+        // happened to the cart (src/modules/engagement/cartEvents.js), never posted.
+        eventType: z.enum(['store_view', 'product_view', 'search', 'cart_remove', 'checkout_start', 'offer_view']),
         storeId: uuid('store').optional(),
         productId: uuid('product').optional(),
         variantId: uuid('variant').optional(),

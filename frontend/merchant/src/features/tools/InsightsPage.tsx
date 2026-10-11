@@ -59,7 +59,7 @@ function Stock({ storeId }: { storeId: string }) {
         <Link to="/suggestions" className="btn btn-secondary btn-sm">Make a purchase list</Link>
       </div>
       {stock.items.length === 0 ? <EmptyState icon={<IconTrendingUp size={32} />} title="No products yet" description="Add products to see demand and stock health." /> : (
-        <div className="table-container">
+        <div className="table-container table-scroll">
           <table className="table">
             <thead><tr><th>Product</th><th>Stock</th><th>Health</th><th>Next {stock.horizonDays} days</th><th>Reorder</th></tr></thead>
             <tbody>{stock.items.map((i) => (

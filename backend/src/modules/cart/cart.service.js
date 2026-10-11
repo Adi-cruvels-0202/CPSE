@@ -12,6 +12,7 @@ import {
 import { MAX_QUANTITY } from './cart.schemas.js';
 import { liveOffersByVariant, offerUnitsLeft } from '../offers/offerPricing.js';
 import { offerEndReason } from '../../lib/offers.js';
+import { recordCartAdd } from '../engagement/cartEvents.js';
 
 /**
  * Cart reads and writes — checklist 5.1 – 5.12.
@@ -369,6 +370,10 @@ export async function addItem(customerId, { storeId, productId, variantId, quant
     });
     fail(error, 'Could not add the item to your cart.');
   }
+
+  // Behaviour event (roadmap §5 P6), only now that the line is saved. Never
+  // fails the add, and respects the customer's activity setting.
+  await recordCartAdd(customerId, { storeId, productId, variantId: variant.id, quantity });
 
   return getCart(customerId, storeId);
 }

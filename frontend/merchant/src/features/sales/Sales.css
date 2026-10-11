@@ -86,6 +86,27 @@
   border-radius: var(--radius-full);
 }
 
+/* With the camera button at the end of the bar, the overlays move left of it
+   so they never cover it. */
+.sale-search-bar.has-camera .sale-search-shortcut,
+.sale-search-bar.has-camera .sale-search-clear {
+  right: 48px;
+}
+
+.sale-search-bar.has-camera .input-field {
+  padding-right: var(--space-10) !important;
+}
+
+/* Room for the ⌘K hint as well, where it is shown. */
+@media (hover: hover) {
+  .sale-search-bar.has-camera .input-field { padding-right: 84px !important; }
+}
+
+/* A keyboard shortcut means nothing on a touch screen. */
+@media (hover: none) {
+  .sale-search-shortcut { display: none; }
+}
+
 .sale-search-clear:hover {
   background: var(--color-bg-tertiary);
   color: var(--color-text);

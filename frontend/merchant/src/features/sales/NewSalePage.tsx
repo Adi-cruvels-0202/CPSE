@@ -223,12 +223,12 @@ export default function NewSalePage() {
       {scanning && <CameraScanner onClose={() => setScanning(false)} onCode={(code) => { setScanning(false); scan(code); }} />}
       <div className="sale-products-zone">
         <div className="sale-products-header">
-          <div className="sale-search-bar">
+          <div className={`sale-search-bar${canScanWithCamera() ? ' has-camera' : ''}`}>
             <IconSearch size={18} className="search-input-icon" />
             <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search, or scan a barcode…" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); scan(); } }} autoFocus style={{ width: '100%' }} />
             {!search && <div className="sale-search-shortcut">⌘K</div>}
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
-            {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setScanning(true)} aria-label="Scan with camera">📷</button>}
+            {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm sale-search-camera" onClick={() => setScanning(true)} aria-label="Scan with camera">📷</button>}
           </div>
           {(cats?.categories.length ?? 0) > 0 && (
             <div className="sale-categories">

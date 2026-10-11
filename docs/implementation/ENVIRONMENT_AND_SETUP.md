@@ -12,8 +12,8 @@ come from.
 
 ## Database
 
-Apply `backend/migrations/*.sql` in filename order (`0001` … `0043`) in the
-Supabase SQL editor. Every file is idempotent. This branch adds **0036–0043**:
+Apply `backend/migrations/*.sql` in filename order (`0001` … `0044`) in the
+Supabase SQL editor. Every file is idempotent. This branch adds **0036–0044**:
 
 | File | Adds |
 |---|---|
@@ -25,8 +25,9 @@ Supabase SQL editor. Every file is idempotent. This branch adds **0036–0043**:
 | `0041_customer_relationship.sql` | consent per store, activity events, favourites, lists and templates |
 | `0042_loyalty_coupons_offers.sql` | loyalty programmes, ledger, rewards, coupons, local offers, order benefits |
 | `0043_messaging_substitutions_jobs.sql` | conversations, messages, announcements, substitutions, job leases and runs, recurring tasks, reminders |
+| `0044_cart_behaviour_events.sql` | `cart_abandon` event type and a unique `dedupe_key` on behaviour events |
 
-A deployment that already has 0001–0035 needs only 0036–0043, in order.
+A deployment that already has 0001–0035 needs only 0036–0044, in order.
 
 Platform reviewers (store verification, escalated support) are rows in
 `platform_admins`, inserted in the SQL editor for an existing auth user:
@@ -50,8 +51,8 @@ They sign in at `/merchant/admin`.
 Without `JOBS_ENABLED`, run `npm run db:maintenance` from cron (every few
 minutes) — it runs every job once: unpaid-order expiry, refund reconciliation,
 offer expiry, low-stock and expiry alerts, recurring tasks, reorder and
-khata reminders, points expiry, support escalation and notification
-deliveries.
+khata reminders, points expiry, support escalation, abandoned-cart events and
+notification deliveries.
 
 ## Running
 

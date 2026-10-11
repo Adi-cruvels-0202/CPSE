@@ -55,3 +55,10 @@
   .print-only { display: block !important; }
 }
 .print-only { display: none; }
+
+/* Tables whose cells hold sentences (reasons, forecasts): on a phone they keep
+   readable columns and scroll sideways inside their frame, instead of squeezing
+   every column into the screen until a sentence wraps one word per line. */
+@media (max-width: 640px) {
+  .table-scroll > .table { min-width: 600px; }
+}

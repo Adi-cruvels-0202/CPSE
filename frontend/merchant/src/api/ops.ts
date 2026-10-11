@@ -454,8 +454,10 @@ export interface AssistantReply {
   actions?: { type: string; text: string; to: string }[]; proposal?: Proposal | null; problem?: string | null; options?: CommandResult['options']; understood?: boolean;
 }
 export interface InvoiceRead {
+  supplier: { name: string; source: 'label' | 'first_line'; match: { supplierId: string; name: string } | null } | null;
   invoiceNumber: string | null; invoiceDate: string | null; statedTotalPaise: number | null; computedTotalPaise: number; totalMatches: boolean | null;
-  lines: { source: string; readAs: { name: string; quantity: number; unitCostPaise: number }; match: { productId: string; variantId: string; name: string; lastCostPaise: number | null } | null; confidence: 'none' | 'low' | 'medium' | 'high'; warnings: string[]; alternatives: { variantId: string; name: string }[] }[];
+  warnings: string[];
+  lines: { source: string; readAs: { name: string; quantity: number; unitCostPaise: number; batchNumber: string | null; expiresOn: string | null }; match: { productId: string; variantId: string; name: string; lastCostPaise: number | null } | null; confidence: 'none' | 'low' | 'medium' | 'high'; warnings: string[]; alternatives: { variantId: string; name: string }[] }[];
   skipped: string[];
 }
 export interface ProductSuggestion {

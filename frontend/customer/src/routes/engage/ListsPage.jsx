@@ -180,7 +180,7 @@ export function ListPage() {
       )}
 
       <form
-        className="field__with-action"
+        className="inline-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (label.trim()) addLine.submit();

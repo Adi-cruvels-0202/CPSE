@@ -16,6 +16,7 @@ import {
   anonymousSpread,
   parseMerchantCommand,
   parseInvoiceText,
+  extractBatchAndExpiry,
   isoDay,
 } from '../src/modules/intelligence/engines.js';
 import { formatPaise } from '../src/lib/pricing.js';
@@ -224,5 +225,68 @@ Grand Total 5550.00`;
 
   it('ignores a qty-rate-amount line whose arithmetic is wrong', () => {
     expect(parseInvoiceText('Rice 10 95 50').lines).toEqual([]);
+  });
+});
+
+describe('invoice supplier, batch and expiry', () => {
+  it('reads the supplier from a label, or from the heading line', () => {
+    expect(parseInvoiceText('Supplier: Gupta Wholesale Traders.\nRice 2 x 50').supplier).toEqual({ name: 'Gupta Wholesale Traders', source: 'label' });
+    expect(parseInvoiceText('Sharma Distributors\nInvoice No: S-9\nRice 2 x 50').supplier).toEqual({ name: 'Sharma Distributors', source: 'first_line' });
+    // An address, phone or tax line is not a supplier; nor is anything after the first item.
+    expect(parseInvoiceText('GSTIN 27ABCDE1234F1Z5\nRice 2 x 50').supplier).toBeNull();
+    expect(parseInvoiceText('Rice 2 x 50\nGupta Wholesale').supplier).toBeNull();
+    expect(parseInvoiceText('Supplier: \nRice 2 x 50').supplier).toBeNull();
+  });
+
+  it.each([
+    ['Rice 1kg Batch B7 Exp 12/2027 10 x 95', { batchNumber: 'B7', expiresOn: '2027-12-31', rest: 'Rice 1kg 10 x 95' }],
+    ['Curd Lot: l-3 Exp: 31/12/2026 5 x 40', { batchNumber: 'L-3', expiresOn: '2026-12-31', rest: 'Curd 5 x 40' }],
+    ['Milk B.No 77 Best before 2026-11-02 2 x 30', { batchNumber: '77', expiresOn: '2026-11-02', rest: 'Milk 2 x 30' }],
+    ['Oil Exp 2027/03 4 x 150', { batchNumber: null, expiresOn: '2027-03-31', rest: 'Oil 4 x 150' }],
+    ['Atta BB 06/27 2 x 50', { batchNumber: null, expiresOn: '2027-06-30', rest: 'Atta 2 x 50' }],
+    ['Sugar 2 x 45', { batchNumber: null, expiresOn: null, rest: 'Sugar 2 x 45' }],
+  ])('%s', (line, expected) => {
+    const result = extractBatchAndExpiry(line);
+    expect({ batchNumber: result.batchNumber, expiresOn: result.expiresOn, rest: result.rest }).toEqual(expected);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it.each([
+    ['Dal Exp 13/2027 1 x 10', '13/2027'],
+    ['Ghee exp 2027-02-30 1 x 500', '2027-02-30'],
+    ['Tea Exp 31/04/2027 1 x 120', '31/04/2027'],
+    ['Soap Exp 12/1999 1 x 30', '12/1999'],
+  ])('leaves an impossible expiry empty and says so: %s', (line, value) => {
+    const result = extractBatchAndExpiry(line);
+    expect(result.expiresOn).toBeNull();
+    expect(result.warnings).toEqual([`Expiry “${value}” is not a valid date — left empty.`]);
+    // The bad date never becomes a quantity or a price.
+    expect(parseInvoiceText(line).lines[0]).toMatchObject({ quantity: 1, expiresOn: null });
+  });
+
+  it('a batch or expiry never turns into the quantity or price', () => {
+    const [line] = parseInvoiceText('Paracetamol 500mg Batch 2207 Exp 08/2027 30 x 12.50').lines;
+    expect(line).toMatchObject({ name: 'Paracetamol 500mg', quantity: 30, unitCostPaise: 1250, batchNumber: '2207', expiresOn: '2027-08-31' });
+  });
+
+  it('warns when an item is already past its expiry', () => {
+    const withDate = parseInvoiceText('Date: 09/10/2026\nMilk Exp 01/10/2026 2 x 30').lines[0];
+    expect(withDate.warnings).toEqual(['Expiry 2026-10-01 is before the invoice date.']);
+    const withToday = parseInvoiceText('Milk Exp 01/10/2026 2 x 30', { today: '2026-10-11' }).lines[0];
+    expect(withToday.warnings).toEqual(['Expiry 2026-10-01 is before today.']);
+  });
+
+  it('refuses an impossible invoice date instead of inventing one', () => {
+    const result = parseInvoiceText('Date: 31/02/2026\nRice 2 x 50');
+    expect(result.invoiceDate).toBeNull();
+    expect(result.warnings).toEqual(['The invoice date “Date: 31/02/2026” is not a real date — left empty.']);
+  });
+
+  it('keeps reading lines that have neither (existing pasted-text behaviour)', () => {
+    const result = parseInvoiceText('Rice 10 x 95\n20 Toor Dal @ 140');
+    expect(result.lines.map(({ name, quantity, batchNumber, expiresOn }) => ({ name, quantity, batchNumber, expiresOn }))).toEqual([
+      { name: 'Rice', quantity: 10, batchNumber: null, expiresOn: null },
+      { name: 'Toor Dal', quantity: 20, batchNumber: null, expiresOn: null },
+    ]);
   });
 });

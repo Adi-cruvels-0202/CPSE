@@ -68,7 +68,7 @@ export default function SuggestionsPage() {
         <EmptyState icon={<IconCheck size={32} />} title="Nothing needs reordering" description="Everything is above its low-stock level and covers recent sales." />
       ) : (
         <>
-          <div className="table-container">
+          <div className="table-container table-scroll">
             <table className="table">
               <thead><tr><th /><th>Product</th><th>Available</th><th>Why</th><th>Order</th><th>Cost/unit ₹</th></tr></thead>
               <tbody>

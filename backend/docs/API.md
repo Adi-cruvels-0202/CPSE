@@ -929,7 +929,7 @@ price, stock and availability are checked as for any tap on "Add".
 | `GET /me/store-preferences` | Bearer. Every store's communication choices the customer has set. |
 | `GET /stores/:storeId/preferences` | Bearer. This store's communication choices: `allowPromotions` (offers, announcements, occasion offers — off by default), `allowReminders`, `allowSms`, `allowWhatsapp`, `allowEmail`. Updates about an order you placed always reach you in the app. |
 | `PUT /stores/:storeId/preferences` | Bearer. Any of those switches. |
-| `POST /me/events` | Bearer. `{ eventType: store_view\|product_view\|search\|cart_add\|cart_remove\|checkout_start\|offer_view, storeId?, productId?, variantId?, query?, sessionId? }` → `{ recorded }`. Not recorded when tracking is off, or when the ids do not belong together. |
+| `POST /me/events` | Bearer. `{ eventType: store_view\|product_view\|search\|cart_remove\|checkout_start\|offer_view, storeId?, productId?, variantId?, query?, sessionId? }` → `{ recorded }`. Not recorded when tracking is off, or when the ids do not belong together. `cart_add` and `cart_abandon` are **refused (422)** here: the server records them itself — `cart_add` when an item is actually saved to a cart (any path: product page, buy again, lists, usual basket, reorder), with `{ quantity }` only; `cart_abandon` from the `abandoned-carts` job for an open cart with items, idle for 24 hours (and at most 30 days), not ordered since, once per cart per idle spell (unique `dedupe_key`). Neither is recorded when tracking is off, and neither carries prices. |
 | `GET /me/recently-viewed` | Bearer. `?storeId=` → `{ products }` (live price and availability). |
 | `GET /me/recently-purchased` | Bearer. `?storeId=` → `{ products }`, most recent first. |
 | `GET /me/buy-again` | Bearer. `?storeId=` → `{ products }` with `timesBought`, `usualQuantity`, `usualVariantId`, `lastBoughtAt`. |
@@ -1081,7 +1081,8 @@ once each by `npm run db:maintenance`): expire unpaid orders, reconcile
 refunds, end offers, low-stock alerts (one per variant per day), expiry alerts
 (one per batch and state), recurring tasks, reorder and template reminders,
 khata reminders (opt-in), points expiry, support escalation (order conversations
-unanswered by the shop for 24 hours go to CPSE support), and notification deliveries. Each
+unanswered by the shop for 24 hours go to CPSE support), abandoned-cart events, and
+notification deliveries. Each
 takes a lease so several instances never run the same job at once, and logs
 every run in `job_runs`.
 

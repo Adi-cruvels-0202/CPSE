@@ -236,7 +236,7 @@ export function Benefits({ coupons, couponCode, onCoupon, loyalty, quoteLoyalty,
         </div>
       ) : (
         <form
-          className="field__with-action"
+          className="inline-form"
           onSubmit={(event) => {
             event.preventDefault();
             if (draft.trim()) onCoupon(draft.trim().toUpperCase());

@@ -36,7 +36,7 @@ function PurchaseList({ storeId }: { storeId: string }) {
   const [editing, setEditing] = useState<Purchase | 'new' | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
-  const [fromInvoice, setFromInvoice] = useState<{ lines: Line[]; invoiceNumber: string | null; invoiceDate: string | null } | null>(null);
+  const [fromInvoice, setFromInvoice] = useState<{ lines: Line[]; invoiceNumber: string | null; invoiceDate: string | null; supplierId: string | null } | null>(null);
   const query = useQuery({
     queryKey: ['purchases', storeId, status, page],
     queryFn: () => purchaseApi.list(storeId, { status: status || undefined, page }),
@@ -85,13 +85,13 @@ interface Line { variantId: string; quantity: string; unitCost: string; tax: str
 const emptyLine = (): Line => ({ variantId: '', quantity: '1', unitCost: '', tax: '', batchNumber: '', expiresOn: '' });
 
 export function PurchaseForm({ storeId, purchase, onClose, initialLines, initialInvoice }: {
-  storeId: string; purchase: Purchase | null; onClose: () => void; initialLines?: Line[]; initialInvoice?: { invoiceNumber: string | null; invoiceDate: string | null };
+  storeId: string; purchase: Purchase | null; onClose: () => void; initialLines?: Line[]; initialInvoice?: { invoiceNumber: string | null; invoiceDate: string | null; supplierId?: string | null };
 }) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const products = useQuery({ queryKey: ['products-all', storeId], queryFn: () => productApi.all(storeId) });
   const suppliers = useQuery({ queryKey: ['suppliers', storeId], queryFn: () => purchaseApi.suppliers(storeId) });
-  const [supplierId, setSupplierId] = useState(purchase?.supplierId ?? '');
+  const [supplierId, setSupplierId] = useState(purchase?.supplierId ?? initialInvoice?.supplierId ?? '');
   const [invoiceNumber, setInvoiceNumber] = useState(purchase?.invoiceNumber ?? initialInvoice?.invoiceNumber ?? '');
   const [invoiceDate, setInvoiceDate] = useState(purchase?.invoiceDate ?? initialInvoice?.invoiceDate ?? '');
   const [lines, setLines] = useState<Line[]>(
@@ -319,7 +319,7 @@ function SupplierList({ storeId }: { storeId: string }) {
  * which to carry into a draft purchase. Nothing is saved here. Reading a
  * photo or PDF needs an AI provider, which this installation does not have.
  */
-function InvoiceReader({ storeId, onClose, onUse }: { storeId: string; onClose: () => void; onUse: (draft: { lines: Line[]; invoiceNumber: string | null; invoiceDate: string | null }) => void }) {
+function InvoiceReader({ storeId, onClose, onUse }: { storeId: string; onClose: () => void; onUse: (draft: { lines: Line[]; invoiceNumber: string | null; invoiceDate: string | null; supplierId: string | null }) => void }) {
   const { showToast } = useToast();
   const [text, setText] = useState('');
   const [read, setRead] = useState<InvoiceRead | null>(null);
@@ -336,8 +336,11 @@ function InvoiceReader({ storeId, onClose, onUse }: { storeId: string; onClose: 
     const lines = read!.lines
       .map((l, i) => ({ l, variantId: chosen[i] }))
       .filter(({ variantId }) => variantId)
-      .map(({ l, variantId }) => ({ ...emptyLine(), variantId, quantity: String(l.readAs.quantity), unitCost: paiseToRupees(l.readAs.unitCostPaise) }));
-    onUse({ lines: lines.length ? lines : [emptyLine()], invoiceNumber: read!.invoiceNumber, invoiceDate: read!.invoiceDate });
+      .map(({ l, variantId }) => ({
+        ...emptyLine(), variantId, quantity: String(l.readAs.quantity), unitCost: paiseToRupees(l.readAs.unitCostPaise),
+        batchNumber: l.readAs.batchNumber ?? '', expiresOn: l.readAs.expiresOn ?? '',
+      }));
+    onUse({ lines: lines.length ? lines : [emptyLine()], invoiceNumber: read!.invoiceNumber, invoiceDate: read!.invoiceDate, supplierId: read!.supplier?.match?.supplierId ?? null });
   };
   return (
     <Modal title="Read an invoice" size="lg" onClose={onClose} busy={run.isPending}
@@ -355,16 +358,25 @@ function InvoiceReader({ storeId, onClose, onUse }: { storeId: string; onClose: 
         </div>
       ) : (
         <div className="stack">
+          <p className="tiny" data-testid="invoice-supplier">
+            {read.supplier
+              ? read.supplier.match
+                ? `Supplier: ${read.supplier.match.name} (your saved supplier)`
+                : `Supplier on the invoice: ${read.supplier.name} — not one of your saved suppliers; add it under Suppliers to link it.`
+              : 'No supplier name found on the invoice.'}
+          </p>
+          {read.warnings.map((w) => <div key={w} className="alert-strip alert-strip-warning">{w}</div>)}
           <p className="tiny">
             {read.invoiceNumber ? `Invoice ${read.invoiceNumber}` : 'No invoice number found'}{read.invoiceDate ? ` · ${formatDate(read.invoiceDate)}` : ''} · lines add up to {formatPaise(read.computedTotalPaise)}
             {read.totalMatches === false && read.statedTotalPaise !== null ? ` — the invoice says ${formatPaise(read.statedTotalPaise)}, check it` : ''}
           </p>
           <table className="table">
-            <thead><tr><th>Read</th><th>Qty × cost</th><th>Your product</th></tr></thead>
+            <thead><tr><th>Read</th><th>Qty × cost</th><th>Batch / expiry</th><th>Your product</th></tr></thead>
             <tbody>{read.lines.map((l, i) => (
               <tr key={i}>
                 <td className="tiny">{l.source}</td>
                 <td>{l.readAs.quantity} × {formatPaise(l.readAs.unitCostPaise)}{l.warnings.map((w) => <div key={w} className="tiny">{w}</div>)}</td>
+                <td className="tiny">{l.readAs.batchNumber ?? '—'}{l.readAs.expiresOn ? <div>exp {formatDate(l.readAs.expiresOn)}</div> : null}</td>
                 <td>
                   <select className="input-field" aria-label={`Product for ${l.readAs.name}`} value={chosen[i] ?? ''} onChange={(e) => setChosen({ ...chosen, [i]: e.target.value })}>
                     <option value="">Skip this line</option>

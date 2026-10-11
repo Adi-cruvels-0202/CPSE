@@ -104,7 +104,9 @@ describe('invoice text (Phase D)', () => {
     await flow.addSimpleProduct(shop, { name: 'Toor Dal', pricePaise: 16500 });
     const before = await writableCounts();
 
-    const text = 'Invoice No: GW-118\nDate: 09/10/2026\nBasmati Rice 1kg 10 x 92\n20 Toor Dal @ 140\nUnicorn Tears 2 x 500\nTotal 3920';
+    expectStatus(await call('post', `${base(shop)}/suppliers`, shop.merchant, { name: 'Gupta Wholesale' }), 201);
+    const before2 = await writableCounts();
+    const text = 'Supplier: Gupta Wholesale\nInvoice No: GW-118\nDate: 09/10/2026\nBasmati Rice 1kg Batch R-77 Exp 06/2027 10 x 92\n20 Toor Dal @ 140\nUnicorn Tears 2 x 500\nTotal 3920';
     const { invoice } = expectStatus(await call('post', `${base(shop)}/intelligence/invoice`, shop.merchant, { text }), 200);
     expect(invoice).toMatchObject({ invoiceNumber: 'GW-118', invoiceDate: '2026-10-09', totalMatches: false });
     const [riceLine, dalLine, unknown] = invoice.lines;
@@ -112,7 +114,11 @@ describe('invoice text (Phase D)', () => {
     expect(riceLine.confidence).toBe('high');
     expect(dalLine.match.name).toBe('Toor Dal');
     expect(unknown.match).toBeNull();
-    expect(await writableCounts()).toEqual(before);
+    expect(riceLine.readAs).toMatchObject({ batchNumber: 'R-77', expiresOn: '2027-06-30' });
+    expect(dalLine.readAs).toMatchObject({ batchNumber: null, expiresOn: null });
+    expect(invoice.supplier).toMatchObject({ name: 'Gupta Wholesale', source: 'label', match: { name: 'Gupta Wholesale' } });
+    expect(await writableCounts()).toEqual(before2);
+    expect(before2.purchases).toBe(before.purchases);
 
     const refused = await call('post', `${base(shop)}/intelligence/invoice`, shop.merchant, { text: 'Thank you for your business' });
     expect(refused.status).toBe(422);

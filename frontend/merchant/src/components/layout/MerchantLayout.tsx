@@ -25,6 +25,12 @@ interface Tab {
   also?: string[];
 }
 
+/** Screens reached from the More hub; they keep the More tab lit. */
+const MORE_PATHS = [
+  '/inbox', '/messages', '/refunds', '/purchases', '/batches', '/suggestions', '/catalogue-tools', '/customers',
+  '/khata', '/promotions', '/announcements', '/analytics', '/automation', '/share', '/verification',
+];
+
 const TABS: Tab[] = [
   { to: '/dashboard', label: 'Home', icon: HomeIcon },
   { to: '/orders', label: 'Orders', icon: ReceiptIcon },
@@ -32,6 +38,7 @@ const TABS: Tab[] = [
   { to: '/inventory', label: 'Stock', icon: ClipboardIcon },
   { to: '/sales/new', label: 'Sell', icon: TillIcon, also: ['/sales'] },
   { to: '/store/setup', label: 'Store', icon: StoreIcon, also: ['/store'] },
+  { to: '/more', label: 'More', icon: MoreIcon, also: MORE_PATHS },
 ];
 
 export default function MerchantLayout() {
@@ -236,6 +243,10 @@ function ClipboardIcon({ filled }: { filled: boolean }) {
 function TillIcon({ filled }: { filled: boolean }) {
   return <svg {...iconProps} {...fillFor(filled)}><path d="M4 10h16v10H4z" /><path d="M7 10V5h10v5M8 14h2M14 14h2M8 17h8" /></svg>;
 }
+function MoreIcon({ filled }: { filled: boolean }) {
+  return <svg {...iconProps} {...fillFor(filled)}><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></svg>;
+}
+
 function StoreIcon({ filled }: { filled: boolean }) {
   return <svg {...iconProps} {...fillFor(filled)}><path d="M4 9h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9Z" /><path d="M3 9l1.6-4.2A1 1 0 0 1 5.5 4h13a1 1 0 0 1 .9.8L21 9" /><path d="M9 20v-5h6v5" /></svg>;
 }

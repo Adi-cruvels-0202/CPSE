@@ -152,6 +152,20 @@ describe('merchant khata ledger', () => {
     expect((await call('post', `/merchant/stores/${shop.store.id}/khata`, shop.merchant, { customerId: customer.id })).status).toBe(404);
   });
 
+  it("the store's khata settings round-trip through the merchant store view", async () => {
+    const shop = await flow.openShop();
+    const before = expectStatus(await call('get', `/merchant/stores/${shop.store.id}`, shop.merchant), 200);
+    expect(before.store.khata).toEqual({ enabled: false, dueDays: 30, autoReminders: false });
+
+    expectStatus(await call('put', `/merchant/stores/${shop.store.id}/khata-settings`, shop.merchant, { khataEnabled: true, khataDueDays: 15 }), 200);
+    expectStatus(await call('put', `/merchant/stores/${shop.store.id}/khata-settings/auto-reminders`, shop.merchant, { enabled: true }), 200);
+    const after = expectStatus(await call('get', `/merchant/stores/${shop.store.id}`, shop.merchant), 200);
+    expect(after.store.khata).toEqual({ enabled: true, dueDays: 15, autoReminders: true });
+
+    const other = await flow.openShop({ name: 'Other' });
+    expect((await call('put', `/merchant/stores/${shop.store.id}/khata-settings/auto-reminders`, other.merchant, { enabled: false })).status).toBe(404);
+  });
+
   it('another merchant cannot read or write this khata', async () => {
     const { shop, account } = await shopWithCustomerAccount();
     const other = await flow.openShop({ name: 'Other' });

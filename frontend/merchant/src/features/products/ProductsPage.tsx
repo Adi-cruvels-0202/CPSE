@@ -2,13 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { productApi, categoryApi } from '../../api/endpoints';
+import { catalogueOpsApi } from '../../api/ops';
 import { errorMessage } from '../../api/client';
 import type { Category, Product, Variant } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise, paiseToRupees, rupeesToPaise } from '../../lib/money';
 import { EmptyState, NoStore, Pagination, Spinner } from '../../components/common/ui';
-import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash, IconTag } from '../../components/icons/Icons';
+import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash, IconTag, IconCopy } from '../../components/icons/Icons';
 import './Products.css';
 
 const UNITS = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'dozen', 'pack', 'box', 'pair', 'set', 'roll', 'plate', 'serving'];
@@ -63,6 +64,18 @@ export default function ProductsPage() {
       else await productApi.activate(activeStoreId, product.id);
       showToast(product.isActive ? `${product.name} is now unavailable to customers` : `${product.name} is available again`, 'info');
       reload();
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    }
+  };
+
+  /** A copy starts hidden, with no stock and fresh SKUs, and opens for editing. */
+  const duplicate = async (product: Product) => {
+    try {
+      const { product: copy } = await catalogueOpsApi.duplicate(activeStoreId, product.id);
+      showToast(`Copied as “${copy.name}” — hidden until you make it available.`, 'success');
+      reload();
+      setOpenId(copy.id);
     } catch (err) {
       showToast(errorMessage(err), 'error');
     }
@@ -139,6 +152,7 @@ export default function ProductsPage() {
                       <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => setOpenId(product.id)} aria-label={`Edit ${product.name}`}><IconEdit size={18} /></button>
                         <button className="btn btn-ghost btn-sm" onClick={() => toggle(product)} title={product.isActive ? 'Make unavailable' : 'Make available'} aria-label="Toggle availability"><IconEye size={18} /></button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => duplicate(product)} title="Duplicate" aria-label={`Duplicate ${product.name}`}><IconCopy size={18} /></button>
                       </div>
                     </td>
                   </tr>

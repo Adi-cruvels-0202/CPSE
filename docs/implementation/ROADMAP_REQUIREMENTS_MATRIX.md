@@ -1,7 +1,7 @@
 # Roadmap requirements matrix
 
 Source: `Local_Commerce_Final_Development_Functional_Roadmap.docx` (8 pages).
-Branch: `feature/roadmap-completion`. Updated after commit `de8d9bb`.
+Branch: `feature/roadmap-completion`. Updated with the merchant-app milestone (after commit `132e595`).
 
 ## Status rules
 
@@ -22,10 +22,11 @@ test on real Postgres (`tests/integration/*`, PGlite with every migration);
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend (api + sql + integration) | `cd backend && npx vitest run` | 49 files, **2084 passed**, 0 failed |
-| Customer app | `cd frontend/customer && npx vitest run` | 18 files, **584 passed** (same count as the baseline before this branch — no new customer screens yet) |
-| Merchant app | `cd frontend/merchant && npx vitest run` | 4 files, **17 passed** (same as baseline) |
-| Merchant typecheck | `cd frontend/merchant && npx tsc -b` | clean |
+| Backend (api + sql + integration) | `cd backend && npx vitest run` | 49 files, **2085 passed**, 0 failed (2084 full run + the new khata store-view test, run in its file) |
+| Customer app | `cd frontend/customer && npx vitest run` | 18 files, **584 passed** (same as baseline — customer screens for the new features are the next milestone) |
+| Merchant app | `cd frontend/merchant && npx vitest run` | 10 files, **159 passed** (17 baseline + 142 new: API contract vs `backend/docs/API.md`, screen tests for every new screen, reviewer console) |
+| Merchant typecheck + build | `cd frontend/merchant && npm run build` | clean; main chunk 374 kB, tools/admin lazy-loaded |
+| Merchant lint | `cd frontend/merchant && npx oxlint src tests` | 0 errors (warnings only, same rule families as existing code) |
 
 Baseline before this branch (historical, 2026-10-11): backend 1344, customer 584, merchant 17.
 
@@ -39,72 +40,72 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
-| M-01 | Store verification / KYC: details, GSTIN/GST certificate, shop photo, identity/business/address proof, Pending/Verified/Rejected, review & rejection reasons, publish only when verified | PARTIAL | migration 0039; `src/modules/verification/*`, `src/modules/admin/admin.routes.js`; IT `verification.test.js` (13 tests: publish gate incl. DB trigger, GSTIN rules, file sniffing, private bucket + signed links, review/reject/resubmit, revocation unpublishes, immutable audit, tenant isolation) | Merchant verification screen; reviewer (admin) screens |
-| M-02 | Industry templates (Grocery, Pharmacy, Clothing, Electronics, Bakery, Stationery, General) with sensible defaults, not locking | PARTIAL | `src/lib/industryTemplates.js`; migration 0040 (`stationery`, store defaults); IT `merchantOperations.test.js` (apply, idempotent re-apply) | Template picker screen |
-| M-03 | Categories: create, rename, remove, activate/deactivate, reorder; shared with customer browsing | PARTIAL | existing create/rename/(de)activate (API `merchantCatalogue.test.js`, FE CategoriesPage); remove + reorder: migration 0040, IT | Reorder and delete in the merchant Categories screen |
-| M-04 | Product starter catalogues | PARTIAL | templates with starter products, merchant prices; IT | Selection screen |
+| M-01 | Store verification / KYC: details, GSTIN/GST certificate, shop photo, identity/business/address proof, Pending/Verified/Rejected, review & rejection reasons, publish only when verified | VERIFIED | migration 0039; `src/modules/verification/*`, `src/modules/admin/admin.routes.js`; IT `verification.test.js` (13 tests: publish gate incl. DB trigger, GSTIN rules, file sniffing, private bucket + signed links, review/reject/resubmit, revocation unpublishes, immutable audit, tenant isolation); FE `VerificationPage` (details, uploads, submit, field errors) + reviewer console `src/admin/AdminApp.tsx` at /merchant/admin; FE `operations.test.tsx` (verification), `admin.test.tsx` (approve, send back, incomplete cannot be approved, own session) | — |
+| M-02 | Industry templates (Grocery, Pharmacy, Clothing, Electronics, Bakery, Stationery, General) with sensible defaults, not locking | VERIFIED | `src/lib/industryTemplates.js`; migration 0040 (`stationery`, store defaults); IT `merchantOperations.test.js` (apply, idempotent re-apply); FE Catalogue tools → Starter templates; FE `catalogue.test.tsx` (merchant prices, skipped report) | — |
+| M-03 | Categories: create, rename, remove, activate/deactivate, reorder; shared with customer browsing | VERIFIED | existing create/rename/(de)activate (API `merchantCatalogue.test.js`, FE CategoriesPage); remove + reorder: migration 0040, IT; FE CategoriesPage reorder ↑↓ + delete with move/uncategorise; FE `catalogue.test.tsx` (order sent, move target, uncategorise, 409 shown) | — |
+| M-04 | Product starter catalogues | VERIFIED | templates with starter products, merchant prices; IT; FE template product picker with per-size prices; FE `catalogue.test.tsx` | — |
 | M-05 | Units: piece, kg, g, litre, ml, box, packet, dozen and others, consistent quantity handling | IMPLEMENTED_NEEDS_TESTING | `product_unit` enum (0026: pcs, kg, g, l, ml, dozen, pack, box, …), `weight_grams` on variants; merchant product form | Customer-side price-per-kg display; unit conversion tests |
-| M-06 | Workflow defaults (inventory, availability, low-stock, purchase, operational) | PARTIAL | store defaults (0040), new products inherit; IT | Defaults screen |
-| M-07 | Purchase management: supplier, invoice/reference, date, product, quantity, price | PARTIAL | migration 0040 suppliers/purchases; `src/modules/merchantPurchases/*`; IT (draft→confirm, duplicate invoice 409, isolation) | Purchases screens |
-| M-08 | Batch & expiry; expiring/expired visible; feeds alerts and offers | PARTIAL | `inventory_batches`, FEFO trigger, `GET …/inventory/batches`; IT (FEFO on sale, targeted write-off, expiring list), alerts IT | Batch/expiry screen |
-| M-09 | Inventory ledger: confirmed purchase → traceable movement | PARTIAL | `inventory_ledger` (0028) + `purchase` movements (0040); IT asserts referenced rows | Purchase entry in merchant UI (ledger screen exists) |
-| M-10 | Import/export with validation and error reporting | PARTIAL | `src/modules/merchantCatalogue/bulk.service.js`, `src/lib/csv.js`; IT (preview, failed-line report, whole-product skip, re-import by SKU, formula neutralising) | Import/export screen |
-| M-11 | Duplicate/reuse | PARTIAL | `POST …/products/:id/duplicate`; IT | Button in Products screen |
-| M-12 | Barcode support: store, identify, search, future scanning | PARTIAL | unique barcode per store (0040), `GET …/product-lookup`, search matches barcode/SKU; IT | Scan/lookup in POS and Products screens |
-| M-13 | Bulk operations with validation, preview, failed-row reporting | PARTIAL | `POST …/products/bulk`; IT (preview without writes, per-product MRP failure, foreign ids) | Bulk-action UI |
-| M-14 | Required flow: setup → catalogue → purchase → validation → ledger → batch/expiry → stock visibility → customer availability | PARTIAL | IT chain across `merchantOperations`, `commerceFlow` | Merchant UI for purchases/batches |
+| M-06 | Workflow defaults (inventory, availability, low-stock, purchase, operational) | VERIFIED | store defaults (0040), new products inherit; IT; FE Catalogue tools → Defaults; FE `catalogue.test.tsx` | — |
+| M-07 | Purchase management: supplier, invoice/reference, date, product, quantity, price | VERIFIED | migration 0040 suppliers/purchases; `src/modules/merchantPurchases/*`; IT (draft→confirm, duplicate invoice 409, isolation); FE PurchasesPage (suppliers, draft, receive); FE `operations.test.tsx` (receive body, duplicate-invoice refusal) | — |
+| M-08 | Batch & expiry; expiring/expired visible; feeds alerts and offers | VERIFIED | `inventory_batches`, FEFO trigger, `GET …/inventory/batches`; IT (FEFO on sale, targeted write-off, expiring list), alerts IT; FE BatchesPage (expiring/expired, FEFO note, write-off, clearance offer); FE `operations.test.tsx` | — |
+| M-09 | Inventory ledger: confirmed purchase → traceable movement | VERIFIED | `inventory_ledger` (0028) + `purchase` movements (0040); IT asserts referenced rows; FE purchase entry → confirmed movement (backend IT); FE `operations.test.tsx` | — |
+| M-10 | Import/export with validation and error reporting | VERIFIED | `src/modules/merchantCatalogue/bulk.service.js`, `src/lib/csv.js`; IT (preview, failed-line report, whole-product skip, re-import by SKU, formula neutralising); FE Catalogue tools → Import & export (preview first, failed lines, commit, CSV download); FE `screens.test.tsx`, `ops.test.ts` | — |
+| M-11 | Duplicate/reuse | VERIFIED | `POST …/products/:id/duplicate`; IT; FE Products → Duplicate (opens the hidden copy); FE `catalogue.test.tsx` | — |
+| M-12 | Barcode support: store, identify, search, future scanning | VERIFIED | unique barcode per store (0040), `GET …/product-lookup`, search matches barcode/SKU; IT; FE counter sale: Enter/scan matches barcode/SKU locally, else `product-lookup`; FE `catalogue.test.tsx` (local, server, not found) | Camera scanning (browser BarcodeDetector) is optional future work |
+| M-13 | Bulk operations with validation, preview, failed-row reporting | VERIFIED | `POST …/products/bulk`; IT (preview without writes, per-product MRP failure, foreign ids); FE Catalogue tools → Bulk changes (preview → apply, failed products listed, Apply blocked when none can change); FE `screens.test.tsx`, `relationships.test.tsx` | — |
+| M-14 | Required flow: setup → catalogue → purchase → validation → ledger → batch/expiry → stock visibility → customer availability | VERIFIED | IT chain across `merchantOperations`, `commerceFlow`; every step now has a screen with FE tests (templates, catalogue, purchases, batches, stock, products); backend chain IT | — |
 
 ## 4. Merchant side — P2 CRM & Khata & Refunds
 
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
-| M-15 | Per-merchant customer CRM | PARTIAL | `src/modules/crm/*`; IT `relationship.test.js` (store-scoped figures, isolation) | CRM screens |
-| M-16 | Purchase history at that merchant | PARTIAL | CRM detail `purchaseHistory`; IT | Screen |
-| M-17 | Customer status (new/active/loyal/inactive), deterministic | PARTIAL | `src/lib/customerSegments.js`; unit IT | Screen |
-| M-18 | Customer value: total spend, first/last order | PARTIAL | `customerValue`; IT | Screen |
-| M-19 | Favourite products (repeat + explicit) | PARTIAL | CRM `favouriteProducts`; IT | Screen |
-| M-20 | Communication preferences respected | PARTIAL | `customer_store_preferences` (0041); consent shown in CRM; senders check it (announcements, reminders, deliveries); IT | Customer preference screen |
-| M-21 | Digital Khata (merchant-controlled ledger) | PARTIAL | migration 0037, `src/modules/merchantKhata/*`; IT `khata.test.js` | Merchant khata screens |
-| M-22 | Khata statements (charges, payments, balance, due dates) | PARTIAL | merchant + customer statement endpoints; customer Khata screens exist (FE) | Merchant statement screen; customer screen shows new fields |
-| M-23 | Due dates & reminders without rewriting history | PARTIAL | `khata_reminders`, opt-in auto reminders job; IT (reminder adds no ledger row) | Screens |
-| M-24 | Audit-safe corrections | PARTIAL | immutable + undeletable entries, linked reversals; IT (DB refuses update/delete, single reversal) | Screen |
-| M-25 | Cancellation & refund settlement linked to order/payment, no lost history | PARTIAL | migrations 0038/0043, `src/modules/refunds/*`; IT `refunds.test.js` (15) + substitution adjustment refunds | Merchant refunds screen; customer refund tracker UI |
-| M-26 | Khata refund/adjustment as separate linked ledger event | PARTIAL | `refund_credit` entries linked to refund + order; IT | Screen |
+| M-15 | Per-merchant customer CRM | VERIFIED | `src/modules/crm/*`; IT `relationship.test.js` (store-scoped figures, isolation); FE CustomersPage; FE `relationships.test.tsx` | — |
+| M-16 | Purchase history at that merchant | VERIFIED | CRM detail `purchaseHistory`; IT; FE customer detail "Recent orders"; FE `relationships.test.tsx` | — |
+| M-17 | Customer status (new/active/loyal/inactive), deterministic | VERIFIED | `src/lib/customerSegments.js`; unit IT; FE group filter + badges; FE `relationships.test.tsx` | — |
+| M-18 | Customer value: total spend, first/last order | VERIFIED | `customerValue`; IT; FE spend/average/first-last; FE `relationships.test.tsx` | — |
+| M-19 | Favourite products (repeat + explicit) | VERIFIED | CRM `favouriteProducts`; IT; FE "Buys again and again"; FE `relationships.test.tsx` | — |
+| M-20 | Communication preferences respected | PARTIAL | `customer_store_preferences` (0041); consent shown in CRM; senders check it (announcements, reminders, deliveries); IT; merchant sees consent in CRM (FE `relationships.test.tsx`) | Customer preference screen |
+| M-21 | Digital Khata (merchant-controlled ledger) | VERIFIED | migration 0037, `src/modules/merchantKhata/*`; IT `khata.test.js`; FE KhataPage (accounts, statement, entries, settings); FE `operations.test.tsx` (idempotency key per entry, refusals) | — |
+| M-22 | Khata statements (charges, payments, balance, due dates) | PARTIAL | merchant + customer statement endpoints; customer Khata screens exist (FE); merchant statement screen + FE tests | Customer khata screen to show the new entry kinds / due dates |
+| M-23 | Due dates & reminders without rewriting history | VERIFIED | `khata_reminders`, opt-in auto reminders job; IT (reminder adds no ledger row); FE due date on credit, manual reminder (refusal shown), automatic reminders toggle; FE `operations.test.tsx`, `screens.test.tsx` (automation) | — |
+| M-24 | Audit-safe corrections | VERIFIED | immutable + undeletable entries, linked reversals; IT (DB refuses update/delete, single reversal); FE Reverse with reason; adjustment needs a reason client- and server-side; FE `operations.test.tsx` | — |
+| M-25 | Cancellation & refund settlement linked to order/payment, no lost history | PARTIAL | migrations 0038/0043, `src/modules/refunds/*`; IT `refunds.test.js` (15) + substitution adjustment refunds; merchant order detail RefundPanel (retry/confirm cash) + RefundsPage; FE `screens.test.tsx`, `operations.test.tsx` | Customer refund tracker UI |
+| M-26 | Khata refund/adjustment as separate linked ledger event | VERIFIED | `refund_credit` entries linked to refund + order; IT; FE khata shows "Refund credited" and offers no reversal of it; FE `operations.test.tsx` | — |
 
 ## 4. Merchant side — P3 Loyalty, P4 Analytics, P5 Acquisition
 
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
-| M-27 | Merchant-specific loyalty rules | PARTIAL | migration 0042 `loyalty_programs`; IT `retention.test.js` | Screen |
-| M-28 | Rewards created and granted | PARTIAL | rewards → personal coupon in one transaction; IT | Screen |
-| M-29 | Loyalty history (earn/redeem) | PARTIAL | immutable `loyalty_ledger`; IT | Screen |
-| M-30 | Sales analytics (totals, trends) | PARTIAL | `src/modules/analytics/*`; IT checks against independent SQL totals | Analytics screen |
-| M-31 | Order analytics (count, status patterns) | PARTIAL | same; IT | Screen |
-| M-32 | Best-selling products | PARTIAL | same; IT | Screen |
-| M-33 | Slow-moving products | PARTIAL | same; IT | Screen |
-| M-34 | Unavailable products | PARTIAL | same; IT | Screen |
-| M-35 | Customer segments | PARTIAL | same; IT | Screen |
-| M-36 | Khata analytics (outstanding, collected, overdue) | PARTIAL | same; IT | Screen |
-| M-37 | Analytics reproducible, defined periods/filters, no double counting, no AI | PARTIAL | `definitions` in response; IT asserts trend sums = totals, cancelled excluded | Screen |
-| M-38 | Public store URL | IMPLEMENTED_NEEDS_TESTING | `/store/:slug`, `publicPath`; FE store page; `PUBLIC_APP_URL` env | Absolute share URL in merchant UI |
-| M-39 | QR generation | MISSING_OR_BROKEN | `qrcode.react` dependency present, not used | Share screen |
-| M-40 | Download/print QR | MISSING_OR_BROKEN | — | Share screen |
-| M-41 | WhatsApp/share actions | MISSING_OR_BROKEN | — | Share screen |
-| M-42 | Map/location | IMPLEMENTED_NEEDS_TESTING | customer `StoreLocation.jsx` (existing) | Map link in merchant share screen; tests |
-| M-43 | Reusable merchant sharing experience | MISSING_OR_BROKEN | — | Share screen |
+| M-27 | Merchant-specific loyalty rules | VERIFIED | migration 0042 `loyalty_programs`; IT `retention.test.js`; FE Promotions → Loyalty points; FE `relationships.test.tsx` | — |
+| M-28 | Rewards created and granted | VERIFIED | rewards → personal coupon in one transaction; IT; FE rewards create/pause; FE `relationships.test.tsx` | Customer redemption UI is C-side |
+| M-29 | Loyalty history (earn/redeem) | VERIFIED | immutable `loyalty_ledger`; IT; FE points history + adjust (refusal shown) in customer detail; FE `relationships.test.tsx` | — |
+| M-30 | Sales analytics (totals, trends) | VERIFIED | `src/modules/analytics/*`; IT checks against independent SQL totals; FE AnalyticsPage (period presets/custom, daily bars); FE `relationships.test.tsx` | — |
+| M-31 | Order analytics (count, status patterns) | VERIFIED | same; IT; FE AnalyticsPage; FE `relationships.test.tsx` | — |
+| M-32 | Best-selling products | VERIFIED | same; IT; FE AnalyticsPage; FE `relationships.test.tsx` | — |
+| M-33 | Slow-moving products | VERIFIED | same; IT; FE AnalyticsPage; FE `relationships.test.tsx` | — |
+| M-34 | Unavailable products | VERIFIED | same; IT; FE AnalyticsPage "Missed sales"; FE `relationships.test.tsx` | — |
+| M-35 | Customer segments | VERIFIED | same; IT; FE AnalyticsPage + CRM groups; FE `relationships.test.tsx` | — |
+| M-36 | Khata analytics (outstanding, collected, overdue) | VERIFIED | same; IT; FE AnalyticsPage khata card; FE `relationships.test.tsx` | — |
+| M-37 | Analytics reproducible, defined periods/filters, no double counting, no AI | VERIFIED | `definitions` in response; IT asserts trend sums = totals, cancelled excluded; FE "How these numbers are counted" shows server definitions; FE `relationships.test.tsx` (error state too) | — |
+| M-38 | Public store URL | VERIFIED | `/store/:slug`, `publicPath`; FE store page; `PUBLIC_APP_URL` env; FE SharePage absolute link `origin/store/<slug>`; FE `screens.test.tsx` | — |
+| M-39 | QR generation | VERIFIED | `qrcode.react` dependency present, not used; FE SharePage `QRCodeCanvas` encodes the store link; FE `screens.test.tsx` | — |
+| M-40 | Download/print QR | VERIFIED | —; FE Download QR (PNG) and Print poster; FE `screens.test.tsx` | — |
+| M-41 | WhatsApp/share actions | VERIFIED | —; FE WhatsApp share + native share; FE `screens.test.tsx` | — |
+| M-42 | Map/location | VERIFIED | customer `StoreLocation.jsx` (existing); FE map link from store coordinates; FE `screens.test.tsx` | — |
+| M-43 | Reusable merchant sharing experience | VERIFIED | —; FE SharePage (one place: link, QR, WhatsApp, map); FE `screens.test.tsx` | — |
 
 ## 4. Merchant side — Phase C Automation
 
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
-| M-44 | Low-stock alerts | PARTIAL | job + `GET …/low-stock`; IT (once per variant per day) | Inbox screen |
-| M-45 | Expiry alerts | PARTIAL | job; IT (expiring and expired, once each) | Inbox screen |
-| M-46 | Expiry-based local offers (product, price, validity, location) | PARTIAL | `store_offers` (0042), `src/modules/offers/*`; IT (batch cap, cut-off refusal) | Offer creation screen |
+| M-44 | Low-stock alerts | VERIFIED | job + `GET …/low-stock`; IT (once per variant per day); FE InboxPage (low stock → What to reorder) + Automation low-stock list; FE `operations.test.tsx`, `screens.test.tsx` | — |
+| M-45 | Expiry alerts | VERIFIED | job; IT (expiring and expired, once each); FE InboxPage (batch alerts → Batches) + BatchesPage; FE `operations.test.tsx` | — |
+| M-46 | Expiry-based local offers (product, price, validity, location) | VERIFIED | `store_offers` (0042), `src/modules/offers/*`; IT (batch cap, cut-off refusal); FE OfferForm (from a batch or any product); FE `relationships.test.tsx` (batch-tied body, cut-off refusal) | — |
 | M-47 | Location-based offer banner | PARTIAL | `GET /offers/nearby`; IT (radius, nearest first) | Customer banner |
-| M-48 | Automatic offer expiry (period, sold out, cut-off), server-side | PARTIAL | live check on every read + in `create_order`; expiry job; IT | — (UI shows state) |
-| M-49 | Notifications with delivery/status handling | PARTIAL | merchant inbox (0036), `notification_deliveries`, channel provider boundary; IT | Inbox screen; external channel **BLOCKED** (no SMS/WhatsApp/email vendor) |
-| M-50 | Recurring operations | PARTIAL | `recurring_tasks`, job; IT (once per due time, store-time schedule) | Screen |
-| M-51 | Deterministic suggested purchase lists | PARTIAL | `GET …/purchase-suggestions`, draft conversion; IT | Screen |
+| M-48 | Automatic offer expiry (period, sold out, cut-off), server-side | VERIFIED | live check on every read + in `create_order`; expiry job; IT; FE offers list shows status and end reason, "End now"; FE `relationships.test.tsx` | — |
+| M-49 | Notifications with delivery/status handling | VERIFIED (in-app) | merchant inbox (0036), `notification_deliveries`, channel provider boundary; IT; FE InboxPage (unread, mark read, open target); FE `operations.test.tsx` | External SMS/WhatsApp/email delivery **BLOCKED** (no vendor credentials); provider boundary exists |
+| M-50 | Recurring operations | VERIFIED | `recurring_tasks`, job; IT (once per due time, store-time schedule); FE AutomationPage tasks (weekly/monthly need a day); FE `screens.test.tsx` | — |
+| M-51 | Deterministic suggested purchase lists | VERIFIED | `GET …/purchase-suggestions`, draft conversion; IT; FE SuggestionsPage → draft purchase; FE `operations.test.tsx` | — |
 
 ## 4. Merchant side — Phase D/E Intelligence
 
@@ -126,7 +127,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 |---|---|---|---|---|
 | C-01 | Registration/login | VERIFIED | `auth.test.js` (API), `auth*.test.jsx` (FE), existing screens | — |
 | C-02 | Customer profile + basic shopping preferences | PARTIAL | profile VERIFIED (existing); preferences API + IT `relationship.test.js` | Preferences screen |
-| C-03 | Store discovery via URL/QR | VERIFIED | store page, directory; `stores.test.js`, `store-page.test.jsx`; IT publish flow | (QR is M-39) |
+| C-03 | Store discovery via URL/QR | VERIFIED | store page, directory; `stores.test.js`, `store-page.test.jsx`; IT publish flow | — |
 | C-04 | Store/catalogue browsing | VERIFIED | `catalogue.test.jsx`, `stores.test.js` | — |
 | C-05 | Product search within store | VERIFIED | `store-search.test.jsx`, `stores.test.js` | — |
 | C-06 | Product details (price, unit, availability, variants) | VERIFIED | `product-detail.test.jsx`, `productDetail.test.js` | — |
@@ -165,16 +166,16 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | C-34 | Quick checkout | PARTIAL | `POST /checkout/quick`; IT | Screen |
 | C-35 | Product/store sharing | MISSING_OR_BROKEN | — | Share buttons |
 | C-36 | Follow/save merchant | VERIFIED | saved stores | — |
-| C-37 | Ask the shop | PARTIAL | conversations; IT `messaging.test.js` | Screens (both apps) |
-| C-38 | Special requests | PARTIAL | same; IT | Screens |
-| C-39 | Order messaging | PARTIAL | same; IT | Screens |
+| C-37 | Ask the shop | PARTIAL | conversations; IT `messaging.test.js`; merchant Messages screen (FE `screens.test.tsx`) | Customer screens |
+| C-38 | Special requests | PARTIAL | same; IT; merchant side in Messages | Customer screens |
+| C-39 | Order messaging | PARTIAL | same; IT; merchant side in Messages | Customer screens |
 | C-40 | Merchant-specific offers shown | PARTIAL | `GET /stores/:slug/offers`; IT | Store page section |
 | C-41 | Communication preferences | PARTIAL | per-store preferences; IT | Screen |
 | C-42 | Store-specific reorder & loyalty | PARTIAL | buy-again per store, loyalty per store; IT | Screens |
-| C-43 | Store-specific notifications (opted-in) | PARTIAL | announcements; IT | Merchant announce screen |
+| C-43 | Store-specific notifications (opted-in) | PARTIAL | announcements; IT; merchant Announcements screen (FE `relationships.test.tsx`) | Customer opt-in screen (receipt uses the existing notifications screen) |
 | C-44 | Merchant-specific loyalty benefits | PARTIAL | points at checkout; IT | Checkout UI |
 | C-45 | Points & rewards history | PARTIAL | `GET /stores/:id/loyalty`; IT | Screen |
-| C-46 | Coupons | PARTIAL | coupons + atomic limits; IT (expired, used-up race, per-customer) | Checkout UI, merchant coupon screen |
+| C-46 | Coupons | PARTIAL | coupons + atomic limits; IT (expired, used-up race, per-customer); merchant Coupons screen (FE `screens.test.tsx`) | Checkout UI |
 | C-47 | First-order / repeat benefits | PARTIAL | audiences `new`/`returning`; IT | UI |
 | C-48 | Free pickup/delivery thresholds | PARTIAL | free-delivery threshold (existing) + `freeDelivery` progress in quote + free-delivery coupon; IT | Checkout UI |
 | C-49 | Consent-based occasion offers | PARTIAL | birthday audience + consent; unit-tested window | UI |
@@ -188,13 +189,13 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 |---|---|---|---|---|
 | C-53 | Accurate availability | VERIFIED | live stock on reads; reservation at order | — |
 | C-54 | Transparent pricing & charges | VERIFIED | quote + "+ GST" (existing FE) | Discount lines in UI |
-| C-55 | Explicit substitutions with approval | PARTIAL | migration 0043; IT (approve, decline, auto for allow_similar, never pays more) | Customer approve/decline UI; merchant propose UI |
+| C-55 | Explicit substitutions with approval | PARTIAL | migration 0043; IT (approve, decline, auto for allow_similar, never pays more); merchant propose/withdraw in order detail | Customer approve/decline UI |
 | C-56 | Reliable payment confirmation | VERIFIED (simulated provider) | see C-13 | Live gateway BLOCKED |
 | C-57 | Receipts & audit trail | VERIFIED | receipts, status history | — |
 | C-58 | Refund/cancellation rules, eligibility, status | PARTIAL | `order.cancellation`, `order.refund`; IT | UI |
 | C-59 | Merchant response status | VERIFIED | order timeline (existing) | — |
 | C-60 | Order timeline | VERIFIED | `OrderTimeline.jsx`, tests | — |
-| C-61 | Customer support / escalation | PARTIAL | escalation to platform; IT | Screens |
+| C-61 | Customer support / escalation | PARTIAL | escalation to platform; IT; reviewer console Escalated support (FE `admin.test.tsx`) | Customer screens |
 | C-62 | Notification reliability | PARTIAL | delivery tracking; IT | External channels BLOCKED (no vendor) |
 | C-63 | Refund tracking status (amount, times, reference, reason) | PARTIAL | `order.refund.events`, `nextStep`; IT | Customer UI |
 | C-64 | Behaviour events | PARTIAL | `customer_events`, consent; IT | Recording from the customer app |
@@ -213,30 +214,30 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 | ID | Flow | Status | Evidence | Remaining |
 |---|---|---|---|---|
-| S-01 | Store publishing → URL/QR → customer opens | PARTIAL | IT publish + KYC | QR, verification UI |
-| S-02 | Catalogue → customer sees correct data | VERIFIED | existing apps + IT | Import UI (M-10) |
-| S-03 | Inventory → availability updates | VERIFIED | IT ledger + reservations; inventory screens | Purchases UI |
+| S-01 | Store publishing → URL/QR → customer opens | VERIFIED | IT publish + KYC; FE verification + reviewer console + Share (QR) screens with tests | — |
+| S-02 | Catalogue → customer sees correct data | VERIFIED | existing apps + IT; import UI (M-10) | — |
+| S-03 | Inventory → availability updates | VERIFIED | IT ledger + reservations; inventory, purchases and batches screens (FE tests) | — |
 | S-04 | Order → merchant → status visible | VERIFIED | IT + both apps | — |
-| S-05 | Sale → ledger once → history → analytics | PARTIAL | IT (ledger once, analytics totals) | Analytics UI |
-| S-06 | Customer relationship → CRM → reorder/favourites | PARTIAL | IT | UIs |
-| S-07 | Loyalty: rules → earn/redeem → consistent history | PARTIAL | IT | UIs |
-| S-08 | Khata: record → customer visibility → audit | PARTIAL | IT | Merchant UI |
-| S-09 | Notifications on business events | PARTIAL | IT across modules | Merchant inbox UI |
-| S-10 | Cancellation & refund reconciled across systems | PARTIAL | IT (`refunds.test.js`, `khata.test.js`, `messaging.test.js`) | Refund UIs |
+| S-05 | Sale → ledger once → history → analytics | VERIFIED | IT (ledger once, analytics totals); FE Reports screen (`relationships.test.tsx`) | — |
+| S-06 | Customer relationship → CRM → reorder/favourites | PARTIAL | IT; merchant CRM screen (FE tests) | Customer favourites / buy-again / reminders UI |
+| S-07 | Loyalty: rules → earn/redeem → consistent history | PARTIAL | IT; merchant loyalty + points history screens (FE tests) | Customer points/redeem UI in checkout |
+| S-08 | Khata: record → customer visibility → audit | PARTIAL | IT; merchant khata screen (FE tests); customer khata screen (existing) | Customer screen: new entry kinds, due dates, reversals |
+| S-09 | Notifications on business events | VERIFIED (in-app) | IT across modules; merchant inbox (FE tests); customer notifications screen (existing) | External channels BLOCKED (no vendor) |
+| S-10 | Cancellation & refund reconciled across systems | PARTIAL | IT (`refunds.test.js`, `khata.test.js`, `messaging.test.js`); merchant refund screens (FE tests) | Customer refund tracker |
 
 ## 7. Engineering rules and 8. Definition of done
 
 | ID | Rule | Status | Evidence |
 |---|---|---|---|
-| E-01 | Vertical slices | PARTIAL | Backend slices complete with tests; frontend slices pending for new features |
+| E-01 | Vertical slices | PARTIAL | Backend + merchant slices complete with tests; customer-app slices pending for new features |
 | E-02 | Reuse shared concepts, no duplicates | VERIFIED | new features build on products/variants/orders/payments/ledger; one pricing engine |
 | E-03 | Never trust client input | VERIFIED | Zod `.strict()` schemas on every route; route audit (1102 tests) |
 | E-04 | Tenant isolation and customer ownership | VERIFIED (API) | route audit + isolation cases in every IT file |
 | E-05 | Traceable inventory and financial records | VERIFIED | immutable ledgers (inventory, khata, loyalty, refund events, messages, verification events) |
 | E-06 | Automation/AI propose, confirm important changes | PARTIAL | automation only notifies/drafts; AI not built |
 | E-07 | Templates are defaults only | VERIFIED | IT (explicit values win, no overwrite on re-apply) |
-| E-08 | Loading/empty/error/success states | PARTIAL | existing screens; new screens pending |
-| E-09 | Failure paths tested | PARTIAL | backend thoroughly; frontend pending |
+| E-08 | Loading/empty/error/success states | PARTIAL | every new merchant screen uses Spinner / EmptyState / ErrorState (retry) / toasts; customer screens pending |
+| E-09 | Failure paths tested | PARTIAL | backend thoroughly; merchant FE tests assert server refusals are shown (409/422/403/401); customer FE pending |
 | E-10 | A screen is not a feature | — | rule respected: nothing marked VERIFIED without its screen |
 | E-11 | Refund rule (paid cancellation linked & traceable) | VERIFIED (backend) | IT `refunds.test.js` |
 
@@ -244,14 +245,24 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 | Status | Count |
 |---|---|
-| VERIFIED | 39 (incl. 2 "VERIFIED (simulated provider)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
-| IMPLEMENTED_NEEDS_TESTING | 4 |
-| PARTIAL | 88 |
-| MISSING_OR_BROKEN | 23 |
+| VERIFIED | 88 (incl. 2 "VERIFIED (simulated provider)", 2 "VERIFIED (in-app)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
+| IMPLEMENTED_NEEDS_TESTING | 2 |
+| PARTIAL | 45 |
+| MISSING_OR_BROKEN | 19 |
 | BLOCKED | 0 whole requirements (live payment gateway, external notification channels and AI image reading are blocked sub-parts, noted in their rows) |
 
-Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10, which is a rule about rating). VERIFIED: 39 / 154 = **25%**. The large PARTIAL block is almost entirely "backend + database tests done, screen not built yet".
+Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10, which is a rule about rating). VERIFIED: 88 / 154 = **57%** (was 39 / 154 = 25% at commit `132e595`). Every merchant-side requirement in §4 P1–P4 and Phase C is now VERIFIED except M-05 (customer-side unit display), M-20/M-22/M-25 (their remaining part is a customer screen) and M-47 (customer offer banner). The remaining PARTIAL rows are almost all "backend + merchant done, customer screen not built yet"; the MISSING rows are the AI / intelligence phase.
 
 ## Next incomplete requirement
 
-Merchant-app screens for the backend now in place, starting with **M-25 / C-63 refund visibility** (merchant order detail + refunds list; customer refund tracker), then M-01 verification, M-21 khata, M-07/M-08 purchases & batches, M-30 analytics, and the merchant inbox (M-49).
+Customer-app screens, in this order:
+
+1. **C-63 / C-58 / C-16 / C-18 refund tracker** — order detail and receipt show the refund (amount, method, status timeline, reference, reason) from `GET /orders/:id` / `GET /me/refunds`.
+2. **C-55 substitution approve/decline** on the order detail.
+3. **C-44…C-48 checkout benefits** — coupon entry, points redemption, free-delivery progress, discount lines (C-54) from the quote.
+4. **C-02 / C-30 / C-31 / C-41 / M-20 preferences and consent** screen.
+5. **C-25 / C-27 / C-28 / C-32 / C-33 / C-34** buy again, lists, templates, favourites/recent, smart cart, quick checkout; **C-64** event recording.
+6. **C-37…C-39 / C-61** ask the shop, special requests, order messages, support escalation.
+7. **C-40 / C-47 / M-47 / C-49 / C-50 / C-52** store offers section and nearby-offers banner; **C-45** points history; **C-35** share buttons; **M-22 / S-08** khata entry kinds and due dates.
+
+Then Phase D/E intelligence (M-52…M-60, C-66…C-74): deterministic engines first, with an optional Claude provider behind `AI_PROVIDER` (no key in this environment, so provider-backed parts will be reported BLOCKED rather than claimed).

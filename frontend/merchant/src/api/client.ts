@@ -85,7 +85,7 @@ function refreshSession(): Promise<boolean> {
   return refreshing;
 }
 
-function toApiError(error: AxiosError<any>): ApiError {
+export function toApiError(error: AxiosError<any>): ApiError {
   if (!error.response) {
     return new ApiError({ status: 0, code: 'NETWORK_ERROR', message: 'Could not reach the server. Check your connection and try again.' });
   }
@@ -145,6 +145,18 @@ export const api = {
   patch: async <T>(url: string, body: unknown) => (await send<T>({ method: 'patch', url, data: body })).data,
   put: async <T>(url: string, body: unknown) => (await send<T>({ method: 'put', url, data: body })).data,
   delete: async <T>(url: string, body?: unknown) => (await send<T>({ method: 'delete', url, data: body })).data,
+  /** A raw text body (a CSV import), with query params. */
+  text: async <T>(url: string, text: string, params?: Record<string, unknown>, contentType = 'text/csv') =>
+    (await send<T>({ method: 'post', url, data: text, params: clean(params), headers: { 'Content-Type': contentType } })).data,
+  /** A file the server sends back (a CSV export), as text. */
+  download: async (url: string): Promise<string> => {
+    try {
+      const res = await http.request({ method: 'get', url, responseType: 'text', transformResponse: (data) => data });
+      return res.data as string;
+    } catch (raw) {
+      throw toApiError(raw as AxiosError<any>);
+    }
+  },
   /** One file, as the multipart field `file`. */
   upload: async <T>(url: string, file: File) => {
     const form = new FormData();

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi, saleApi, categoryApi } from '../../api/endpoints';
+import { catalogueOpsApi } from '../../api/ops';
 import { errorMessage } from '../../api/client';
 import type { Sale } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
@@ -23,6 +24,7 @@ interface Sellable {
   productName: string;
   variantName: string | null;
   sku: string | null;
+  barcode: string | null;
   categoryId: string | null;
   imageUrl: string | null;
   pricePaise: number;
@@ -69,6 +71,7 @@ export default function NewSalePage() {
               productName: product.name,
               variantName: variant.name === 'Default' ? null : variant.name,
               sku: variant.sku,
+              barcode: variant.barcode ?? null,
               categoryId: product.categoryId,
               imageUrl: product.images[0]?.url ?? null,
               pricePaise: variant.pricePaise,
@@ -84,7 +87,7 @@ export default function NewSalePage() {
     return sellables.filter(
       (item) =>
         (!categoryId || item.categoryId === categoryId) &&
-        (!term || `${item.productName} ${item.variantName ?? ''} ${item.sku ?? ''}`.toLowerCase().includes(term)),
+        (!term || `${item.productName} ${item.variantName ?? ''} ${item.sku ?? ''} ${item.barcode ?? ''}`.toLowerCase().includes(term)),
     );
   }, [sellables, search, categoryId]);
 
@@ -114,6 +117,39 @@ export default function NewSalePage() {
         ? current.filter((line) => line.variantId !== variantId)
         : current.map((line) => (line.variantId === variantId ? { ...line, quantity: Math.min(quantity, limit(line)) } : line)),
     );
+
+  /**
+   * Enter in the search box — what a barcode scanner sends after the code.
+   * An exact barcode or SKU adds that item; otherwise a single match does.
+   * A code not in the loaded list is looked up on the server, which also
+   * catches products added since this page opened.
+   */
+  const scan = async () => {
+    const code = search.trim();
+    if (!code) return;
+    const exact = sellables.find((item) => item.barcode === code || item.sku?.toLowerCase() === code.toLowerCase());
+    const pick = exact ?? (shown.length === 1 ? shown[0] : null);
+    if (pick) {
+      add(pick);
+      setSearch('');
+      return;
+    }
+    try {
+      const { product, variant } = await catalogueOpsApi.lookup(activeStoreId, { barcode: code });
+      if (!product.isActive || !variant.isActive) {
+        showToast(`${product.name} is not available for sale.`, 'error');
+        return;
+      }
+      add({
+        variantId: variant.id, productName: product.name, variantName: variant.name === 'Default' ? null : variant.name, sku: variant.sku,
+        barcode: variant.barcode ?? null, categoryId: product.categoryId, imageUrl: product.images[0]?.url ?? null, pricePaise: variant.pricePaise,
+        taxPercent: product.taxPercent, available: product.trackInventory ? variant.availableQuantity : null,
+      });
+      setSearch('');
+    } catch (err) {
+      showToast(errorMessage(err, `Nothing matches ${code}.`), 'error');
+    }
+  };
 
   const subtotal = cart.reduce((sum, line) => sum + line.pricePaise * line.quantity, 0);
   const tax = cart.reduce((sum, line) => sum + taxFor(line.pricePaise * line.quantity, line.taxPercent), 0);
@@ -186,7 +222,7 @@ export default function NewSalePage() {
         <div className="sale-products-header">
           <div className="sale-search-bar">
             <IconSearch size={18} className="search-input-icon" />
-            <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search by name or SKU…" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus style={{ width: '100%' }} />
+            <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search, or scan a barcode…" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); scan(); } }} autoFocus style={{ width: '100%' }} />
             {!search && <div className="sale-search-shortcut">⌘K</div>}
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
           </div>

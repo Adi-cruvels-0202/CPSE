@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orderApi } from '../../api/endpoints';
+import type { OrderDetail } from '../../api/ops';
+import { RefundPanel, SubstitutionsPanel, ProposeSubstitutionModal } from './OrderExtras';
 import { errorMessage } from '../../api/client';
 import type { Order } from '../../api/types';
 import { useToast } from '../../hooks/useToast';
@@ -36,7 +38,10 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
     queryKey: ['order', storeId, orderId],
     queryFn: () => orderApi.get(storeId, orderId),
   });
-  const order: Order | undefined = data?.order;
+  const order = data?.order as (Order & Partial<OrderDetail>) | undefined;
+  const [substituting, setSubstituting] = useState<string | null>(null);
+  const canSubstitute = !!order && ['placed', 'accepted', 'preparing'].includes(order.status) && order.substitutionPreference !== 'no_substitutions';
+  const reload = () => queryClient.invalidateQueries({ queryKey: ['order', storeId, orderId] });
 
   const act = useMutation({
     mutationFn: ({ action, reason }: { action: string; reason?: string }) => orderApi.act(storeId, orderId, action, reason),
@@ -96,14 +101,15 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
                     <span>{[address.recipientName, address.line1, address.line2, address.landmark, address.city, address.postalCode].filter(Boolean).join(', ')}</span>
                   </div>
                 )}
-                <div className="detail-row"><span className="detail-label">Payment</span><span>{order.paymentMethod === 'online' ? `Online — ${order.paymentStatus}` : `Cash on ${order.fulfilmentMode}`}</span></div>
+                <div className="detail-row"><span className="detail-label">Payment</span><span>{order.paymentMethod === 'online' ? `Online — ${order.paymentStatus}` : order.paymentMethod === 'khata' ? `On khata — ${order.paymentStatus}` : `Cash on ${order.fulfilmentMode} — ${order.paymentStatus}`}</span></div>
+                {order.substitutionPreference && <div className="detail-row"><span className="detail-label">Substitutes</span><span>{SUBSTITUTION_PREFERENCE[order.substitutionPreference]}</span></div>}
                 {order.customerNote && <div className="detail-row"><span className="detail-label">Note</span><span style={{ fontStyle: 'italic' }}>“{order.customerNote}”</span></div>}
                 {order.cancellationReason && <div className="detail-row"><span className="detail-label">Reason</span><span>{order.cancellationReason}</span></div>}
               </div>
 
               <div className="table-container">
                 <table className="table">
-                  <thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Price</th><th>GST</th><th>Line total</th></tr></thead>
+                  <thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Price</th><th>GST</th><th>Line total</th>{canSubstitute && <th />}</tr></thead>
                   <tbody>
                     {(order.items ?? []).map((item) => (
                       <tr key={item.id}>
@@ -113,6 +119,9 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
                         <td>{formatPaise(item.unitPricePaise)}</td>
                         <td>{item.taxPaise > 0 ? `${formatPaise(item.taxPaise)} (${item.taxPercent}%)` : '—'}</td>
                         <td style={{ fontWeight: 'var(--font-semibold)' }}>{formatPaise(item.lineTotalPaise)}</td>
+                        {canSubstitute && (
+                          <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => setSubstituting(item.id)}>Substitute…</button></td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -126,6 +135,15 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
                 {(order.totals.deliveryFeePaise ?? 0) > 0 && <div className="cart-summary-row"><span>Delivery</span><span>{formatPaise(order.totals.deliveryFeePaise)}</span></div>}
                 <div className="cart-summary-row cart-total"><span>Total</span><span>{formatPaise(order.totals.totalPaise)}</span></div>
               </div>
+
+              {(order.replacedItems?.length ?? 0) > 0 && (
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-2)' }}>
+                  Replaced: {order.replacedItems!.map((item) => `${item.productName}${item.variantName ? ` (${item.variantName})` : ''} × ${item.quantity}`).join(', ')}
+                </p>
+              )}
+
+              <SubstitutionsPanel storeId={storeId} substitutions={order.substitutions ?? []} onChanged={reload} />
+              <RefundPanel storeId={storeId} refund={order.refund ?? null} adjustments={order.refundAdjustments ?? []} onChanged={reload} />
 
               <div style={{ marginTop: 'var(--space-6)', padding: 'var(--space-4)', backgroundColor: 'var(--color-bg-alt)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
                 <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-semibold)', marginBottom: 'var(--space-3)' }}>Next step</h3>
@@ -162,6 +180,22 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
         </div>
         <div className="dialog-footer"><button className="btn btn-secondary" onClick={onClose} disabled={act.isPending}>Close</button></div>
       </div>
+      {substituting && order && (
+        <ProposeSubstitutionModal
+          storeId={storeId}
+          orderId={orderId}
+          item={(order.items ?? []).find((item) => item.id === substituting)!}
+          preference={order.substitutionPreference ?? 'contact_me'}
+          onClose={() => setSubstituting(null)}
+          onDone={() => { setSubstituting(null); reload(); }}
+        />
+      )}
     </div>
   );
 }
+
+const SUBSTITUTION_PREFERENCE: Record<string, string> = {
+  contact_me: 'Ask the customer first',
+  allow_similar: 'Similar items allowed (if not dearer)',
+  no_substitutions: 'No substitutions',
+};

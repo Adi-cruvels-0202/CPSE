@@ -61,6 +61,8 @@ export interface Store {
   };
   paymentMethods: { cash: boolean; online: boolean };
   isPublished: boolean;
+  verificationStatus?: 'not_submitted' | 'pending' | 'verified' | 'rejected';
+  khata?: { enabled: boolean; dueDays: number; autoReminders: boolean };
   publicPath: string;
   createdAt: string;
   updatedAt: string;
@@ -191,7 +193,7 @@ export interface Order {
   status: OrderStatus;
   statusLabel: string;
   paymentStatus: string;
-  paymentMethod: 'cash' | 'online';
+  paymentMethod: 'cash' | 'online' | 'khata';
   fulfilmentMode: 'pickup' | 'delivery';
   allowedActions: string[];
   customer: { id: string; name: string | null; phone: string | null };

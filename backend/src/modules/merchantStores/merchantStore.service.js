@@ -56,6 +56,11 @@ export function toMerchantStore(row, { now = new Date(), holidays = [] } = {}) {
     paymentMethods: { cash: row.accepts_cash, online: row.accepts_online },
     isPublished: row.is_published,
     verificationStatus: row.verification_status ?? 'not_submitted',
+    khata: {
+      enabled: Boolean(row.khata_enabled),
+      dueDays: row.khata_due_days ?? 30,
+      autoReminders: Boolean(row.khata_auto_reminders),
+    },
     // What the "share / QR code" button links to — the customer store page.
     publicPath: `/store/${row.slug}`,
     createdAt: row.created_at,

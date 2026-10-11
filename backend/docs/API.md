@@ -1010,6 +1010,90 @@ within 60 days), **loyal** (five or more in 180 days, last within 60),
 | `POST /merchant/stores/:storeId/offers` | Bearer, merchant. `{ kind: expiry\|promotion, variantId, batchId?, title, description?, offerPricePaise, startsAt?, endsAt, quantityLimit?, radiusKm?, expiryCutoffDays? }` → **201**. An expiry offer needs its batch (**422 `BATCH_REQUIRED`**), is capped at what is left of it, and is refused inside the safety cut-off (**422 `PAST_EXPIRY_CUTOFF`**); the price must be below the normal one (**422 `OFFER_NOT_LOWER`**); one live offer per variant (**409**). Also **422 `BATCH_EMPTY`**. |
 | `POST /merchant/stores/:storeId/offers/:offerId/end` | Bearer, merchant. No body. |
 
+### Conversations, substitutions and support
+
+A conversation is between one customer and one store (and, for an order, that
+order). Messages are never edited. `kind`: `question` (ask the shop),
+`special_request` (with `requestType`: `custom_item`, `packaging`,
+`delivery_time`, `bulk_order`, `other`), `order`, `support`. `status`:
+`awaiting_store`, `awaiting_customer`, `resolved`, `escalated`. Every new
+message notifies the other side; a customer writing again reopens a resolved
+conversation.
+
+| | |
+|---|---|
+| `GET /conversations` | Bearer. `?orderId=` → `{ conversations }`, most recent first, each with `isUnread`. |
+| `POST /conversations` | Bearer. `{ kind, storeId? \| orderId?, productId?, requestType?, subject, message }` → **201** `{ conversation }`. `order`/`support` need an `orderId` of the caller's own order; a product must belong to the store. |
+| `GET /conversations/:conversationId` | Bearer. `{ conversation }` with `messages`; marks it read. Another customer's is **404**. |
+| `POST /conversations/:conversationId/messages` | Bearer. `{ body }` (1–2000 characters) → **201**. |
+| `POST /conversations/:conversationId/escalate` | Bearer. `{ reason }` → the conversation moves to CPSE support (`escalated`). Only conversations about an order (**409** otherwise). |
+| `POST /conversations/:conversationId/resolve` | Bearer. No body. |
+| `GET /merchant/stores/:storeId/conversations` | Bearer, merchant. `?status=&kind=` → `{ conversations }`. |
+| `GET /merchant/stores/:storeId/conversations/:conversationId` | Bearer, merchant. `{ conversation }` with `messages`; marks it read. |
+| `POST /merchant/stores/:storeId/conversations/:conversationId/messages` | Bearer, merchant. `{ body, resolve? }` → **201**. |
+| `GET /admin/support` | Bearer, admin. Escalated conversations, oldest escalation first. |
+| `GET /admin/support/:conversationId` | Bearer, admin. Only an escalated conversation (**404** otherwise). |
+| `POST /admin/support/:conversationId/messages` | Bearer, admin. `{ body, resolve? }` → **201**; the customer is notified. |
+
+**Substitutions.** Only with the customer's agreement: an order's
+`substitutionPreference` is `contact_me` (every proposal waits for the
+customer), `allow_similar` (a replacement that costs no more is applied at
+once, and the customer told), or `no_substitutions` (the store cannot propose
+one — **409 `NO_SUBSTITUTIONS`**). The customer never pays more: a dearer
+replacement is charged at the original line's price. Applying one moves the
+stock reservation, keeps the replaced line on the order as `replacedItems`,
+recomputes the totals, and — for a prepaid order that now costs less — opens an
+`adjustment` refund for the difference (listed in `order.refundAdjustments`;
+a khata one is credited at once).
+
+| | |
+|---|---|
+| `POST /merchant/stores/:storeId/orders/:orderId/substitutions` | Bearer, merchant. `{ orderItemId, variantId, quantity?, note? }` → **201** `{ substitution }`. Only before the order is ready (**409**); one pending proposal per line (**409**); the same item is **422 `SAME_ITEM`**. |
+| `POST /merchant/stores/:storeId/substitutions/:substitutionId/withdraw` | Bearer, merchant. No body. A pending proposal only. |
+| `POST /substitutions/:substitutionId/respond` | Bearer, customer. `{ approve, note? }` → `{ substitution }`. A replacement that has since sold out is **422 `SUBSTITUTE_UNAVAILABLE`**; an answered one is **409**. |
+
+**Announcements.** Reach only customers who saved the store **and** turned
+promotions on for it; at most three a day (**429**).
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/announcements` | Bearer, merchant. `{ announcements, audience: { followers, optedIn } }`. |
+| `POST /merchant/stores/:storeId/announcements` | Bearer, merchant. `{ title, body? }` → **201** `{ announcement }` with `recipientCount`. |
+
+### Analytics, alerts, suggestions and recurring tasks
+
+Bearer, merchant, on the caller's own store.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/analytics` | Bearer, merchant. `?from=YYYY-MM-DD&to=YYYY-MM-DD` (default: the last 30 days, store timezone; at most a year — **422 `PERIOD_TOO_LONG`**; `from` after `to` — **422 `PERIOD_INVALID`**) → `{ analytics: { period, sales (gross, orders, counter, refunds, average ticket, daily trend), orders (by status, cancellation rate, median minutes to accept, by fulfilment), products (bestSellers, slowMovers, unavailable), customers (segments, new and returning buyers), khata (outstanding, overdue, collected, charged), definitions } }`. Completed orders count once, on their completion day; cancelled and rejected orders are never sales; refunds are reported separately, not subtracted. |
+| `GET /merchant/stores/:storeId/low-stock` | Bearer, merchant. `{ items }` — counted, active variants at or under their product's alert level, emptiest first. |
+| `GET /merchant/stores/:storeId/purchase-suggestions` | Bearer, merchant. `?coverDays=14&lookbackDays=30` → `{ suggestions: { suggestions: [{ productName, variantName, available, onDraftPurchases, soldLastPeriod, dailyRate, suggestedQuantity, lastCostPaise, estimatedCostPaise, reason }] } }`. Deterministic: enough to cover `coverDays` at the recent selling rate and at least one above the alert level, less what is available and already on draft purchases. |
+| `POST /merchant/stores/:storeId/purchase-suggestions/draft` | Bearer, merchant. `{ supplierId?, items: [{ variantId, quantity, unitCostPaise }] }` → **201** `{ purchase }` as a **draft**. Nothing reaches the shelf until it is confirmed. |
+| `GET /merchant/stores/:storeId/tasks` | Bearer, merchant. `{ tasks }` — recurring operations, next run first. |
+| `POST /merchant/stores/:storeId/tasks` | Bearer, merchant. `{ title, taskType: reminder\|low_stock_report\|expiry_report\|purchase_suggestions\|khata_overdue_report, frequency: daily\|weekly\|monthly, dayOfWeek? (0 = Sunday), dayOfMonth? (1–28), timeOfDay? (HH:MM, store time) }` → **201**. At each run the store's inbox gets the report. |
+| `PATCH /merchant/stores/:storeId/tasks/:taskId` | Bearer, merchant. Any of those, or `isActive`. |
+| `DELETE /merchant/stores/:storeId/tasks/:taskId` | Bearer, merchant. |
+| `PUT /merchant/stores/:storeId/khata-settings/auto-reminders` | Bearer, merchant. `{ enabled }` — weekly automatic reminders for overdue khata accounts (customers who turned reminders off are skipped). Off by default. |
+
+**Scheduled jobs** (`src/jobs`, run in-process when `JOBS_ENABLED=true`, or
+once each by `npm run db:maintenance`): expire unpaid orders, reconcile
+refunds, end offers, low-stock alerts (one per variant per day), expiry alerts
+(one per batch and state), recurring tasks, reorder and template reminders,
+khata reminders (opt-in), points expiry, and notification deliveries. Each
+takes a lease so several instances never run the same job at once, and logs
+every run in `job_runs`.
+
+**Notification delivery.** Every notification is delivered in the app; SMS,
+WhatsApp and email are attempted only where the customer opted in for that
+store (promotional ones only with promotions consent), through
+`NOTIFY_CHANNEL_PROVIDER`. With no provider configured an attempt is recorded
+as `skipped` with the reason — never claimed as sent.
+
+| | |
+|---|---|
+| `GET /notifications/:id/deliveries` | Bearer. `{ deliveries: [{ channel, status: delivered\|pending\|sent\|failed\|skipped, attempts, lastError, deliveredAt }] }`. |
+
 ---
 
 ## Rate limits

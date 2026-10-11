@@ -4,6 +4,8 @@ import { requireCustomer } from '../../middleware/requireAuth.js';
 import * as controller from './notification.controller.js';
 import { notificationListQuery, notificationParams } from './notification.schemas.js';
 import { emptyBody } from '../../lib/schemas.js';
+import { respond } from '../../lib/merchantRoute.js';
+import { deliveriesFor } from './notification.service.js';
 
 /**
  * Checklist 9.4 – 9.5. Authenticated throughout: a notification always has an
@@ -25,4 +27,11 @@ notificationRouter.post(
   '/:id/read',
   validate({ params: notificationParams, body: emptyBody }),
   controller.markRead,
+);
+
+// Roadmap Phase C: how each channel of this notification was delivered.
+notificationRouter.get(
+  '/:id/deliveries',
+  validate({ params: notificationParams }),
+  respond(async (req) => ({ deliveries: await deliveriesFor(req.customer.id, req.params.id) })),
 );

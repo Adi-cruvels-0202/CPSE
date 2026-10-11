@@ -535,3 +535,15 @@ export async function runRecurringTasks({ now = new Date() } = {}) {
   }
   return { ran };
 }
+
+/** Automatic weekly reminders for overdue khata — the merchant's opt-in. */
+export async function setKhataAutoReminders(store, enabled) {
+  const { data, error } = await supabaseAdmin
+    .from('stores')
+    .update({ khata_auto_reminders: enabled })
+    .eq('id', store.id)
+    .select('khata_auto_reminders')
+    .maybeSingle();
+  fail(error, 'Could not save the setting.');
+  return { khataAutoReminders: data.khata_auto_reminders };
+}

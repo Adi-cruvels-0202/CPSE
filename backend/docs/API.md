@@ -837,6 +837,85 @@ reviewed. Anyone else gets **403 `FORBIDDEN`**.
 | `POST /admin/verifications/:storeId/approve` | Bearer, admin. `{ note? }`. `pending` → `verified`. |
 | `POST /admin/verifications/:storeId/reject` | Bearer, admin. `{ reason, note? }` (reason 3–500 characters). `pending` or `verified` → `rejected`. |
 
+### Merchant catalogue operations
+
+Bearer, merchant, on the caller's own store. These save repeated work; every
+write goes through the same product, variant and inventory rules a hand edit
+does (roadmap §4 P1).
+
+**Industry templates and workflow defaults.** Seven templates — `grocery`,
+`pharmacy`, `clothing`, `electronics`, `bakery`, `stationery`, `general` — each
+with categories, starter products (units, variants, suggested prices and the
+usual GST rate) and workflow defaults. A template is a starting point: what it
+creates is ordinary, editable data, and applying it again skips anything the
+store already has (by name), never overwriting. New products take the store's
+defaults for anything the request leaves out.
+
+| | |
+|---|---|
+| `GET /merchant/templates` | Bearer, merchant. `{ templates: [{ industry, label, categoryCount, productCount, defaults }] }`. |
+| `GET /merchant/templates/:industry` | Bearer, merchant. `{ template }` with every starter product and its `suggestedPricePaise`. |
+| `POST /merchant/stores/:storeId/templates/apply` | Bearer, merchant. `{ industry, applyDefaults?, categories?: "all" \| [names], products?: "all" \| [{ key, name?, taxPercent?, prices?: { "<variant name>": paise } }] }` → **201** `{ report: { categoriesCreated, categoriesSkipped, productsCreated, productsSkipped, failed } }`. Products are created with no stock. |
+| `GET /merchant/stores/:storeId/defaults` | Bearer, merchant. `{ defaults: { lowStockThreshold, taxPercent, trackInventory, expiryAlertDays, templateApplied } }`. |
+| `PUT /merchant/stores/:storeId/defaults` | Bearer, merchant. Any of `{ lowStockThreshold, taxPercent, trackInventory, expiryAlertDays }`. |
+
+**Units.** `pcs` (piece), `kg`, `g`, `l` (litre), `ml`, `dozen`, `pack`
+(packet), `box`, plus `m`, `cm`, `pair`, `set`, `roll`, `plate`, `serving`. A
+variant's `weightGrams` lets customers see a price per kg.
+
+**Categories.**
+
+| | |
+|---|---|
+| `PUT /merchant/stores/:storeId/categories/order` | Bearer, merchant. `{ categoryIds }` — every category of the store, once each, in the new order (**422 `CATEGORY_SET_MISMATCH`** otherwise). → `{ categories }`. |
+| `DELETE /merchant/stores/:storeId/categories/:categoryId` | Bearer, merchant. `{ moveToCategoryId? , uncategorise? }`. A category that still has products is **409** (with `details.productCount`) unless they are moved or explicitly left uncategorised. → `{ movedProducts, categories }`. |
+
+**Duplicate and lookup.**
+
+| | |
+|---|---|
+| `POST /merchant/stores/:storeId/products/:productId/duplicate` | Bearer, merchant. `{ name? }` → **201** `{ product }`: same details and variants, new SKUs, no barcodes, no stock, **inactive** until edited. |
+| `GET /merchant/stores/:storeId/product-lookup` | Bearer, merchant. `?barcode=` or `?sku=` → `{ product, variant }`, or **404**. Barcodes are unique per store (**409 `BARCODE_TAKEN`**). The product list's `search` also matches SKUs and barcodes. |
+
+**Suppliers and purchases.** A purchase is a draft until confirmed. Confirming
+puts every line on the shelf as a `purchase` stock movement that references
+the purchase and records its unit cost (the variant's cost becomes the latest
+purchase cost), and opens a batch when the line has a batch number or expiry.
+A confirmed purchase is never edited; return goods with a stock-out
+(`returned_to_supplier`). The same supplier invoice number twice is **409**.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/suppliers` | Bearer, merchant. `?includeInactive=` → `{ suppliers }`. |
+| `POST /merchant/stores/:storeId/suppliers` | Bearer, merchant. `{ name, phone?, email?, gstin?, address?, notes? }` → **201**. Names are unique per store. |
+| `PATCH /merchant/stores/:storeId/suppliers/:supplierId` | Bearer, merchant. Any field above, or `isActive`. |
+| `GET /merchant/stores/:storeId/purchases` | Bearer, merchant. `?status=&supplierId=&page=&limit=` → `{ purchases }`. |
+| `POST /merchant/stores/:storeId/purchases` | Bearer, merchant. `{ supplierId? \| supplierName?, invoiceNumber?, invoiceDate?, purchaseDate?, notes?, items: [{ variantId, quantity, unitCostPaise, taxPaise?, batchNumber?, manufacturedOn?, expiresOn? }], confirm? }` → **201** `{ purchase }`. |
+| `GET /merchant/stores/:storeId/purchases/:purchaseId` | Bearer, merchant. `{ purchase }` with `items`. |
+| `PUT /merchant/stores/:storeId/purchases/:purchaseId` | Bearer, merchant. Same body; replaces a **draft** (**409** otherwise). |
+| `POST /merchant/stores/:storeId/purchases/:purchaseId/confirm` | Bearer, merchant. No body. Idempotent. An empty purchase: **422 `PURCHASE_EMPTY`**; an untracked product: **422 `NOT_TRACKED`**. |
+| `POST /merchant/stores/:storeId/purchases/:purchaseId/cancel` | Bearer, merchant. Drafts only. |
+
+**Batches and expiry.** `POST …/inventory/stock-in` also takes `batchNumber`,
+`manufacturedOn`, `expiresOn` to open a batch; `POST …/inventory/stock-out`
+takes `batchId` to take from one lot (an expired one being written off). As
+stock leaves the shelf, batches are drawn down first-expiring first — expired
+lots last, except for an `expired` write-off, which takes them first.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/inventory/batches` | Bearer, merchant. `?status=active\|expiring\|expired\|all&variantId=&page=&limit=` → `{ batches, summary: { expiringCount, expiredCount, expiredQuantity } }`, soonest expiry first. Each batch has `expiresOn`, `daysToExpiry`, `expiryState` (`ok`, `expiring` — within the store's `expiryAlertDays` — `expired`, `no_expiry`), `quantityRemaining`. |
+
+**Import / export and bulk actions.** Prices in the CSV are rupees (`120.50`).
+A product whose rows contain any error is skipped whole and every failed line is
+reported; the rest is applied product by product.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/catalogue/export` | Bearer, merchant. `text/csv`, one row per variant: `product_name, category, unit, tax_percent, track_inventory, low_stock_threshold, product_active, variant_name, sku, barcode, weight_grams, price, mrp, cost, quantity_on_hand, variant_active`. Cells a spreadsheet would run as formulas are prefixed with `'`. |
+| `POST /merchant/stores/:storeId/catalogue/import` | Bearer, merchant. Body: the CSV, `Content-Type: text/csv`, ≤ 2 MB, ≤ 5,000 rows. `?mode=preview` (default) → `{ rowCount, failedRows: [{ line, productName, errors }], products, summary }` and writes nothing; `?mode=commit` → `{ results: [{ line, status: created\|updated\|skipped\|failed, errors? }], summary }`. Matching is by SKU, then by product and variant name. A changed `quantity_on_hand` is a logged stock adjustment ("Catalogue import"). Missing `product_name`/`price` columns: **422 `IMPORT_HEADERS`**; empty: **422 `IMPORT_EMPTY`**; too many rows: **422 `IMPORT_TOO_LARGE`**. |
+| `POST /merchant/stores/:storeId/products/bulk` | Bearer, merchant. `{ action, productIds (≤ 200), preview (default true), … }` with `action` one of `archive`, `activate`, `deactivate`, `set_category { categoryId }`, `set_tax { taxPercent }`, `set_low_stock_threshold { threshold }`, `adjust_price_percent { percent }`, `stock_in { quantity, notes? }`. → `{ bulk: { results: [{ productId, status: ok\|applied\|failed, before, after, errors? }], summary } }`. A price change that would exceed a variant's MRP fails that product, not the batch. |
+
 ---
 
 ## Rate limits

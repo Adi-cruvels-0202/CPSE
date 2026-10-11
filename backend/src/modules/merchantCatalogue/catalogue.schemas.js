@@ -121,8 +121,9 @@ export const createProductSchema = z
   .object({
     ...productFields,
     unit: productFields.unit.default('pcs'),
-    taxPercent: taxPercent.default(0),
-    trackInventory: z.boolean().default(true),
+    // Left out, these come from the store's workflow defaults (migration 0040).
+    taxPercent: taxPercent.optional(),
+    trackInventory: z.boolean().optional(),
     images: productFields.images.default([]),
     variants: z.array(variantSchema).min(1, 'Add at least one variant.').max(50, 'At most 50 variants.'),
   })
@@ -135,7 +136,7 @@ export const createProductSchema = z
     message: 'Each variant needs a different SKU.',
     path: ['variants'],
   })
-  .refine((value) => value.trackInventory || value.variants.every((v) => v.openingQuantity === 0), {
+  .refine((value) => value.trackInventory !== false || value.variants.every((v) => v.openingQuantity === 0), {
     message: 'Opening stock needs stock tracking on.',
     path: ['trackInventory'],
   });

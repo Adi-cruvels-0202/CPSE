@@ -13,6 +13,7 @@ import { merchantRefundRouter } from '../refunds/refund.routes.js';
 import { merchantNotificationRouter } from '../notifications/merchantNotification.routes.js';
 import { merchantKhataRouter } from '../merchantKhata/merchantKhata.routes.js';
 import { merchantVerificationRouter } from '../verification/verification.routes.js';
+import { operationsRouter } from '../merchantCatalogue/operations.routes.js';
 import * as controller from './merchant.controller.js';
 import { loginSchema } from '../auth/auth.schemas.js';
 import { registerMerchantSchema, updateMerchantSchema } from './merchant.schemas.js';
@@ -66,3 +67,5 @@ merchantRouter.use('/stores', merchantRefundRouter);
 merchantRouter.use('/stores', merchantNotificationRouter);
 merchantRouter.use('/stores', merchantKhataRouter);
 merchantRouter.use('/stores', merchantVerificationRouter);
+// Templates, defaults, purchases, import/export and bulk (full paths inside).
+merchantRouter.use(operationsRouter);

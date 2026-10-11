@@ -91,10 +91,26 @@ class Params {
   }
 }
 
+function splitTopLevel(expression) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const char of expression) {
+    if (char === '(') depth += 1;
+    if (char === ')') depth -= 1;
+    if (char === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+    } else current += char;
+  }
+  parts.push(current);
+  return parts;
+}
+
 function parseOrFilter(expression, types, params) {
-  // "name.ilike.%x%,city.ilike.%x%" — commas inside a value are not supported,
-  // and the API never sends one.
-  const parts = expression.split(',').map((part) => {
+  // "name.ilike.%x%,id.in.(a,b)" — commas separate conditions except inside
+  // an in-list, as in PostgREST.
+  const parts = splitTopLevel(expression).map((part) => {
     const [column, operator, ...rest] = part.split('.');
     const value = rest.join('.');
     return condition(column, operator, value, types, params);

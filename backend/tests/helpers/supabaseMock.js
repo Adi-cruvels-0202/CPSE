@@ -514,10 +514,27 @@ function queryBuilder(table) {
    * unescaped here so a query containing a literal `%` does not match
    * everything — which is exactly what escapeSearchTerm is there to prevent.
    */
+  // PostgREST's or-list: commas separate conditions, except inside in.(…).
+  const splitTopLevel = (expression) => {
+    const parts = [];
+    let depth = 0;
+    let current = '';
+    for (const char of expression) {
+      if (char === '(') depth += 1;
+      if (char === ')') depth -= 1;
+      if (char === ',' && depth === 0) {
+        parts.push(current);
+        current = '';
+      } else current += char;
+    }
+    parts.push(current);
+    return parts;
+  };
   const parseOr = (expression) =>
-    expression.split(',').map((part) => {
+    splitTopLevel(expression).map((part) => {
       const [column, op, ...rest] = part.split('.');
       const raw = rest.join('.');
+      if (op === 'in') return { op, column, value: raw.replace(/^\(|\)$/g, '').split(',') };
       const value = op === 'ilike' ? raw.replace(/^%|%$/g, '').replace(/\\(.)/g, '$1') : raw;
       return { op, column, value };
     });

@@ -124,7 +124,7 @@ describe('every /merchant route is for merchants (D-2)', () => {
     '%s answers 403 MERCHANT_REQUIRED to a signed-in customer',
     async (_key, route) => {
       // The seeded customer has no merchants row.
-      const res = await call(route, { storeId: STORE_ID, docType: 'shop_photo', default: CUSTOMER_ID }, signIn());
+      const res = await call(route, { storeId: STORE_ID, docType: 'shop_photo', industry: 'grocery', default: CUSTOMER_ID }, signIn());
 
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('MERCHANT_REQUIRED');

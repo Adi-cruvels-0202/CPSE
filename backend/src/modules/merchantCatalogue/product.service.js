@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { supabaseAdmin } from '../../lib/supabase.js';
-import { conflict, internal, notFound, skuTaken, unprocessable, validationFailed } from '../../lib/errors.js';
+import { AppError, conflict, internal, notFound, skuTaken, unprocessable, validationFailed } from '../../lib/errors.js';
 import { slugify, firstFreeSlug } from '../../lib/slug.js';
 import { logger } from '../../lib/logger.js';
 import { findStoreCategory } from './category.service.js';
@@ -168,8 +168,20 @@ export async function listProducts(store, { search, categoryId, isActive, lowSto
   if (categoryId) query = query.eq('category_id', categoryId);
   if (isActive !== undefined) query = query.eq('is_available', isActive);
   if (search) {
-    const term = search.replace(/[%_\\]/g, (char) => `\\${char}`);
-    query = query.ilike('name', `%${term}%`);
+    // Commas and brackets would split PostgREST's or-list; they never occur in
+    // a name worth matching on.
+    const term = search.replace(/[,()]/g, ' ').trim().replace(/[%_\\]/g, (char) => `\\${char}`);
+    // A name, or a SKU or barcode typed or scanned at the counter.
+    const { data: codeMatches, error: codeError } = await supabaseAdmin
+      .from('product_variants')
+      .select('product_id')
+      .eq('store_id', store.id)
+      .or(`sku.ilike.%${term}%,barcode.eq.${search.replace(/[,()]/g, '').trim()}`);
+    if (codeError) throw internal('Could not search the products.');
+    const ids = [...new Set((codeMatches ?? []).map((row) => row.product_id))];
+    query = ids.length
+      ? query.or(`name.ilike.%${term}%,id.in.(${ids.join(',')})`)
+      : query.ilike('name', `%${term}%`);
   }
 
   const { data, error } = await query.order('sort_order', { ascending: true }).order('name', { ascending: true });
@@ -235,6 +247,10 @@ function translateWriteError(error, fallback) {
   if (error?.code === UNIQUE_VIOLATION && message.includes('product_variants_product_name_key')) {
     return conflict('This product already has a variant with that name.');
   }
+  if (error?.code === UNIQUE_VIOLATION && message.includes('product_variants_store_barcode_key')) {
+    // One barcode identifies one physical product in a store (migration 0040).
+    return new AppError(409, 'BARCODE_TAKEN', 'Another product in this store already has that barcode.');
+  }
   logger.error(fallback, { code: error?.code, message });
   return internal(fallback);
 }
@@ -244,6 +260,17 @@ function translateWriteError(error, fallback) {
 /** `POST …/products` — product, variants, opening stock and images in one go. */
 export async function createProduct(store, merchant, input) {
   if (input.categoryId) await findStoreCategory(store, input.categoryId);
+
+  // What the request leaves out comes from the store's workflow defaults.
+  const trackInventory = input.trackInventory ?? store.default_track_inventory ?? true;
+  const taxPercent = input.taxPercent ?? Number(store.default_tax_percent ?? 0);
+  const lowStockThreshold =
+    input.lowStockThreshold !== undefined ? input.lowStockThreshold : (store.default_low_stock_threshold ?? null);
+  if (!trackInventory && input.variants.some((variant) => (variant.openingQuantity ?? 0) > 0)) {
+    throw validationFailed({
+      issues: [{ source: 'body', field: 'trackInventory', message: 'Opening stock needs stock tracking on.' }],
+    });
+  }
 
   const variants = input.variants.map(toVariantPayload(input.name));
   await assertSkusFree(store, variants.map((variant) => variant.sku));
@@ -273,9 +300,9 @@ export async function createProduct(store, merchant, input) {
         description: input.description ?? null,
         category_id: input.categoryId ?? null,
         unit: input.unit,
-        tax_percent: input.taxPercent,
-        track_inventory: input.trackInventory,
-        low_stock_threshold: input.lowStockThreshold ?? null,
+        tax_percent: taxPercent,
+        track_inventory: trackInventory,
+        low_stock_threshold: lowStockThreshold,
         images: input.images.map((image) => ({ url: image.url, alt_text: image.altText ?? null })),
         variants,
       },

@@ -5,7 +5,9 @@ import { requireAuth } from '../../middleware/requireAuth.js';
 import { requireMerchant, requireStoreOwner } from '../../middleware/requireMerchant.js';
 import { storeParams } from '../merchantStores/merchantStore.schemas.js';
 import * as controller from './inventory.controller.js';
-import { stockInSchema, stockOutSchema, adjustSchema, historyQuery } from './inventory.schemas.js';
+import { stockInSchema, stockOutSchema, adjustSchema, historyQuery, batchListQuery } from './inventory.schemas.js';
+import { respondPage } from '../../lib/merchantRoute.js';
+import { listBatches } from './inventory.service.js';
 
 /**
  * /merchant/stores/:storeId/inventory — MERCHANT_API.md, Inventory. Mounted
@@ -28,4 +30,17 @@ inventoryRouter.get(
   requireMerchant,
   requireStoreOwner,
   controller.history,
+);
+
+// Batches still on the shelf and their expiry (migration 0040).
+inventoryRouter.get(
+  '/:storeId/inventory/batches',
+  requireAuth,
+  validate({ params: storeParams, query: batchListQuery }),
+  requireMerchant,
+  requireStoreOwner,
+  respondPage(async (req) => {
+    const { batches, total, summary } = await listBatches(req.store, req.query);
+    return { data: { batches, summary }, total };
+  }),
 );

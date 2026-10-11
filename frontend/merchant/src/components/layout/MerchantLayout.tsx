@@ -28,7 +28,7 @@ interface Tab {
 /** Screens reached from the More hub; they keep the More tab lit. */
 const MORE_PATHS = [
   '/inbox', '/messages', '/refunds', '/purchases', '/batches', '/suggestions', '/catalogue-tools', '/customers',
-  '/khata', '/promotions', '/announcements', '/analytics', '/automation', '/share', '/verification',
+  '/khata', '/promotions', '/announcements', '/analytics', '/automation', '/share', '/verification', '/insights',
 ];
 
 const TABS: Tab[] = [

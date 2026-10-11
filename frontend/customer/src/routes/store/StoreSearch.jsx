@@ -6,6 +6,9 @@ import { useDebounced } from '../../hooks/useDebounced.js';
 import { EmptyState, ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { ProductCard } from './ProductCard.jsx';
 import { track } from '../../lib/track.js';
+import { formatPaise } from '../../lib/money.js';
+import { ProductRow } from '../engage/ProductRow.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
 import './StoreSearch.css';
 
 /**
@@ -90,6 +93,8 @@ export function StoreSearch() {
           </button>
         ) : null}
       </div>
+
+      {enabled && WORDY.test(query) ? <SmartResults slug={slug} query={query} /> : null}
 
       <Results
         slug={slug}
@@ -187,5 +192,44 @@ function ChevronLeft() {
     >
       <path d="M15 6l-6 6 6 6" />
     </svg>
+  );
+}
+
+/** A search with a size, a budget or an order in it: read in plain words (roadmap §5 P6). */
+const WORDY = /\d|\b(under|below|less than|cheapest|cheap|offer|offers|deal|within|upto|up to)\b/i;
+
+function SmartResults({ slug, query }) {
+  const { isSignedIn } = useAuth();
+  const smart = useApiQuery(() => endpoints.intelligence.smartSearch(slug, query), [slug, query]);
+  const search = smart.data?.search;
+  if (!search) return null;
+  return (
+    <section className="stack" aria-label="Best matches" data-testid="smart-results" style={{ gap: 'var(--space-2)' }}>
+      <p className="muted">Understood as: <strong>{search.interpretation || query}</strong></p>
+      {search.results.length === 0 ? (
+        <p className="muted">Nothing here fits all of that — the plain results are below.</p>
+      ) : isSignedIn ? (
+        <ul className="prows">
+          {search.results.slice(0, 5).map((r) => (
+            <ProductRow
+              key={r.product.id}
+              product={r.product}
+              variantId={r.add.variantId}
+              quantity={r.add.quantity}
+              detail={[`${r.suggestion.quantity > 1 ? `${r.suggestion.quantity} × ` : ''}${r.suggestion.variantName}`, `${formatPaise(r.totalPaise)}`, r.reason].filter(Boolean).join(' · ')}
+            />
+          ))}
+        </ul>
+      ) : (
+        <ul className="prows">
+          {search.results.slice(0, 5).map((r) => (
+            <li key={r.product.id} className="spread">
+              <Link to={`/store/${slug}/product/${r.product.id}`}>{r.product.name}</Link>
+              <span className="numeric">{r.suggestion.quantity > 1 ? `${r.suggestion.quantity} × ` : ''}{r.suggestion.variantName} · {formatPaise(r.totalPaise)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

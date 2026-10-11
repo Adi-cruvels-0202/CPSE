@@ -10,6 +10,7 @@ import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/Stat
 import { useAuth } from '../../context/AuthContext.jsx';
 import { track } from '../../lib/track.js';
 import { ProductKeep } from './ProductKeep.jsx';
+import { ProductSuggestions } from './ShopAssistant.jsx';
 import './ProductDetail.css';
 
 /**
@@ -145,6 +146,8 @@ export function ProductDetail() {
       </div>
 
       <ProductKeep product={product} storeSlug={slug} storeName={data.store?.name ?? product.storeName} isSignedIn={isSignedIn} variantId={variantId} />
+
+      <ProductSuggestions slug={slug} productId={product.id} purchasable={product.isPurchasable} />
     </article>
   );
 }

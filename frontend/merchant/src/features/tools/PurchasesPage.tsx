@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi } from '../../api/endpoints';
-import { purchaseApi, type Purchase, type Supplier } from '../../api/ops';
+import { intelligenceApi, purchaseApi, type InvoiceRead, type Purchase, type Supplier } from '../../api/ops';
 import { errorMessage } from '../../api/client';
 import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
@@ -35,6 +35,8 @@ function PurchaseList({ storeId }: { storeId: string }) {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Purchase | 'new' | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
+  const [fromInvoice, setFromInvoice] = useState<{ lines: Line[]; invoiceNumber: string | null; invoiceDate: string | null } | null>(null);
   const query = useQuery({
     queryKey: ['purchases', storeId, status, page],
     queryFn: () => purchaseApi.list(storeId, { status: status || undefined, page }),
@@ -46,6 +48,7 @@ function PurchaseList({ storeId }: { storeId: string }) {
         <select className="input-field" style={{ maxWidth: 200 }} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} aria-label="Status">
           <option value="">All purchases</option><option value="draft">Drafts</option><option value="confirmed">Confirmed</option><option value="cancelled">Cancelled</option>
         </select>
+        <button type="button" className="btn btn-secondary" onClick={() => setReading(true)}>Read an invoice</button>
         <button type="button" className="btn btn-primary" onClick={() => setEditing('new')}><IconPlus size={16} /> New purchase</button>
       </div>
       {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : purchases.length === 0 ? (
@@ -71,6 +74,8 @@ function PurchaseList({ storeId }: { storeId: string }) {
       )}
       <Pagination meta={query.data?.meta} onPage={setPage} />
       {editing && <PurchaseForm storeId={storeId} purchase={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+      {reading && <InvoiceReader storeId={storeId} onClose={() => setReading(false)} onUse={(draft) => { setReading(false); setFromInvoice(draft); }} />}
+      {fromInvoice && <PurchaseForm storeId={storeId} purchase={null} initialLines={fromInvoice.lines} initialInvoice={fromInvoice} onClose={() => setFromInvoice(null)} />}
       {viewing && <PurchaseDetail storeId={storeId} purchaseId={viewing} onClose={() => setViewing(null)} onEdit={(p) => { setViewing(null); setEditing(p); }} />}
     </>
   );
@@ -79,14 +84,16 @@ function PurchaseList({ storeId }: { storeId: string }) {
 interface Line { variantId: string; quantity: string; unitCost: string; tax: string; batchNumber: string; expiresOn: string }
 const emptyLine = (): Line => ({ variantId: '', quantity: '1', unitCost: '', tax: '', batchNumber: '', expiresOn: '' });
 
-export function PurchaseForm({ storeId, purchase, onClose, initialLines }: { storeId: string; purchase: Purchase | null; onClose: () => void; initialLines?: Line[] }) {
+export function PurchaseForm({ storeId, purchase, onClose, initialLines, initialInvoice }: {
+  storeId: string; purchase: Purchase | null; onClose: () => void; initialLines?: Line[]; initialInvoice?: { invoiceNumber: string | null; invoiceDate: string | null };
+}) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const products = useQuery({ queryKey: ['products-all', storeId], queryFn: () => productApi.all(storeId) });
   const suppliers = useQuery({ queryKey: ['suppliers', storeId], queryFn: () => purchaseApi.suppliers(storeId) });
   const [supplierId, setSupplierId] = useState(purchase?.supplierId ?? '');
-  const [invoiceNumber, setInvoiceNumber] = useState(purchase?.invoiceNumber ?? '');
-  const [invoiceDate, setInvoiceDate] = useState(purchase?.invoiceDate ?? '');
+  const [invoiceNumber, setInvoiceNumber] = useState(purchase?.invoiceNumber ?? initialInvoice?.invoiceNumber ?? '');
+  const [invoiceDate, setInvoiceDate] = useState(purchase?.invoiceDate ?? initialInvoice?.invoiceDate ?? '');
   const [lines, setLines] = useState<Line[]>(
     purchase?.items?.map((i) => ({ variantId: i.variantId, quantity: String(i.quantity), unitCost: paiseToRupees(i.unitCostPaise), tax: i.taxPaise ? paiseToRupees(i.taxPaise) : '', batchNumber: i.batchNumber ?? '', expiresOn: i.expiresOn ?? '' }))
       ?? initialLines ?? [emptyLine()],
@@ -303,5 +310,74 @@ function SupplierList({ storeId }: { storeId: string }) {
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * A supplier invoice pasted as text (roadmap Phase D "Invoice extraction"):
+ * each line is read and matched to the catalogue, and the merchant chooses
+ * which to carry into a draft purchase. Nothing is saved here. Reading a
+ * photo or PDF needs an AI provider, which this installation does not have.
+ */
+function InvoiceReader({ storeId, onClose, onUse }: { storeId: string; onClose: () => void; onUse: (draft: { lines: Line[]; invoiceNumber: string | null; invoiceDate: string | null }) => void }) {
+  const { showToast } = useToast();
+  const [text, setText] = useState('');
+  const [read, setRead] = useState<InvoiceRead | null>(null);
+  const [chosen, setChosen] = useState<Record<number, string>>({});
+  const run = useMutation({
+    mutationFn: () => intelligenceApi.invoice(storeId, text),
+    onSuccess: ({ invoice }) => {
+      setRead(invoice);
+      setChosen(Object.fromEntries(invoice.lines.map((l, i) => [i, l.match?.variantId ?? ''])));
+    },
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
+  const use = () => {
+    const lines = read!.lines
+      .map((l, i) => ({ l, variantId: chosen[i] }))
+      .filter(({ variantId }) => variantId)
+      .map(({ l, variantId }) => ({ ...emptyLine(), variantId, quantity: String(l.readAs.quantity), unitCost: paiseToRupees(l.readAs.unitCostPaise) }));
+    onUse({ lines: lines.length ? lines : [emptyLine()], invoiceNumber: read!.invoiceNumber, invoiceDate: read!.invoiceDate });
+  };
+  return (
+    <Modal title="Read an invoice" size="lg" onClose={onClose} busy={run.isPending}
+      footer={<>
+        <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        {read
+          ? <button type="button" className="btn btn-primary" onClick={use}>Use {Object.values(chosen).filter(Boolean).length} lines</button>
+          : <button type="button" className="btn btn-primary" disabled={!text.trim() || run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Reading…' : 'Read'}</button>}
+      </>}>
+      {!read ? (
+        <div className="form-grid">
+          <label className="input-label" htmlFor="inv-text">Paste the invoice text — one item per line, e.g. “Basmati Rice 1kg 10 x 92”</label>
+          <textarea id="inv-text" className="input-field" rows={10} value={text} onChange={(e) => setText(e.target.value)} />
+          <p className="tiny">Photos and PDFs need an AI reading service, which is not set up — copy the text from the PDF instead.</p>
+        </div>
+      ) : (
+        <div className="stack">
+          <p className="tiny">
+            {read.invoiceNumber ? `Invoice ${read.invoiceNumber}` : 'No invoice number found'}{read.invoiceDate ? ` · ${formatDate(read.invoiceDate)}` : ''} · lines add up to {formatPaise(read.computedTotalPaise)}
+            {read.totalMatches === false && read.statedTotalPaise !== null ? ` — the invoice says ${formatPaise(read.statedTotalPaise)}, check it` : ''}
+          </p>
+          <table className="table">
+            <thead><tr><th>Read</th><th>Qty × cost</th><th>Your product</th></tr></thead>
+            <tbody>{read.lines.map((l, i) => (
+              <tr key={i}>
+                <td className="tiny">{l.source}</td>
+                <td>{l.readAs.quantity} × {formatPaise(l.readAs.unitCostPaise)}{l.warnings.map((w) => <div key={w} className="tiny">{w}</div>)}</td>
+                <td>
+                  <select className="input-field" aria-label={`Product for ${l.readAs.name}`} value={chosen[i] ?? ''} onChange={(e) => setChosen({ ...chosen, [i]: e.target.value })}>
+                    <option value="">Skip this line</option>
+                    {l.match && <option value={l.match.variantId}>{l.match.name} ({l.confidence})</option>}
+                    {l.alternatives.map((a) => <option key={a.variantId} value={a.variantId}>{a.name}</option>)}
+                  </select>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {read.skipped.length > 0 && <p className="tiny">Not read: {read.skipped.join(' · ')}</p>}
+        </div>
+      )}
+    </Modal>
   );
 }

@@ -144,6 +144,17 @@ export const endpoints = {
     redeem: (storeId, rewardId) => api.post(`/stores/${storeId}/loyalty/rewards/${rewardId}/redeem`, {}),
   },
 
+  // Roadmap §5 P6: deterministic and read-only — results go through the cart.
+  intelligence: {
+    smartSearch: (slug, q) => api.get(`/stores/${slug}/smart-search`, { auth: 'optional', query: { q } }),
+    assistant: (slug, message) => api.post(`/stores/${slug}/assistant`, { message }, { auth: 'optional' }),
+    recommendations: (slug, productId) => api.get(`/stores/${slug}/products/${productId}/recommendations`, { auth: 'optional' }),
+    alternatives: (slug, productId) => api.get(`/stores/${slug}/products/${productId}/alternatives`, { auth: 'optional' }),
+    proposeBasket: (storeId, text) => api.post(`/stores/${storeId}/basket/propose`, { text }),
+    replenishment: () => api.get('/me/replenishment'),
+    discover: (storeId) => api.get('/me/discover', { query: { storeId } }),
+  },
+
   offers: {
     nearby: (lat, lng) => api.get('/offers/nearby', { auth: 'none', query: { lat, lng } }),
   },

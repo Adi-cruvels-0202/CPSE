@@ -265,7 +265,9 @@ describe('my shopping', () => {
       '/me/insights': ok({ insights: { basedOn: { completedOrders: 0 } } }),
       '/me/buy-again': ok({ products: [{ ...PRODUCT, usualVariantId: 'v-1kg', usualQuantity: 2, timesBought: 3, lastBoughtAt: '2026-09-01T10:00:00Z' }] }),
       '/cart/items': created({ cart: cartFixture() }),
+      '/me/replenishment': ok({ replenishment: { items: [], rule: '' } }),
     });
+    await user.click(await screen.findByRole('tab', { name: 'Buy again' }));
     expect(await screen.findByText(/Bought 3 times/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add Basmati Rice to cart' }));
     expect(byMethod(calls, 'POST', '/cart/items')[0].body).toEqual({ storeId: STORE_ID, productId: 'p-1', variantId: 'v-1kg', quantity: 2 });
@@ -593,5 +595,106 @@ describe('comparing pack sizes', () => {
     expect(screen.getByTestId('per-kg')).toHaveTextContent('₹130.00 per kg');
     await user.click(screen.getByRole('radio', { name: /Loose/ }));
     expect(screen.queryByTestId('per-kg')).not.toBeInTheDocument();
+  });
+});
+
+// ── Intelligence (§5 P6, Phase E) ───────────────────────────────────────────
+
+describe('shop assistant and plain-words search', () => {
+  const storeRoutes = {
+    '/stores/sharma-kirana': ok({ store: storeFixture() }),
+    '/stores/sharma-kirana/categories': ok({ categories: [] }),
+    '/stores/sharma-kirana/products': ok({ products: [] }, { page: 1, limit: 20, total: 0, totalPages: 0, hasNextPage: false }),
+    '/stores/sharma-kirana/offers': ok({ offers: [], coupons: [] }),
+    '/me/events': created({ recorded: true }),
+    '/me/discover': ok({ discover: { basedOn: 'your_categories', items: [{ product: { ...PRODUCT, id: 'p-7', name: 'Moong Dal' }, reason: 'New to you, from Staples you often buy.' }], offers: [] } }),
+  };
+
+  it('turns a typed list into a basket and adds it only when asked, reporting failures', async () => {
+    let added = 0;
+    const { user, calls } = renderAt('/store/sharma-kirana', {
+      ...storeRoutes,
+      '/stores/sharma-kirana/assistant': ok({ reply: { kind: 'proposal', intent: 'basket', answer: 'Here is a basket for your list — ₹396.00 before delivery and GST.', source: 'This shop’s catalogue.', unmatched: [{ text: 'unicorn' }], proposals: [
+        { text: '2 kg rice', product: PRODUCT, suggestion: { variantId: 'v-1', variantName: '1 kg', quantity: 2 }, reason: 'Matches the size you wrote.', add: { storeId: STORE_ID, productId: 'p-1', variantId: 'v-1', quantity: 2 } },
+        { text: 'dal', product: { ...PRODUCT, id: 'p-2', name: 'Toor Dal' }, suggestion: { variantId: 'v-2', variantName: 'Default', quantity: 1 }, reason: null, add: { storeId: STORE_ID, productId: 'p-2', variantId: 'v-2', quantity: 1 } },
+      ] } }),
+      '/cart/items': () => (++added === 2 ? fail(409, 'OUT_OF_STOCK', 'Sold out') : created({ cart: cartFixture() })),
+    });
+    expect(await screen.findByText('New for you here')).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'Ask the shop assistant' }), '2 kg rice, dal and unicorn');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const reply = await screen.findByTestId('assistant-reply');
+    expect(reply).toHaveTextContent('Not found here: unicorn.');
+    expect(byMethod(calls, 'POST', '/cart/items')).toHaveLength(0);
+    await user.click(within(reply).getByRole('button', { name: 'Add all 2 to cart' }));
+    expect(await within(reply).findByText(/Added 1 to your cart\. Not added: Toor Dal \(Sold out\)/)).toBeInTheDocument();
+    expect(byMethod(calls, 'POST', '/cart/items').map((c) => c.body)).toEqual([
+      { storeId: STORE_ID, productId: 'p-1', variantId: 'v-1', quantity: 2 },
+      { storeId: STORE_ID, productId: 'p-2', variantId: 'v-2', quantity: 1 },
+    ]);
+  });
+
+  it('a visitor gets answers but is asked to sign in before adding', async () => {
+    const { user } = renderAt('/store/sharma-kirana', {
+      ...storeRoutes,
+      '/stores/sharma-kirana/assistant': ok({ reply: { kind: 'results', intent: 'search', answer: 'I found 1 for “rice”.', results: [{ product: PRODUCT, suggestion: { variantId: 'v-1', variantName: '1 kg', quantity: 1 }, add: { storeId: STORE_ID, productId: 'p-1', variantId: 'v-1', quantity: 1 } }] } }),
+    }, { signedIn: false });
+    await user.type(await screen.findByRole('textbox', { name: 'Ask the shop assistant' }), 'rice');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+    const reply = await screen.findByTestId('assistant-reply');
+    expect(reply).toHaveTextContent('I found 1 for “rice”.');
+    expect(within(reply).getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
+    expect(within(reply).queryByRole('button', { name: /add/i })).not.toBeInTheDocument();
+  });
+
+  it('listens where the browser can', async () => {
+    class FakeRecognition { start() { setTimeout(() => this.onresult({ results: [[{ transcript: 'are you open' }]] }), 0); } }
+    window.SpeechRecognition = FakeRecognition;
+    const { user } = renderAt('/store/sharma-kirana', storeRoutes);
+    await user.click(await screen.findByRole('button', { name: 'Speak' }));
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Ask the shop assistant' })).toHaveValue('are you open'));
+    delete window.SpeechRecognition;
+  });
+
+  it('a search with a size and budget is read in plain words', async () => {
+    renderAt('/store/sharma-kirana/search?q=2%20kg%20rice%20under%20300', {
+      '/stores/sharma-kirana/search': ok({ products: [] }, { page: 1, limit: 20, total: 0, totalPages: 0, hasNextPage: false }),
+      '/stores/sharma-kirana/smart-search': ok({ search: { interpretation: 'rice · about 2 kg · under ₹300.00', results: [{ product: PRODUCT, suggestion: { variantId: 'v-1', variantName: '1 kg', quantity: 2 }, totalPaise: 24000, reason: 'The size you asked for.', add: { storeId: STORE_ID, productId: 'p-1', variantId: 'v-1', quantity: 2 } }] } }),
+      '/me/events': created({ recorded: true }),
+    });
+    const smart = await screen.findByTestId('smart-results');
+    expect(smart).toHaveTextContent('Understood as: rice · about 2 kg · under ₹300.00');
+    expect(smart).toHaveTextContent('2 × 1 kg · ₹240.00 · The size you asked for.');
+  });
+});
+
+describe('product page suggestions', () => {
+  it('shows what is bought together, and alternatives first when the product is sold out', async () => {
+    const product = { id: 'p-1', storeId: STORE_ID, name: 'Basmati Rice', pricePaise: 12000, mrpPaise: null, taxPercent: 0, unit: 'kg', isPurchasable: false, stock: 0, images: [], imageUrl: null, variants: [] };
+    renderAt('/store/sharma-kirana/product/p-1', {
+      '/stores/sharma-kirana/products/p-1': ok({ product }),
+      '/stores/sharma-kirana/products/p-1/recommendations': ok({ recommendations: { items: [{ product: { ...PRODUCT, id: 'p-2', name: 'Toor Dal' }, reason: 'Bought together in 4 orders here.' }], rule: '' } }),
+      '/stores/sharma-kirana/products/p-1/alternatives': ok({ alternatives: { items: [{ product: { ...PRODUCT, id: 'p-3', name: 'Sona Masoori Rice' }, reason: 'Similar name, same category, cheaper.', score: 0.7 }] } }),
+      '/me/favourites': ok({ products: [] }),
+      '/me/events': created({ recorded: true }),
+    });
+    expect(await screen.findByRole('heading', { name: 'Instead, try' })).toBeInTheDocument();
+    expect(screen.getByText(/Similar name, same category, cheaper/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Often bought with this' })).toBeInTheDocument();
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf('Instead, try')).toBeLessThan(headings.indexOf('Often bought with this'));
+  });
+});
+
+describe('due again', () => {
+  it('lists regular purchases by when they are due, ready to add', async () => {
+    const { user, calls } = renderAt('/my-shopping', {
+      '/me/insights': ok({ insights: { basedOn: { completedOrders: 0 } } }),
+      '/me/replenishment': ok({ replenishment: { rule: 'Products you bought on 3 or more days in the last year.', items: [{ product: PRODUCT, everyDays: 7, lastBoughtOn: '2026-10-01', dueOn: '2026-10-08', dueInDays: -3, status: 'due', usualQuantity: 2, usualVariantId: 'v-1kg', basedOnOrders: 3 }] } }),
+      '/cart/items': created({ cart: cartFixture() }),
+    });
+    expect(await screen.findByText(/Due now · you buy it about every 7 days/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add Basmati Rice to cart' }));
+    expect(byMethod(calls, 'POST', '/cart/items')[0].body).toEqual({ storeId: STORE_ID, productId: 'p-1', variantId: 'v-1kg', quantity: 2 });
   });
 });

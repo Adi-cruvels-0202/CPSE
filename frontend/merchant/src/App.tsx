@@ -37,6 +37,7 @@ const AnalyticsPage = lazy(() => import('./features/tools/AnalyticsPage'));
 const AutomationPage = lazy(() => import('./features/tools/AutomationPage'));
 const SharePage = lazy(() => import('./features/tools/SharePage'));
 const VerificationPage = lazy(() => import('./features/tools/VerificationPage'));
+const InsightsPage = lazy(() => import('./features/tools/InsightsPage'));
 // Platform reviewers: a separate sign-in and session (src/admin/adminApi.ts).
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 
@@ -147,6 +148,7 @@ export default function App() {
                   <Route path="automation" element={<Lazy><AutomationPage /></Lazy>} />
                   <Route path="share" element={<Lazy><SharePage /></Lazy>} />
                   <Route path="verification" element={<Lazy><VerificationPage /></Lazy>} />
+                  <Route path="insights" element={<Lazy><InsightsPage /></Lazy>} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

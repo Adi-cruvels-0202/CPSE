@@ -6,7 +6,7 @@ import { http } from '../src/api/client';
 import { writeSession } from '../src/lib/session';
 import {
   refundApi, substitutionApi, inboxApi, verificationApi, khataApi, catalogueOpsApi, purchaseApi,
-  crmApi, loyaltyApi, couponApi, offerApi, messagingApi, automationApi,
+  crmApi, loyaltyApi, couponApi, offerApi, messagingApi, automationApi, intelligenceApi,
 } from '../src/api/ops';
 import { inventoryApi } from '../src/api/endpoints';
 import { adminApi, adminHttp, writeAdminSession } from '../src/admin/adminApi';
@@ -125,6 +125,14 @@ const CALLS: [string, () => Promise<unknown>][] = [
   ['automation.createTask', () => automationApi.createTask(S, { title: 'x' })],
   ['automation.updateTask', () => automationApi.updateTask(S, ID, { isActive: false })],
   ['automation.deleteTask', () => automationApi.deleteTask(S, ID)],
+  ['intelligence.stock', () => intelligenceApi.stock(S, { leadDays: 7 })],
+  ['intelligence.suggest', () => intelligenceApi.suggest(S, 'Basmati Rice')],
+  ['intelligence.invoice', () => intelligenceApi.invoice(S, 'Rice 2 x 50')],
+  ['intelligence.command', () => intelligenceApi.command(S, 'add 10 rice')],
+  ['intelligence.ask', () => intelligenceApi.ask(S, 'sales this week')],
+  ['intelligence.area', () => intelligenceApi.area(S)],
+  ['intelligence.alternatives', () => intelligenceApi.alternatives(S, ID)],
+  ['intelligence.apply', () => intelligenceApi.apply(S, { summary: 'x', requiresConfirmation: true, apply: { method: 'POST', path: `/merchant/stores/${S}/inventory/stock-in`, body: {} } })],
 ];
 
 describe('merchant operations client ↔ backend docs/API.md', () => {
@@ -144,7 +152,7 @@ describe('merchant operations client ↔ backend docs/API.md', () => {
   });
 
   it('covers every function the module exports', () => {
-    const modules = { refundApi, substitutionApi, inboxApi, verificationApi, khataApi, catalogueOpsApi, purchaseApi, crmApi, loyaltyApi, couponApi, offerApi, messagingApi, automationApi };
+    const modules = { refundApi, substitutionApi, inboxApi, verificationApi, khataApi, catalogueOpsApi, purchaseApi, crmApi, loyaltyApi, couponApi, offerApi, messagingApi, automationApi, intelligenceApi };
     const total = Object.values(modules).reduce((n, m) => n + Object.keys(m).length, 0);
     expect(CALLS).toHaveLength(total);
   });
@@ -175,6 +183,13 @@ describe('reviewer console client ↔ backend docs/API.md', () => {
 
   it('covers every reviewer call', () => {
     expect(ADMIN_CALLS).toHaveLength(Object.keys(adminApi).length);
+  });
+});
+
+describe('confirmed proposals', () => {
+  it('apply only within the caller’s own store', () => {
+    expect(() => intelligenceApi.apply(S, { summary: 'x', requiresConfirmation: true, apply: { method: 'POST', path: `/merchant/stores/${ID}/inventory/stock-in`, body: {} } })).toThrow(/another store/);
+    expect(sent).toHaveLength(0);
   });
 });
 

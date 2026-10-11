@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { productApi, categoryApi } from '../../api/endpoints';
-import { catalogueOpsApi } from '../../api/ops';
+import { catalogueOpsApi, intelligenceApi, type ProductSuggestion } from '../../api/ops';
 import { errorMessage } from '../../api/client';
 import type { Category, Product, Variant } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
@@ -216,6 +216,31 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
   const [hasOptions, setHasOptions] = useState(false);
   const [variants, setVariants] = useState<VariantRow[]>([emptyVariant('Default')]);
   const [isSaving, setIsSaving] = useState(false);
+  const [suggestion, setSuggestion] = useState<ProductSuggestion | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+
+  // Roadmap Phase D "Smart suggestions": category, unit and GST from the name.
+  // Shown with reasons; applied only by "Use these".
+  const suggest = async () => {
+    setSuggesting(true);
+    try {
+      setSuggestion((await intelligenceApi.suggest(storeId, form.name.trim())).suggestion);
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setSuggesting(false);
+    }
+  };
+  const applySuggestion = () => {
+    const s = suggestion!.suggestions;
+    setForm({
+      ...form,
+      categoryId: s.category?.id && categories.some((c) => c.id === s.category!.id) ? s.category.id : form.categoryId,
+      unit: s.unit && (UNITS as readonly string[]).includes(s.unit.value) ? s.unit.value : form.unit,
+      taxPercent: s.taxPercent && ['0', '5', '12', '18', '28'].includes(String(s.taxPercent.value)) ? String(s.taxPercent.value) : form.taxPercent,
+    });
+    setSuggestion(null);
+  };
 
   const setVariant = (index: number, field: keyof VariantRow, value: string) =>
     setVariants(variants.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
@@ -262,6 +287,9 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
               <div className="input-wrapper" style={{ flex: 2 }}>
                 <label className="input-label" htmlFor="product-name">Name *</label>
                 <input id="product-name" className="input-field" required maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. India Gate Basmati Rice" autoFocus />
+                <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={suggest} disabled={suggesting || form.name.trim().length < 2}>
+                  {suggesting ? 'Thinking…' : 'Suggest category, unit and GST'}
+                </button>
               </div>
               <div className="input-wrapper" style={{ flex: 1 }}>
                 <label className="input-label" htmlFor="product-category">Category</label>
@@ -271,6 +299,19 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
                 </select>
               </div>
             </div>
+            {suggestion && (
+              <div className="alert-strip alert-strip-info" style={{ display: 'block' }} data-testid="product-suggestion">
+                {suggestion.duplicates.length > 0 && <div><strong>You already have “{suggestion.duplicates[0].name}”.</strong> Add a size to it instead?</div>}
+                {suggestion.suggestions.category && <div>Category: <strong>{suggestion.suggestions.category.name}</strong> — {suggestion.suggestions.category.reason}</div>}
+                {suggestion.suggestions.unit && <div>Sold by: <strong>{suggestion.suggestions.unit.value}</strong> — {suggestion.suggestions.unit.reason}</div>}
+                {suggestion.suggestions.taxPercent && <div>GST: <strong>{suggestion.suggestions.taxPercent.value}%</strong> — {suggestion.suggestions.taxPercent.reason}</div>}
+                {!suggestion.suggestions.category && !suggestion.suggestions.unit && !suggestion.suggestions.taxPercent && <div>No suggestion for this name.</div>}
+                <div style={{ marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={applySuggestion}>Use these</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSuggestion(null)}>Dismiss</button>
+                </div>
+              </div>
+            )}
             <div className="input-wrapper">
               <label className="input-label" htmlFor="product-description-2">Description</label>
               <textarea id="product-description-2" className="input-field textarea-field" maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />

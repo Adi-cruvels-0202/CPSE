@@ -69,6 +69,11 @@ const CALLS = {
   ],
   loyalty: [() => endpoints.loyalty.mine(), () => endpoints.loyalty.store(S), () => endpoints.loyalty.redeem(S, X)],
   offers: [() => endpoints.offers.nearby(30.9, 75.85)],
+  intelligence: [
+    () => endpoints.intelligence.smartSearch('s', '2 kg rice'), () => endpoints.intelligence.assistant('s', 'open?'),
+    () => endpoints.intelligence.recommendations('s', X), () => endpoints.intelligence.alternatives('s', X),
+    () => endpoints.intelligence.proposeBasket(S, 'rice'), () => endpoints.intelligence.replenishment(), () => endpoints.intelligence.discover(S),
+  ],
   conversations: [
     () => endpoints.conversations.list(), () => endpoints.conversations.get(X), () => endpoints.conversations.start({}),
     () => endpoints.conversations.reply(X, 'hi'), () => endpoints.conversations.escalate(X, 'late'), () => endpoints.conversations.resolve(X),

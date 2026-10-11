@@ -1,7 +1,7 @@
 # Roadmap requirements matrix
 
 Source: `Local_Commerce_Final_Development_Functional_Roadmap.docx` (8 pages).
-Branch: `feature/roadmap-completion`. Updated with the customer-app milestone (after commit `ab902b4`).
+Branch: `feature/roadmap-completion`. Updated with the intelligence milestone (after commit `f20f8ee`).
 
 ## Status rules
 
@@ -22,10 +22,10 @@ test on real Postgres (`tests/integration/*`, PGlite with every migration);
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend (api + sql + integration) | `cd backend && npx vitest run` | 49 files, **2090 passed**, 0 failed (full run) |
-| Customer app | `cd frontend/customer && npx vitest run` | 20 files, **701 passed** (584 baseline + 117 new: endpoint contract vs `backend/docs/API.md`, screen tests for every new flow) |
+| Backend (api + sql + integration) | `cd backend && npx vitest run` | 51 files, **2203 passed**, 0 failed (full run) |
+| Customer app | `cd frontend/customer && npx vitest run` | 20 files, **714 passed**, stable over repeated full runs (584 baseline + 130 new: endpoint contract vs `backend/docs/API.md`, screen tests for every new flow) |
 | Customer build | `cd frontend/customer && npm run build` | clean |
-| Merchant app | `cd frontend/merchant && npx vitest run` | 10 files, **159 passed** (17 baseline + 142 new: API contract vs `backend/docs/API.md`, screen tests for every new screen, reviewer console) |
+| Merchant app | `cd frontend/merchant && npx vitest run` | 11 files, **177 passed** (17 baseline + 160 new: API contract vs `backend/docs/API.md`, screen tests for every new screen, reviewer console, intelligence) |
 | Merchant typecheck + build | `cd frontend/merchant && npm run build` | clean; main chunk 374 kB, tools/admin lazy-loaded |
 | Merchant lint | `cd frontend/merchant && npx oxlint src tests` | 0 errors (warnings only, same rule families as existing code) |
 
@@ -110,17 +110,17 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 ## 4. Merchant side — Phase D/E Intelligence
 
-| ID | Requirement | Status | Remaining |
-|---|---|---|---|
-| M-52 | Voice input → proposed structured actions | MISSING_OR_BROKEN | Deterministic command parser + browser speech input + confirm-before-apply |
-| M-53 | Product recognition from images/scans | MISSING_OR_BROKEN | Barcode scan (browser) works with M-12 lookup once built; image recognition needs an AI provider (BLOCKED without `ANTHROPIC_API_KEY`) |
-| M-54 | Invoice extraction | MISSING_OR_BROKEN | Text parser (deterministic) → draft purchase; image/PDF via AI provider (BLOCKED without key) |
-| M-55 | Smart suggestions (categories, units, fields, related, actions) | MISSING_OR_BROKEN | Deterministic suggester |
-| M-56 | Demand forecasting | MISSING_OR_BROKEN | Moving-average/day-of-week baseline with data-sufficiency checks |
-| M-57 | Inventory intelligence (stockout risk, slow, over/under) | MISSING_OR_BROKEN | Days-of-cover analysis |
-| M-58 | Privacy-safe cross-store insights | MISSING_OR_BROKEN | k-anonymous aggregates (≥5 stores) |
-| M-59 | AI merchant assistant | MISSING_OR_BROKEN | Grounded Q&A over store data; actions proposed, confirmed |
-| M-60 | AI rule: propose only; confirmation for consequential changes; manual fallback | MISSING_OR_BROKEN | Enforced by design of M-52…M-59 |
+| ID | Requirement | Status | Evidence | Remaining |
+|---|---|---|---|---|
+| M-52 | Voice input → proposed structured actions | VERIFIED | `src/modules/intelligence/*` (deterministic, read-only): `parseMerchantCommand` → proposal naming the ordinary endpoint; browser speech input (feature-detected) on Insights → Ask; Confirm applies it; API `intelligence.test.js`, IT `integration/intelligence.test.js` (applied only after confirmation), FE merchant `intelligence.test.tsx` | — |
+| M-53 | Product recognition from images/scans | BLOCKED | camera barcode scanning at the till via the browser BarcodeDetector + `product-lookup` (FE merchant `intelligence.test.tsx`); barcode/SKU lookup VERIFIED under M-12 | Recognising a product from a photo needs an AI vision provider: none configured, and adding `@anthropic-ai/sdk` would rewrite `backend/package-lock.json`, which holds uncommitted changes I was told not to touch |
+| M-54 | Invoice extraction | VERIFIED (text invoices) | `parseInvoiceText` + catalogue matching → reviewable draft lines (Purchases → Read an invoice); total checked; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | Photo/PDF invoices BLOCKED for the same reason as M-53 (the screen says so) |
+| M-55 | Smart suggestions (categories, units, fields, related, actions) | VERIFIED | `suggestForProduct` (store products first, then templates; category, unit, size, GST, duplicates, each with a reason); "Suggest" in New product, applied only on "Use these"; IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | — |
+| M-56 | Demand forecasting | VERIFIED | `forecastDemand`: 28-day average shaped by weekday, confidence levels, refuses under 14 days / 3 selling days; Insights → Stock & demand; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | — |
+| M-57 | Inventory intelligence (stockout risk, slow, over/under) | VERIFIED | `stockHealth`: days of cover, stock-out / at risk / overstock / slow, proposed reorder quantity; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE merchant `intelligence.test.tsx` | — |
+| M-58 | Privacy-safe cross-store insights | VERIFIED | `areaInsights`: price spread and popular-nearby only from ≥5 other shops in the city, one figure per shop, never named; API `intelligence.test.js` (k-anonymity), IT `integration/intelligence.test.js` (4 shops → nothing, 5 → spread), FE merchant `intelligence.test.tsx` | — |
+| M-59 | AI merchant assistant | VERIFIED | grounded assistant `askAssistant` (sales, best/slow sellers, low stock, forecast, khata, open orders) with its source, commands → proposals; no model involved; IT `integration/intelligence.test.js` (row counts unchanged), FE merchant `intelligence.test.tsx` | An optional LLM phrasing layer is not built (would need the SDK; see M-53) |
+| M-60 | AI rule: propose only; confirmation for consequential changes; manual fallback | VERIFIED | every intelligence endpoint only reads; proposals need Confirm and go through the ordinary endpoint (scoped to the caller's store client-side and server-side); IT `integration/intelligence.test.js` asserts ledger/cart/orders/purchases/prices unchanged; FE merchant `intelligence.test.tsx` | — |
 
 ## 5. Customer side — P1 Commerce Foundation
 
@@ -148,7 +148,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | C-20 | Notifications for payment/order/status | VERIFIED | `notifications.test.js`, FE notifications | — |
 | C-21 | Multi-weight / multi-variant cart (1 kg + 500 g) | VERIFIED | IT `commerceFlow.test.js` (separate lines, SKUs, reservations), existing FE variant picker | — |
 | C-22 | Checkout & payment step separation | VERIFIED | numbered checkout steps → order → separate payment page; `checkout.test.jsx`, `payment.test.jsx` | — |
-| C-23 | Required flow end to end | IMPLEMENTED_NEEDS_TESTING | IT covers API chain; no browser-level E2E | Browser E2E run |
+| C-23 | Required flow end to end | BLOCKED | IT covers the whole API chain on real Postgres (`commerceFlow.test.js` and the per-feature IT files); every screen of the flow has FE tests in both apps | A browser run against a live stack needs a Supabase project: there is no `backend/.env` here and no credentials were provided |
 
 ## 5. Customer side — P2 Effort reduction, P3 Relationship, P4 Retention
 
@@ -197,19 +197,19 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | C-59 | Merchant response status | VERIFIED | order timeline (existing) | — |
 | C-60 | Order timeline | VERIFIED | `OrderTimeline.jsx`, tests | — |
 | C-61 | Customer support / escalation | VERIFIED | escalation to platform; IT; reviewer console Escalated support (FE `admin.test.tsx`); customer escalation (order/support only), automatic escalation after 24 h (backend `escalateUnanswered`, IT `messaging.test.js`), reviewer console; FE `roadmap-customer.test.jsx` | — |
-| C-62 | Notification reliability | PARTIAL | delivery tracking; IT | External channels BLOCKED (no vendor) |
+| C-62 | Notification reliability | VERIFIED (in-app) | in-app notification on every event, delivery records with retries and backoff (`runDeliveries`), `GET /notifications/:id/deliveries`; IT | External SMS/WhatsApp/email BLOCKED (no vendor credentials); attempts are recorded as skipped, never claimed sent |
 | C-63 | Refund tracking status (amount, times, reference, reason) | VERIFIED | `order.refund.events`, `nextStep`; IT; refund tracker (amount, method, status timeline, reference, reason); FE `roadmap-customer.test.jsx` | — |
 | C-64 | Behaviour events | VERIFIED | `customer_events`, consent; IT; store_view / product_view / search recorded only when signed in (`src/lib/track.js`); FE `roadmap-customer.test.jsx` | — |
 | C-65 | Deterministic customer metrics | VERIFIED | `GET /me/insights`; IT; "Your shopping at a glance" in My shopping; FE `roadmap-customer.test.jsx` | — |
-| C-66 | Natural-language search | MISSING_OR_BROKEN | — | Deterministic NL parser |
-| C-67 | Smart basket generation | MISSING_OR_BROKEN | — | |
-| C-68 | Shopping assistant (grounded) | MISSING_OR_BROKEN | — | |
-| C-69 | Product recommendations | MISSING_OR_BROKEN | — | Co-purchase based |
-| C-70 | Replenishment prediction | MISSING_OR_BROKEN | reorder-reminder rhythm exists as a base | Endpoint + UI |
-| C-71 | Smart substitutions | MISSING_OR_BROKEN | — | |
-| C-72 | Personalized discovery | MISSING_OR_BROKEN | — | |
-| C-73 | Voice shopping | MISSING_OR_BROKEN | — | |
-| C-74 | AI customer rule (returns to cart/checkout, no bypass) | MISSING_OR_BROKEN | — | By design of C-66…C-73 |
+| C-66 | Natural-language search | VERIFIED | `GET /stores/:slug/smart-search` (size, budget, cheapest, on offer) shown as "Understood as …" in store search; API `intelligence.test.js`, IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
+| C-67 | Smart basket generation | VERIFIED | `POST /stores/:storeId/basket/propose` (usual size when none written) and the shop assistant's list handling; "Add all" through the cart with failures reported; IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
+| C-68 | Shopping assistant (grounded) | VERIFIED | `POST /stores/:slug/assistant` on the store page: hours, delivery, offers, my usual, lists, comparisons, search — answers with sources, proposals only; IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
+| C-69 | Product recommendations | VERIFIED | bought together from ≥2 shared completed orders (180 days), then same category; product page "Often bought with this"; IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
+| C-70 | Replenishment prediction | VERIFIED | `GET /me/replenishment` (median gap, due/soon/later); My shopping → Due again; IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
+| C-71 | Smart substitutions | VERIFIED | `alternatives` engine: customer product page ("Instead, try" when sold out) and the merchant's substitution picker (★ suggested first); IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx`, FE merchant `intelligence.test.tsx` | — |
+| C-72 | Personalized discovery | VERIFIED | `GET /me/discover` (new-to-you from your categories, else popular here) on the store page; IT `integration/intelligence.test.js`, FE customer `roadmap-customer.test.jsx` | — |
+| C-73 | Voice shopping | VERIFIED | browser speech input (feature-detected, en-IN) into the shop assistant, which handles single items and whole lists; FE customer `roadmap-customer.test.jsx` | — |
+| C-74 | AI customer rule (returns to cart/checkout, no bypass) | VERIFIED | assistants and search return proposals; adding uses `POST /cart/items`, ordering needs checkout; IT `integration/intelligence.test.js` asserts no cart/order rows created; FE customer `roadmap-customer.test.jsx` (nothing added until "Add all") | — |
 
 ## 6. Shared commerce flows
 
@@ -230,12 +230,12 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 | ID | Rule | Status | Evidence |
 |---|---|---|---|
-| E-01 | Vertical slices | PARTIAL | Every non-AI feature is a full slice (DB → API → both apps → tests); the Phase D/E intelligence slices are not built |
+| E-01 | Vertical slices | VERIFIED | every feature, intelligence included, is a full slice (DB → API → both apps → tests); the blocked sub-parts are named in their rows |
 | E-02 | Reuse shared concepts, no duplicates | VERIFIED | new features build on products/variants/orders/payments/ledger; one pricing engine |
 | E-03 | Never trust client input | VERIFIED | Zod `.strict()` schemas on every route; route audit (1102 tests) |
 | E-04 | Tenant isolation and customer ownership | VERIFIED (API) | route audit + isolation cases in every IT file |
 | E-05 | Traceable inventory and financial records | VERIFIED | immutable ledgers (inventory, khata, loyalty, refund events, messages, verification events) |
-| E-06 | Automation/AI propose, confirm important changes | PARTIAL | automation only notifies/drafts; AI not built |
+| E-06 | Automation/AI propose, confirm important changes | VERIFIED | automation notifies and drafts; intelligence only proposes, applied on Confirm through the ordinary endpoint; IT proves no writes |
 | E-07 | Templates are defaults only | VERIFIED | IT (explicit values win, no overwrite on re-apply) |
 | E-08 | Loading/empty/error/success states | VERIFIED | every new screen in both apps has loading, empty, error (with retry) and success states; FE tests exercise them |
 | E-09 | Failure paths tested | VERIFIED | backend thoroughly; FE tests in both apps assert server refusals reach the user (409/422/403/401/404) |
@@ -246,15 +246,24 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 | Status | Count |
 |---|---|
-| VERIFIED | 132 (incl. 2 "VERIFIED (simulated provider)", 2 "VERIFIED (in-app)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
-| IMPLEMENTED_NEEDS_TESTING | 1 (C-23 browser end-to-end run) |
-| PARTIAL | 3 (C-62 external channels, E-01 and E-06 — both wait on the intelligence phase) |
-| MISSING_OR_BROKEN | 18 (M-52…M-60 and C-66…C-74: the Phase D/E intelligence features) |
-| BLOCKED | 0 whole requirements (live payment gateway, external SMS/WhatsApp/email delivery and AI image reading are blocked sub-parts, noted in their rows) |
+| VERIFIED | 152 (incl. 2 "VERIFIED (simulated provider)", 3 "VERIFIED (in-app)", 1 "VERIFIED (text invoices)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
+| BLOCKED | 2 — M-53 image recognition (no AI provider) and C-23 browser end-to-end run (no Supabase project here) |
+| IMPLEMENTED_NEEDS_TESTING | 0 |
+| PARTIAL | 0 |
+| MISSING_OR_BROKEN | 0 |
 
-Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10). VERIFIED: 132 / 154 = **86%** (25% at `132e595`, 57% at `ab902b4`). Every non-AI requirement is implemented in the database, API, both apps and tests, except C-23 (browser end-to-end run), C-62 (external channels, blocked) and E-01/E-06 (wait on the intelligence phase).
+Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10). VERIFIED: 152 / 154 = **98.7%**; the other two are BLOCKED, each by a missing external credential or service named in its row.
+
+**Not 100%, and why.** Blocked sub-parts that no code change here can unblock:
+
+- a live payment gateway (C-13, C-56 run against the simulated provider);
+- SMS / WhatsApp / email delivery (M-49, S-09, C-62 are verified in-app; external attempts are recorded as skipped);
+- AI image reading (M-53 photo recognition, M-54 photo/PDF invoices) and an optional LLM layer for the assistants (M-59). Using Claude needs the official `@anthropic-ai/sdk`, and installing it rewrites `backend/package-lock.json`, which holds uncommitted changes I was told not to touch. `AI_PROVIDER` stays `none`, and everything listed works without it;
+- the browser end-to-end run (C-23), which needs a Supabase project and `backend/.env`.
 
 ## Next incomplete requirement
 
-1. **Phase D/E intelligence (M-52…M-60, C-66…C-74)**, deterministic engines first, each proposing and never applying without confirmation (E-06): demand forecast and stock-out risk (M-56/M-57), smart catalogue suggestions (M-55), co-purchase recommendations (C-69), replenishment prediction (C-70), smart substitutions (C-71), personalised discovery (C-72), natural-language search parser (C-66), smart basket (C-67), voice input → proposed actions via the browser speech API (M-52, C-73), k-anonymous cross-store insights (M-58), grounded assistants (M-59, C-68) and invoice text extraction (M-54). Provider-backed parts (image recognition M-53, image/PDF invoices) use an optional Claude provider behind `AI_PROVIDER`; with no key here they are reported BLOCKED, not claimed.
-2. **C-23** — a browser end-to-end run of the required flow against a running stack.
+None that can be built here. With credentials:
+1. **C-23** — run the required flow in a browser against a live stack (`backend/.env` from `.env.example`, `npm run dev`).
+2. **M-53 / M-54 images / M-59 LLM** — with permission to add `@anthropic-ai/sdk` (and the lockfile change), implement the `anthropic` provider behind `AI_PROVIDER`, keeping proposals and confirmation exactly as now.
+3. **Payment gateway, SMS/WhatsApp/email vendor** — plug real providers into the existing provider boundaries.

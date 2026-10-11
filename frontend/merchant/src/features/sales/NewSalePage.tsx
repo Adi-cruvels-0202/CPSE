@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi, saleApi, categoryApi } from '../../api/endpoints';
 import { catalogueOpsApi } from '../../api/ops';
+import { CameraScanner, canScanWithCamera } from './CameraScanner';
 import { errorMessage } from '../../api/client';
 import type { Sale } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
@@ -53,6 +54,7 @@ export default function NewSalePage() {
   const [discount, setDiscount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState<Sale | null>(null);
+  const [scanning, setScanning] = useState(false);
   // One key per bill: a retried "Charge" after a timeout returns the same sale.
   const idempotencyKey = useRef(newKey());
 
@@ -124,8 +126,8 @@ export default function NewSalePage() {
    * A code not in the loaded list is looked up on the server, which also
    * catches products added since this page opened.
    */
-  const scan = async () => {
-    const code = search.trim();
+  const scan = async (scanned?: string) => {
+    const code = (scanned ?? search).trim();
     if (!code) return;
     const exact = sellables.find((item) => item.barcode === code || item.sku?.toLowerCase() === code.toLowerCase());
     const pick = exact ?? (shown.length === 1 ? shown[0] : null);
@@ -218,6 +220,7 @@ export default function NewSalePage() {
   return (
     <div className="sale-layout">
       <h1 className="sr-only">New counter sale</h1>
+      {scanning && <CameraScanner onClose={() => setScanning(false)} onCode={(code) => { setScanning(false); scan(code); }} />}
       <div className="sale-products-zone">
         <div className="sale-products-header">
           <div className="sale-search-bar">
@@ -225,6 +228,7 @@ export default function NewSalePage() {
             <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search, or scan a barcode…" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); scan(); } }} autoFocus style={{ width: '100%' }} />
             {!search && <div className="sale-search-shortcut">⌘K</div>}
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
+            {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setScanning(true)} aria-label="Scan with camera">📷</button>}
           </div>
           {(cats?.categories.length ?? 0) > 0 && (
             <div className="sale-categories">

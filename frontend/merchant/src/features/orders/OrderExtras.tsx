@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { productApi } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import type { LineItem } from '../../api/types';
-import { refundApi, substitutionApi, type Refund, type Substitution } from '../../api/ops';
+import { intelligenceApi, refundApi, substitutionApi, type Refund, type Substitution } from '../../api/ops';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise } from '../../lib/money';
 import { Modal, Spinner, formatDateTime } from '../../components/common/ui';
@@ -125,6 +125,13 @@ export function ProposeSubstitutionModal({ storeId, orderId, item, preference, o
 }) {
   const { showToast } = useToast();
   const { data: products, isLoading, error } = useQuery({ queryKey: ['products-all', storeId], queryFn: () => productApi.all(storeId) });
+  // The same alternatives engine the customer sees (roadmap §5 P6 "Smart substitutions").
+  const suggested = useQuery({
+    queryKey: ['alternatives', storeId, item.productId],
+    queryFn: () => intelligenceApi.alternatives(storeId, item.productId!),
+    enabled: Boolean(item.productId),
+  });
+  const rank = useMemo(() => new Map((suggested.data?.alternatives.items ?? []).map((a, i) => [a.product.id, i])), [suggested.data]);
   const [search, setSearch] = useState('');
   const [variantId, setVariantId] = useState('');
   const [quantity, setQuantity] = useState(item.quantity);
@@ -135,8 +142,9 @@ export function ProposeSubstitutionModal({ storeId, orderId, item, preference, o
     return (products ?? [])
       .filter((p) => p.isActive && (!term || p.name.toLowerCase().includes(term)))
       .flatMap((p) => p.variants.filter((v) => v.isActive && v.id !== item.variantId && (v.availableQuantity === null || v.availableQuantity > 0)).map((v) => ({ product: p, variant: v })))
+      .sort((a, b) => (rank.get(a.product.id) ?? 99) - (rank.get(b.product.id) ?? 99))
       .slice(0, 50);
-  }, [products, search, item.variantId]);
+  }, [products, search, item.variantId, rank]);
   const chosen = options.find((o) => o.variant.id === variantId);
   const originalLine = item.unitPricePaise * item.quantity;
   const replacementLine = chosen ? Math.min(chosen.variant.pricePaise * quantity, originalLine) : null;
@@ -181,7 +189,7 @@ export function ProposeSubstitutionModal({ storeId, orderId, item, preference, o
               <option value="">Choose…</option>
               {options.map(({ product, variant }) => (
                 <option key={variant.id} value={variant.id}>
-                  {product.name}{variant.name !== 'Default' ? ` (${variant.name})` : ''} — {formatPaise(variant.pricePaise)}{variant.availableQuantity !== null ? ` · ${variant.availableQuantity} left` : ''}
+                  {rank.has(product.id) ? '★ ' : ''}{product.name}{variant.name !== 'Default' ? ` (${variant.name})` : ''} — {formatPaise(variant.pricePaise)}{variant.availableQuantity !== null ? ` · ${variant.availableQuantity} left` : ''}
                 </option>
               ))}
             </select>
@@ -197,6 +205,7 @@ export function ProposeSubstitutionModal({ storeId, orderId, item, preference, o
             <input id="sub-note" className="input-field" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. 1 kg packs sold out" />
           </div>
         </div>
+        {rank.size > 0 && <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', margin: 0 }}>★ Suggested: similar name or category, close in price.</p>}
         {replacementLine !== null && (
           <div className="alert-strip alert-strip-info">Customer pays {formatPaise(replacementLine)} for this line (was {formatPaise(originalLine)}).</div>
         )}

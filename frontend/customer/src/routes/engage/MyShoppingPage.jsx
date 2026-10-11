@@ -14,13 +14,14 @@ import './Engage.css';
  * the customer's completed orders and the activity they allowed us to keep.
  */
 const TABS = [
+  { key: 'due', label: 'Due again' },
   { key: 'again', label: 'Buy again' },
   { key: 'favourites', label: 'Favourites' },
   { key: 'viewed', label: 'Recently viewed' },
 ];
 
 export function MyShoppingPage() {
-  const [tab, setTab] = useState('again');
+  const [tab, setTab] = useState('due');
   return (
     <div className="stack">
       <header>
@@ -35,7 +36,7 @@ export function MyShoppingPage() {
           </button>
         ))}
       </div>
-      {tab === 'again' ? <BuyAgain /> : tab === 'favourites' ? <Favourites /> : <RecentlyViewed />}
+      {tab === 'due' ? <DueAgain /> : tab === 'again' ? <BuyAgain /> : tab === 'favourites' ? <Favourites /> : <RecentlyViewed />}
       <Link to="/lists" className="btn btn--secondary btn--block">Shopping lists and templates</Link>
     </div>
   );
@@ -72,6 +73,36 @@ function BuyAgain() {
             />
           ))}
         </ul>
+      )}
+    </ListState>
+  );
+}
+
+/** Regular purchases that are due, from the customer's own rhythm (roadmap §5 P6 "Replenishment"). */
+const DUE = { due: 'Due now', soon: 'Due soon', later: 'Later' };
+
+function DueAgain() {
+  const query = useApiQuery(() => endpoints.intelligence.replenishment(), []);
+  const items = query.data?.replenishment?.items ?? [];
+  return (
+    <ListState query={query}>
+      {items.length === 0 ? (
+        <EmptyState title="Nothing due yet" body="Things you buy regularly show here once you have bought them on three different days." />
+      ) : (
+        <>
+          <ul className="prows">
+            {items.map((item) => (
+              <ProductRow
+                key={item.product.id}
+                product={item.product}
+                variantId={item.usualVariantId}
+                quantity={item.usualQuantity ?? 1}
+                detail={`${DUE[item.status]} · you buy it about every ${item.everyDays} days · last on ${formatWhen(item.lastBoughtOn)}`}
+              />
+            ))}
+          </ul>
+          <p className="field__hint">{query.data.replenishment.rule}</p>
+        </>
       )}
     </ListState>
   );

@@ -37,6 +37,7 @@ const GROUPS: { title: string; links: { to: string; label: string; hint: string 
     title: 'Running the shop',
     links: [
       { to: '/analytics', label: 'Reports', hint: 'Sales, orders, best and slow sellers' },
+      { to: '/insights', label: 'Insights', hint: 'Demand, stock health, ask a question, your area' },
       { to: '/automation', label: 'Automation', hint: 'Recurring tasks, alerts' },
       { to: '/share', label: 'Share your shop', hint: 'Link, QR code, WhatsApp' },
       { to: '/verification', label: 'Verification', hint: 'Business details and documents' },

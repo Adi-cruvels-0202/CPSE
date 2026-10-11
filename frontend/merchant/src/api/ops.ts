@@ -438,3 +438,57 @@ export const automationApi = {
   updateTask: (storeId: string, id: string, body: Record<string, unknown>) => api.patch<{ task: Task }>(`${store(storeId)}/tasks/${id}`, body),
   deleteTask: (storeId: string, id: string) => api.delete(`${store(storeId)}/tasks/${id}`, {}),
 };
+
+// ── Intelligence (Phase D/E): read-only, every change is confirmed ──────────
+
+export interface StockItem {
+  productId: string; variantId: string; name: string; available: number | null; soldLast30: number;
+  forecast: { confidence: 'insufficient' | 'low' | 'medium' | 'high'; reason: string; dailyAverage: number | null; nextDaysUnits: number | null; horizonDays: number };
+  health: { status: 'stockout' | 'at_risk' | 'overstock' | 'slow' | 'healthy' | 'unknown' | 'untracked'; daysOfCover: number | null; note: string };
+  proposedReorderQuantity: number | null;
+}
+export interface Proposal { summary: string; apply: { method: 'POST' | 'PATCH'; path: string; body: Record<string, unknown> }; requiresConfirmation: true; warning?: string }
+export interface CommandResult { understood: boolean; proposal: Proposal | null; problem?: string | null; options?: { variantId?: string; productId?: string; name: string }[]; help?: string[] }
+export interface AssistantReply {
+  kind: 'answer' | 'proposal' | 'help'; intent?: string; answer?: string; source?: string; examples?: string[];
+  actions?: { type: string; text: string; to: string }[]; proposal?: Proposal | null; problem?: string | null; options?: CommandResult['options']; understood?: boolean;
+}
+export interface InvoiceRead {
+  invoiceNumber: string | null; invoiceDate: string | null; statedTotalPaise: number | null; computedTotalPaise: number; totalMatches: boolean | null;
+  lines: { source: string; readAs: { name: string; quantity: number; unitCostPaise: number }; match: { productId: string; variantId: string; name: string; lastCostPaise: number | null } | null; confidence: 'none' | 'low' | 'medium' | 'high'; warnings: string[]; alternatives: { variantId: string; name: string }[] }[];
+  skipped: string[];
+}
+export interface ProductSuggestion {
+  suggestions: {
+    category: { id: string | null; name: string; reason: string } | null; unit: { value: string; reason: string } | null;
+    taxPercent: { value: number; reason: string } | null; weightGrams: { value: number; reason: string } | null;
+    variants: { name: string; suggestedPricePaise: number; weightGrams: number | null }[];
+  };
+  duplicates: { productId: string; name: string }[]; related: { productId: string; name: string }[]; nextActions: { type: string; text: string }[];
+}
+export interface AreaInsights {
+  city: string | null; minStores: number; otherStores?: number; note: string;
+  benchmarks: { productId: string; variantId: string; name: string; basis: 'per_kg' | 'per_pack'; yourPricePaise: number; area: { stores: number; p25: number; median: number; p75: number }; position: 'below_most' | 'typical' | 'above_most' }[];
+  popularNearby: { name: string; shops: string }[];
+}
+export interface Alternative { product: { id: string; name: string; pricePaise: number; isPurchasable: boolean }; reason: string; score: number }
+
+export const intelligenceApi = {
+  stock: (storeId: string, params: { horizonDays?: number; leadDays?: number } = {}) =>
+    api.get<{ stock: { today: string; horizonDays: number; leadDays: number; counts: Record<string, number>; items: StockItem[]; method: string } }>(`${store(storeId)}/intelligence/stock`, params),
+  suggest: (storeId: string, name: string) => api.post<{ suggestion: ProductSuggestion }>(`${store(storeId)}/intelligence/product-suggestions`, { name }),
+  invoice: (storeId: string, text: string) => api.post<{ invoice: InvoiceRead }>(`${store(storeId)}/intelligence/invoice`, { text }),
+  command: (storeId: string, text: string) => api.post<{ command: CommandResult }>(`${store(storeId)}/intelligence/command`, { text }),
+  ask: (storeId: string, question: string) => api.post<{ reply: AssistantReply }>(`${store(storeId)}/intelligence/ask`, { question }),
+  area: (storeId: string) => api.get<{ area: AreaInsights }>(`${store(storeId)}/intelligence/area`),
+  alternatives: (storeId: string, productId: string) => api.get<{ alternatives: { productId: string; items: Alternative[] } }>(`${store(storeId)}/products/${productId}/alternatives`),
+  /**
+   * Applies a confirmed proposal through the endpoint it names. Only the
+   * caller's own store, and only the methods proposals use.
+   */
+  apply: (storeId: string, proposal: Proposal) => {
+    const prefix = `${store(storeId)}/`;
+    if (!proposal.apply.path.startsWith(prefix)) throw new Error('That proposal is for another store.');
+    return proposal.apply.method === 'PATCH' ? api.patch(proposal.apply.path, proposal.apply.body) : api.post(proposal.apply.path, proposal.apply.body);
+  },
+};

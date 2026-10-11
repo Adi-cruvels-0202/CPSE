@@ -12,6 +12,7 @@ import { Catalogue } from './Catalogue.jsx';
 import { StoreFacts } from './StoreFacts.jsx';
 import { StoreLocation } from './StoreLocation.jsx';
 import { StoreConnect, StoreOffers } from './StoreExtras.jsx';
+import { DiscoverHere, ShopAssistant } from './ShopAssistant.jsx';
 import { track } from '../../lib/track.js';
 import './StorePage.css';
 
@@ -109,6 +110,8 @@ export function StorePage() {
 
       <StoreConnect store={store} isSignedIn={isSignedIn} />
       <StoreOffers slug={slug} />
+      <ShopAssistant store={store} isSignedIn={isSignedIn} />
+      {isSignedIn ? <DiscoverHere storeId={store.id} /> : null}
 
       <nav className="store__actions" aria-label="Browse this store">
         <Link to={`/store/${slug}/search`} className="store__search" aria-label="Search this store">

@@ -67,7 +67,7 @@ describe('GET /api/v1/stores/:slug (3.1, 3.5)', () => {
       deliveryFeePaise: 2900,
       freeDeliveryThresholdPaise: null,
     });
-    expect(store.payment).toEqual({ online: true, cashOnDelivery: true });
+    expect(store.payment).toEqual({ online: true, cashOnDelivery: true, khata: false });
     expect(store.hours.timezone).toBe('Asia/Kolkata');
   });
 

@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../../lib/supabase.js';
 import { conflict, internal, notFound } from '../../lib/errors.js';
 import { STATUS_LABELS, ORDER_STATUSES } from '../orders/order.state.js';
 import { transitionOrder } from '../orders/order.service.js';
+import { refundViewForOrder } from '../refunds/refund.service.js';
 
 /**
  * A merchant's orders — MERCHANT_API.md, Orders; MERCHANT_RULES §6.
@@ -15,7 +16,7 @@ import { transitionOrder } from '../orders/order.service.js';
 
 const ORDER_COLUMNS = `
   id, order_number, store_id, customer_id, fulfilment_mode, status, payment_status,
-  delivery_address, subtotal_paise, discount_paise, delivery_fee_paise, tax_paise,
+  payment_method, cancelled_by, delivery_address, subtotal_paise, discount_paise, delivery_fee_paise, tax_paise,
   total_paise, customer_note, cancellation_reason, placed_at, accepted_at, rejected_at,
   completed_at, cancelled_at, created_at, updated_at
 `;
@@ -83,15 +84,14 @@ const toItem = (row) => ({
   lineTotalPaise: row.line_total_paise,
 });
 
-function toSummary(row, { customer, isOnline, itemCount }) {
+function toSummary(row, { customer, itemCount }) {
   return {
     id: row.id,
     orderNumber: row.order_number,
     status: row.status,
     statusLabel: STATUS_LABELS[row.status] ?? row.status,
     paymentStatus: row.payment_status,
-    // A payment row exists only for online orders (create_order).
-    paymentMethod: isOnline ? 'online' : 'cash',
+    paymentMethod: row.payment_method ?? 'cash',
     fulfilmentMode: row.fulfilment_mode,
     allowedActions: allowedActions(row),
     customer: {
@@ -101,6 +101,7 @@ function toSummary(row, { customer, isOnline, itemCount }) {
     },
     customerNote: row.customer_note ?? null,
     cancellationReason: row.cancellation_reason ?? null,
+    cancelledBy: row.cancelled_by ?? null,
     totals: {
       subtotalPaise: row.subtotal_paise,
       discountPaise: row.discount_paise,
@@ -117,31 +118,29 @@ function toSummary(row, { customer, isOnline, itemCount }) {
   };
 }
 
-/** Customers, payment methods and item counts for a set of orders, in three lookups. */
+/** Customers and item counts for a set of orders, in two lookups. */
 async function related(rows) {
   const orderIds = rows.map((row) => row.id);
   const customerIds = [...new Set(rows.map((row) => row.customer_id))];
-  if (orderIds.length === 0) return { customers: new Map(), online: new Set(), counts: new Map() };
+  if (orderIds.length === 0) return { customers: new Map(), counts: new Map() };
 
-  const [customers, payments, items] = await Promise.all([
+  const [customers, items] = await Promise.all([
     supabaseAdmin.from('customers').select('id, full_name, phone').in('id', customerIds),
-    supabaseAdmin.from('payments').select('order_id').in('order_id', orderIds),
     supabaseAdmin.from('order_items').select('order_id').in('order_id', orderIds),
   ]);
-  if (customers.error || payments.error || items.error) throw internal('Could not load the orders.');
+  if (customers.error || items.error) throw internal('Could not load the orders.');
 
   const counts = new Map();
   for (const { order_id: id } of items.data ?? []) counts.set(id, (counts.get(id) ?? 0) + 1);
 
   return {
     customers: new Map((customers.data ?? []).map((row) => [row.id, row])),
-    online: new Set((payments.data ?? []).map((row) => row.order_id)),
     counts,
   };
 }
 
-const summaryOf = (row, { customers, online, counts }) =>
-  toSummary(row, { customer: customers.get(row.customer_id), isOnline: online.has(row.id), itemCount: counts.get(row.id) ?? 0 });
+const summaryOf = (row, { customers, counts }) =>
+  toSummary(row, { customer: customers.get(row.customer_id), itemCount: counts.get(row.id) ?? 0 });
 
 // ── Reads ────────────────────────────────────────────────────────────────────
 
@@ -163,7 +162,7 @@ async function findStoreOrder(store, orderId) {
 export async function getOrder(store, orderId) {
   const row = await findStoreOrder(store, orderId);
 
-  const [items, history, extra] = await Promise.all([
+  const [items, history, extra, refund] = await Promise.all([
     supabaseAdmin
       .from('order_items')
       .select('id, product_id, variant_id, product_name, variant_name, sku, quantity, unit_price_paise, tax_percent, tax_paise, line_total_paise, created_at')
@@ -175,11 +174,13 @@ export async function getOrder(store, orderId) {
       .eq('order_id', row.id)
       .order('created_at', { ascending: true }),
     related([row]),
+    refundViewForOrder(row.id),
   ]);
   if (items.error || history.error) throw internal('Could not load the order.');
 
   return {
     ...summaryOf(row, extra),
+    refund,
     deliveryAddress: row.delivery_address ?? null,
     items: (items.data ?? []).map(toItem),
     history: (history.data ?? []).map((entry) => ({

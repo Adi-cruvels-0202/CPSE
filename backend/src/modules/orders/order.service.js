@@ -6,6 +6,8 @@ import { toPublicAddress } from '../addresses/address.service.js';
 import { addItem, getCart } from '../cart/cart.service.js';
 import { findActiveStoreById } from '../stores/store.service.js';
 import * as notifications from '../notifications/notification.service.js';
+import { emitToStore } from '../notifications/merchantNotification.service.js';
+import * as refunds from '../refunds/refund.service.js';
 import {
   STATUS_LABELS,
   canCustomerCancel,
@@ -35,7 +37,7 @@ const fail = (error, message) => {
 
 const ORDER_COLUMNS = `
   id, order_number, store_id, customer_id, fulfilment_mode, status, payment_status,
-  address_id, delivery_address, store_snapshot,
+  payment_method, cancelled_by, address_id, delivery_address, store_snapshot,
   subtotal_paise, discount_paise, delivery_fee_paise, tax_paise, total_paise,
   customer_note, cancellation_reason, idempotency_key,
   placed_at, completed_at, cancelled_at, created_at, updated_at
@@ -82,16 +84,22 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
   }
 
   const isOnline = input.paymentMethod === 'online';
+  const isKhata = input.paymentMethod === 'khata';
 
   // The store chooses what it takes (MERCHANT_RULES S-16). Checked here rather
   // than in the quote because the quote is priced before a method is chosen.
-  if (isOnline ? !store.accepts_online : !store.accepts_cash) {
+  // Khata is the store's switch plus a credit limit on this customer's account,
+  // which create_order checks under the account's lock.
+  const accepted = isKhata ? store.khata_enabled : isOnline ? store.accepts_online : store.accepts_cash;
+  if (!accepted) {
     throw unprocessable(
       'PAYMENT_METHOD_UNAVAILABLE',
-      isOnline
-        ? `${store.name} does not take online payment.`
-        : `${store.name} does not take cash.`,
-      { accepts: { cash: store.accepts_cash, online: store.accepts_online } },
+      isKhata
+        ? `${store.name} does not offer khata at checkout.`
+        : isOnline
+          ? `${store.name} does not take online payment.`
+          : `${store.name} does not take cash.`,
+      { accepts: { cash: store.accepts_cash, online: store.accepts_online, khata: Boolean(store.khata_enabled) } },
     );
   }
 
@@ -104,6 +112,7 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
     // confirms it; a cash order is placed the moment it is submitted.
     status: isOnline ? 'pending_payment' : 'placed',
     payment_status: 'pending',
+    payment_method: input.paymentMethod,
     address_id: address?.id ?? null,
     // Checklist 7.7: snapshots, so history survives a merchant edit or a
     // deleted address (D11).
@@ -157,9 +166,21 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
       store_id: store.id,
       customer_id: customerId,
     });
+    await notifyStoreOfNewOrder(order);
   }
 
   return { order, replayed };
+}
+
+/** The store's inbox hears about an order the moment it can act on it. */
+export function notifyStoreOfNewOrder(order) {
+  return emitToStore(order.storeId, {
+    type: 'order_placed',
+    title: `New order ${order.orderNumber}`,
+    body: `${order.itemCount} item${order.itemCount === 1 ? '' : 's'} · ${order.fulfilmentMode === 'delivery' ? 'Delivery' : 'Pickup'}`,
+    payload: { order_id: order.id, order_number: order.orderNumber },
+    dedupeKey: `order_placed:${order.id}`,
+  });
 }
 
 /**
@@ -176,6 +197,18 @@ function translateCreateError(error) {
       'ITEM_UNAVAILABLE',
       `${name} sold out while you were checking out. Please review your cart.`,
     );
+  }
+
+  if (message.includes('KHATA_LIMIT_EXCEEDED')) {
+    const available = Number(message.split('KHATA_LIMIT_EXCEEDED:')[1]?.split(/\D/)[0] ?? 0);
+    return unprocessable(
+      'KHATA_LIMIT_EXCEEDED',
+      'This order is more than the credit the store has given you. Pay another way, or ask the store to raise your limit.',
+      { availablePaise: available },
+    );
+  }
+  if (message.includes('KHATA_UNAVAILABLE')) {
+    return unprocessable('KHATA_UNAVAILABLE', 'You do not have khata credit at this store yet. Ask the store to set it up.');
   }
 
   // A duplicate Idempotency-Key that raced past the function's own check.
@@ -294,6 +327,7 @@ export function toOrderSummary(row, itemCount = null) {
     status: row.status,
     statusLabel: STATUS_LABELS[row.status] ?? row.status,
     paymentStatus: row.payment_status,
+    paymentMethod: row.payment_method ?? 'cash',
     totalPaise: row.total_paise,
     itemCount,
     placedAt: row.placed_at,
@@ -303,8 +337,29 @@ export function toOrderSummary(row, itemCount = null) {
   };
 }
 
+/**
+ * Roadmap §5 P5 "Refund/cancellation handling": the rule, said before the
+ * customer acts, with what would happen to their money.
+ */
+export function cancellationPolicy(row, payment) {
+  const cancellable = canCustomerCancel(row.status);
+  const paid = payment?.status === 'paid' || row.payment_status === 'paid';
+  return {
+    isCancellable: cancellable,
+    rule: 'You can cancel until the store starts preparing your order. After that, call the store.',
+    refundOnCancelPaise: cancellable && paid ? row.total_paise : 0,
+    refundMethod: !paid
+      ? null
+      : row.payment_method === 'khata'
+        ? 'khata_credit'
+        : row.payment_method === 'cash'
+          ? 'cash'
+          : 'provider',
+  };
+}
+
 /** Checklist 8.2 + 8.5 */
-export function toOrderDetail(row, { items, history, payment }) {
+export function toOrderDetail(row, { items, history, payment, refund = null }) {
   return {
     ...toOrderSummary(row, items.length),
     items: items.map(toPublicOrderItem),
@@ -327,8 +382,11 @@ export function toOrderDetail(row, { items, history, payment }) {
         : { mode: 'pickup', pickupFrom: row.store_snapshot ?? null },
     store: row.store_snapshot ?? null,
     payment: toPublicPayment(payment),
+    refund,
+    cancellation: cancellationPolicy(row, payment),
     customerNote: row.customer_note ?? null,
     cancellationReason: row.cancellation_reason ?? null,
+    cancelledBy: row.cancelled_by ?? null,
     timeline: buildTimeline(row, history),
     isCancellable: canCustomerCancel(row.status),
   };
@@ -418,13 +476,14 @@ async function itemCounts(orderIds) {
 export async function getOrder(customerId, orderId) {
   const row = await findOwnedOrder(customerId, orderId);
 
-  const [items, history, payment] = await Promise.all([
+  const [items, history, payment, refund] = await Promise.all([
     listOrderItems(row.id),
     listStatusHistory(row.id),
     latestPayment(row.id),
+    refunds.refundViewForOrder(row.id),
   ]);
 
-  return toOrderDetail(row, { items, history, payment });
+  return toOrderDetail(row, { items, history, payment, refund });
 }
 
 // ── Transitions ─────────────────────────────────────────────────────────────
@@ -451,9 +510,12 @@ export async function transitionOrder(orderRow, toStatus, { changedBy, note = nu
   }
 
   const timestamps = {};
+  const ends = toStatus === 'cancelled' || toStatus === 'rejected';
   if (toStatus === 'completed') timestamps.completed_at = new Date().toISOString();
-  if (toStatus === 'cancelled' || toStatus === 'rejected') {
+  if (ends) {
     timestamps.cancelled_at = new Date().toISOString();
+    // Read by the refund trigger (0038) in this same statement.
+    timestamps.cancelled_by = changedBy;
   }
 
   const { data, error } = await supabaseAdmin
@@ -494,6 +556,9 @@ export async function transitionOrder(orderRow, toStatus, { changedBy, note = nu
     toStatus,
     { note },
   );
+
+  // A paid order that ended has a refund opened by the trigger; send it on.
+  if (ends) await refunds.afterOrderEnded(orderRow.id);
 
   return data;
 }
@@ -539,14 +604,23 @@ export async function getReceipt(customerId, orderId) {
       order.fulfilment.mode === 'delivery' ? order.fulfilment.address : (order.store ?? null),
     lines: order.items,
     totals: order.totals,
-    payment: order.payment
+    payment: {
+      method: order.paymentMethod,
+      status: order.paymentStatus,
+      reference: order.paymentMethod === 'online' ? (order.payment?.providerRef ?? null) : null,
+      paidAt: order.payment?.paidAt ?? null,
+    },
+    // A cancelled, paid order's receipt says where the money went.
+    refund: order.refund
       ? {
-          method: 'online',
-          status: order.payment.status,
-          reference: order.payment.providerRef,
-          paidAt: order.payment.paidAt,
+          status: order.refund.status,
+          statusLabel: order.refund.statusLabel,
+          amountPaise: order.refund.amountPaise,
+          method: order.refund.method,
+          reference: order.refund.reference,
+          refundedAt: order.refund.refundedAt,
         }
-      : { method: 'cash', status: order.paymentStatus, reference: null, paidAt: null },
+      : null,
     // GST is itemised on every line (D-4), but this is still not a tax invoice:
     // no GSTIN is collected for the store or the customer.
     isTaxInvoice: false,

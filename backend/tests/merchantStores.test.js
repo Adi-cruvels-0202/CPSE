@@ -381,7 +381,7 @@ describe('PUT /api/v1/merchant/stores/:storeId/payments (S-16)', () => {
     expect(body.data.store.paymentMethods).toEqual({ cash: true, online: false });
 
     const page = await api().get(url(`/stores/${storeRow(STORE_ID).slug}`));
-    expect(page.body.data.store.payment).toEqual({ online: false, cashOnDelivery: true });
+    expect(page.body.data.store.payment).toEqual({ online: false, cashOnDelivery: true, khata: false });
 
     const customer = asShopper();
     await addToCart(customer, { storeId: STORE_ID, productId: product.id });

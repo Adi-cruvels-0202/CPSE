@@ -32,6 +32,21 @@ const envSchema = z.object({
   // Signs and verifies payment webhooks. Must match what the gateway holds.
   PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('dev-only-webhook-secret-change-me'),
   PAYMENT_MOCK_CHECKOUT_URL: z.string().url().default('http://localhost:4000/mock-payment'),
+  // How the MOCK provider answers a refund. 'async' accepts it as processing
+  // and reports it refunded once PAYMENT_MOCK_REFUND_SETTLE_SECONDS have
+  // passed (to the reconciliation job, or via a signed refund webhook) — the
+  // shape a real gateway has. 'fail' declines every refund, to exercise the
+  // failure path. Ignored by any real provider.
+  PAYMENT_MOCK_REFUND_MODE: z.enum(['async', 'fail']).default('async'),
+  PAYMENT_MOCK_REFUND_SETTLE_SECONDS: z.coerce.number().int().nonnegative().default(60),
+
+  // Background jobs (expiry sweeps, refund reconciliation, alerts, offers,
+  // recurring tasks). Off in tests; one instance should run them in production.
+  JOBS_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+  JOBS_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
 
   // Serve the React app from this process too, so `npm run dev` in the backend
   // is the only thing you need to run. Set false to go back to API-only.

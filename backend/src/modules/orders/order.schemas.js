@@ -9,8 +9,8 @@ export const createOrderSchema = z
     fulfilmentMode,
     addressId: z.string().uuid('Not a valid address.').nullish(),
     customerNote: z.string().trim().max(500).nullish(),
-    paymentMethod: z.enum(['cash', 'online'], {
-      errorMap: () => ({ message: 'Choose either cash or online payment.' }),
+    paymentMethod: z.enum(['cash', 'online', 'khata'], {
+      errorMap: () => ({ message: 'Choose cash, online payment or khata.' }),
     }),
     // The totals the customer was shown. If the cart has moved since, the
     // order is refused rather than silently charging a different number.

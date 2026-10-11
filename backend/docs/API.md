@@ -696,6 +696,96 @@ cancelled, rejected or still unpaid. `ready` covers ready for pickup and out for
 delivery. Low stock lists variants of counted, active products that can sell no
 more than their product's threshold, fewest first.
 
+### Refunds (paid cancellations)
+
+A paid order that ends **cancelled** or **rejected** — by the customer, the
+store, or the system — opens a refund in the same database transaction as the
+status change (migration 0038). The refund is linked to the order **and** the
+payment it returns; there is at most one live refund per payment, so a retried
+request or a replayed webhook can never refund twice.
+
+| Refund `status` | Meaning |
+|---|---|
+| `initiated` | Opened; not yet accepted by the payment partner. |
+| `processing` | The payment partner has accepted it and is moving the money. |
+| `refunded` | Confirmed — by the payment partner (webhook or status lookup), by the khata credit entry, or by the merchant handing cash back. Only now do the payment and the order say `refunded`. |
+| `failed` | Not completed; `failureReason` says why. The store can retry. |
+
+`method` is `provider` (back to the card/UPI/bank), `khata_credit` (a separate
+credit entry in the customer's khata at the store — settled at once, the
+original charge is never edited) or `cash`. A payment that arrives **after** its
+order was cancelled is refunded automatically.
+
+Customers see the refund on `GET /orders/:id` (`order.refund`, with its
+`events` timeline and `nextStep`) and on the receipt. Before cancelling,
+`order.cancellation` states the rule, whether the order can be cancelled, and
+`refundOnCancelPaise`.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/refunds` | Bearer, merchant. `?status=initiated,processing&page=&limit=` → `{ refunds }` (each with `orderNumber`), newest first. |
+| `GET /merchant/stores/:storeId/refunds/:refundId` | Bearer, merchant. `{ refund }` with its `events`. |
+| `POST /merchant/stores/:storeId/refunds/:refundId/retry` | Bearer, merchant. No body. A `failed` gateway refund is sent again → `{ refund }`. Anything else is **409**; a non-gateway refund is **422 `NOT_A_GATEWAY_REFUND`**. |
+| `POST /merchant/stores/:storeId/refunds/:refundId/confirm-cash` | Bearer, merchant. `{ note? }`. Records that a cash refund was handed back → `{ refund }`. Not a cash refund: **422 `NOT_A_CASH_REFUND`**. |
+
+Refund webhooks arrive on `POST /payments/webhook` with
+`{ event: "refund.processing" | "refund.processed" | "refund.failed", providerRefundRef, eventId?, failureReason? }`,
+signed like payment events. Replays (same `eventId`) and out-of-order events (a
+`processing` after `refunded`) are acknowledged with **200** and ignored.
+
+```json
+"refund": {
+  "id": "r1…", "orderId": "o1…", "paymentId": "p1…",
+  "status": "processing", "statusLabel": "Refund processing",
+  "amountPaise": 38850, "currency": "INR",
+  "method": "provider", "methodLabel": "To your original payment method",
+  "reference": "mock_rfnd_…", "reason": "Out of stock", "initiatedBy": "store",
+  "failureReason": null, "attempts": 1,
+  "initiatedAt": "…", "processingAt": "…", "refundedAt": null, "failedAt": null,
+  "nextStep": "We have asked the payment partner to return your money. …",
+  "isFinal": false,
+  "events": [{ "fromStatus": null, "toStatus": "initiated", "label": "Refund initiated", "source": "system", "note": "…", "at": "…" }]
+}
+```
+
+### Merchant khata
+
+Bearer, merchant, on the caller's own store. The khata is the merchant's
+credit ledger with a customer. Entries are **never edited or deleted**: a
+mistake is corrected by a reversal entry that points at it, and every entry
+records who made it. Outstanding and overdue amounts are computed from the
+ledger, oldest charges settled first.
+
+| | |
+|---|---|
+| `PUT /merchant/stores/:storeId/khata-settings` | Bearer, merchant. `{ khataEnabled?, khataDueDays? }` → `{ settings }`. `khataEnabled` lets customers with a credit limit choose **khata** at checkout. |
+| `GET /merchant/stores/:storeId/khata` | Bearer, merchant. `?search=&status=all\|outstanding\|overdue` → `{ accounts, summary: { accountCount, outstandingPaise, overduePaise } }`. |
+| `POST /merchant/stores/:storeId/khata` | Bearer, merchant. `{ customerId \| email \| phone, creditLimitPaise?, notes? }` → **201**. `customerId` must have ordered from the store; an email or phone must match exactly one customer (**422 `CUSTOMER_NOT_FOUND`**). One account per customer per store (**409**). |
+| `GET /merchant/stores/:storeId/khata/:accountId` | Bearer, merchant. `{ account, totals, openCharges, transactions, reminders }`. |
+| `PATCH /merchant/stores/:storeId/khata/:accountId` | Bearer, merchant. `{ creditLimitPaise?, isActive?, notes?, remindersEnabled? }`. A closed account still takes payments and corrections. |
+| `POST /merchant/stores/:storeId/khata/:accountId/entries` | Bearer, merchant. **Send `Idempotency-Key`.** `{ kind: charge\|payment\|adjustment, amountPaise, description?, dueDate?, paymentMethod?, direction?, orderId? }` → **201** `{ transaction, replayed, account }`. A charge gets `dueDate` (default: today + the store's `khataDueDays`); an adjustment needs `direction` and a reason (**422 `REASON_REQUIRED`**). |
+| `POST /merchant/stores/:storeId/khata/:accountId/entries/:transactionId/reverse` | Bearer, merchant. `{ reason }` → **201**. Adds the opposite entry for the same amount, linked to the original. Already reversed: **409**; a reversal cannot be reversed: **422 `CANNOT_REVERSE_REVERSAL`**. |
+| `POST /merchant/stores/:storeId/khata/:accountId/reminders` | Bearer, merchant. `{ note? }` → **201**. Records a snapshot of what is owed and notifies the customer. Nothing owed: **422 `NOTHING_OUTSTANDING`**; reminders off: **422 `REMINDERS_OFF`**. |
+| `GET /merchant/stores/:storeId/khata/:accountId/statement` | Bearer, merchant. `?from=&to=&page=&limit=` → opening, debits, credits, closing for the period. |
+
+**Paying on khata.** `POST /orders` accepts `paymentMethod: "khata"` when the
+store has `khataEnabled` and the customer has an active account with a credit
+limit. The charge is written in the same transaction as the order and must fit
+the limit (**422 `KHATA_LIMIT_EXCEEDED`** with `details.availablePaise`; no
+credit: **422 `KHATA_UNAVAILABLE`**). Cancelling such an order credits the
+amount back as a separate, linked `refund_credit` entry.
+
+### Merchant notifications
+
+The store's inbox: new orders, refunds that completed or failed, low stock,
+expiring batches, customer messages.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/notifications` | Bearer, merchant. `?unreadOnly=&page=&limit=` → `{ notifications, unreadCount }`, newest first. |
+| `POST /merchant/stores/:storeId/notifications/read-all` | Bearer, merchant. No body → `{ updated, unreadCount }`. |
+| `POST /merchant/stores/:storeId/notifications/:notificationId/read` | Bearer, merchant. No body → `{ notification }`. Idempotent. |
+
 ---
 
 ## Rate limits

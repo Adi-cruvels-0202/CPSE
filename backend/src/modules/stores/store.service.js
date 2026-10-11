@@ -19,7 +19,7 @@ export const STORE_COLUMNS = `
   address_line1, address_line2, city, state, postal_code, country,
   latitude, longitude, opening_hours, timezone,
   pickup_enabled, delivery_enabled, min_order_paise, delivery_fee_paise,
-  free_delivery_threshold_paise, accepts_cash, accepts_online,
+  free_delivery_threshold_paise, accepts_cash, accepts_online, khata_enabled,
   is_active, is_published, created_at, updated_at
 `;
 
@@ -142,7 +142,7 @@ export function toPublicStore(row, { isSaved = null, now = new Date(), holidays 
     },
     // What this store takes (migration 0025, set by the merchant). Declared
     // here so the storefront can render it without a second endpoint.
-    payment: { online: row.accepts_online, cashOnDelivery: row.accepts_cash },
+    payment: { online: row.accepts_online, cashOnDelivery: row.accepts_cash, khata: Boolean(row.khata_enabled) },
     isSaved,
   };
 }

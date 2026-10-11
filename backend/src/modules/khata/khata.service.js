@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { internal, notFound } from '../../lib/errors.js';
+import { khataAgeing, localDate } from '../../lib/khataAgeing.js';
 
 /**
  * Khata — the store-credit ledger. Checklist 9.6 – 9.9.
@@ -18,8 +19,10 @@ import { internal, notFound } from '../../lib/errors.js';
  * from the verified JWT. Another customer's account id is a 404, never a 403.
  */
 
-const ACCOUNT_COLUMNS = 'id, customer_id, store_id, balance_paise, created_at, updated_at';
-const TXN_COLUMNS = 'id, account_id, type, amount_paise, description, order_id, occurred_at, created_at';
+export const ACCOUNT_COLUMNS =
+  'id, customer_id, store_id, balance_paise, credit_limit_paise, is_active, notes, reminders_enabled, created_at, updated_at';
+export const TXN_COLUMNS =
+  'id, account_id, type, amount_paise, description, order_id, occurred_at, created_at, entry_kind, due_date, payment_method, reverses_transaction_id, refund_id, recorded_by_type';
 
 const fail = (error, message) => {
   if (error) throw internal(message);
@@ -42,14 +45,36 @@ export function toPublicAccount(row, store = null) {
     // The store owes the customer — an overpayment or a refund into the khata.
     creditPaise: Math.max(-row.balance_paise, 0),
     isSettled: row.balance_paise === 0,
+    // null = no buying on credit at checkout; the merchant sets it.
+    creditLimitPaise: row.credit_limit_paise ?? null,
+    availableCreditPaise:
+      row.credit_limit_paise === null || row.credit_limit_paise === undefined
+        ? null
+        : Math.max(row.credit_limit_paise - row.balance_paise, 0),
+    isActive: row.is_active ?? true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
+const ENTRY_LABELS = {
+  charge: 'Purchase on credit',
+  payment: 'Payment received',
+  adjustment: 'Adjustment',
+  reversal: 'Correction (reverses an earlier entry)',
+  refund_credit: 'Refund credited',
+};
+
 export const toPublicTransaction = (row) => ({
   id: row.id,
   type: row.type,
+  entryKind: row.entry_kind ?? (row.type === 'debit' ? 'charge' : 'payment'),
+  entryLabel: ENTRY_LABELS[row.entry_kind ?? (row.type === 'debit' ? 'charge' : 'payment')],
+  dueDate: row.due_date ?? null,
+  paymentMethod: row.payment_method ?? null,
+  reversesTransactionId: row.reverses_transaction_id ?? null,
+  refundId: row.refund_id ?? null,
+  recordedBy: row.recorded_by_type ?? 'system',
   amountPaise: row.amount_paise,
   // Signed, so a client can render a running ledger without a branch.
   signedAmountPaise: row.type === 'debit' ? row.amount_paise : -row.amount_paise,
@@ -63,7 +88,7 @@ async function storesByIds(storeIds) {
 
   const { data, error } = await supabaseAdmin
     .from('stores')
-    .select('id, slug, name, logo_url')
+    .select('id, slug, name, logo_url, timezone')
     .in('id', storeIds);
 
   fail(error, 'Could not load your khata.');
@@ -109,7 +134,23 @@ async function findOwnedAccount(customerId, accountId) {
   return data;
 }
 
-async function aggregates(accountId, { from = null, to = null } = {}) {
+/** Outstanding and overdue for one account, oldest charges settled first. */
+export async function ageingFor(account, timeZone = 'Asia/Kolkata', now = new Date()) {
+  const { data, error } = await supabaseAdmin
+    .from('khata_transactions')
+    .select('id, type, amount_paise, due_date, occurred_at, created_at')
+    .eq('account_id', account.id);
+  fail(error, 'Could not total up the khata.');
+  const result = khataAgeing(data ?? [], localDate(now, timeZone));
+  return {
+    outstandingPaise: result.outstandingPaise,
+    overduePaise: result.overduePaise,
+    advancePaise: result.advancePaise,
+    earliestDueDate: result.earliestDueDate,
+  };
+}
+
+export async function aggregates(accountId, { from = null, to = null } = {}) {
   const { data, error } = await supabaseAdmin.rpc('khata_statement', {
     p_account_id: accountId,
     p_from: from ?? null,
@@ -130,7 +171,7 @@ async function aggregates(accountId, { from = null, to = null } = {}) {
   };
 }
 
-async function transactions(accountId, { from = null, to = null, page = 1, limit = 20 }) {
+export async function transactions(accountId, { from = null, to = null, page = 1, limit = 20 }) {
   let query = supabaseAdmin
     .from('khata_transactions')
     .select(TXN_COLUMNS, { count: 'exact' })
@@ -166,9 +207,11 @@ export async function getAccount(customerId, accountId, { page = 1, limit = 20 }
     aggregates(accountId),
     transactions(accountId, { page, limit }),
   ]);
+  const store = stores.get(account.store_id) ?? null;
 
   return {
-    account: toPublicAccount(account, stores.get(account.store_id) ?? null),
+    account: toPublicAccount(account, store),
+    ageing: await ageingFor(account, store?.timezone ?? 'Asia/Kolkata'),
     totals: {
       openingPaise: totals.openingPaise,
       debitPaise: totals.debitPaise,

@@ -79,6 +79,13 @@ const KNOWN_TABLES = [
   'store_holidays',
   'sales',
   'sale_items',
+  // Added after the mock's own fixtures were written; the integration suite
+  // (helpers/pgSupabase.js) is what exercises them. Here they are simply empty.
+  'refunds',
+  'refund_events',
+  'merchant_notifications',
+  'notification_deliveries',
+  'khata_reminders',
 ];
 
 /**
@@ -118,6 +125,8 @@ const COLUMN_DEFAULTS = {
     shop_category: null,
     accepts_cash: true,
     accepts_online: false,
+    khata_enabled: false,
+    khata_due_days: 30,
   }),
 };
 
@@ -716,6 +725,8 @@ export function createOrderRpc({ payload }) {
     fulfilment_mode: payload.fulfilment_mode,
     status: payload.status,
     payment_status: payload.payment_status,
+    payment_method: payload.payment_method ?? (payload.payment ? 'online' : 'cash'),
+    cancelled_by: null,
     address_id: payload.address_id ?? null,
     delivery_address: payload.delivery_address ?? null,
     store_snapshot: payload.store_snapshot ?? null,

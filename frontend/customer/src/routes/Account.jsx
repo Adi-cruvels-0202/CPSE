@@ -95,6 +95,11 @@ export function Account() {
           label="Khata"
           hint="What you owe your stores"
         />
+        <AccountLink to="/my-shopping" icon={<ReceiptIcon />} label="My shopping" hint="Buy again, favourites, recently viewed" />
+        <AccountLink to="/lists" icon={<LedgerIcon />} label="Lists and templates" hint="What to buy, and your regular baskets" />
+        <AccountLink to="/points" icon={<ShopIcon />} label="Points" hint="Loyalty points and rewards at your shops" />
+        <AccountLink to="/messages" icon={<ReceiptIcon />} label="Messages" hint="Questions, requests and support" />
+        <AccountLink to="/account/preferences" icon={<PinIcon />} label="Preferences" hint="How you shop and what shops may send you" />
         {/* The merchant app, a separate app at /merchant. A shop is its own
             account with its own email (MERGE_MAPPING D-2, revised), so this
             opens shop sign-up rather than carrying this login across. */}

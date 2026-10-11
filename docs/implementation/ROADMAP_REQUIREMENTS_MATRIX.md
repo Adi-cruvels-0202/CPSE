@@ -1,7 +1,7 @@
 # Roadmap requirements matrix
 
 Source: `Local_Commerce_Final_Development_Functional_Roadmap.docx` (8 pages).
-Branch: `feature/roadmap-completion`. Updated with the merchant-app milestone (after commit `132e595`).
+Branch: `feature/roadmap-completion`. Updated with the customer-app milestone (after commit `ab902b4`).
 
 ## Status rules
 
@@ -22,8 +22,9 @@ test on real Postgres (`tests/integration/*`, PGlite with every migration);
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend (api + sql + integration) | `cd backend && npx vitest run` | 49 files, **2085 passed**, 0 failed (2084 full run + the new khata store-view test, run in its file) |
-| Customer app | `cd frontend/customer && npx vitest run` | 18 files, **584 passed** (same as baseline — customer screens for the new features are the next milestone) |
+| Backend (api + sql + integration) | `cd backend && npx vitest run` | 49 files, **2087 passed**, 0 failed (full run, includes automatic support escalation) |
+| Customer app | `cd frontend/customer && npx vitest run` | 20 files, **700 passed** (584 baseline + 116 new: endpoint contract vs `backend/docs/API.md`, screen tests for every new flow) |
+| Customer build | `cd frontend/customer && npm run build` | clean |
 | Merchant app | `cd frontend/merchant && npx vitest run` | 10 files, **159 passed** (17 baseline + 142 new: API contract vs `backend/docs/API.md`, screen tests for every new screen, reviewer console) |
 | Merchant typecheck + build | `cd frontend/merchant && npm run build` | clean; main chunk 374 kB, tools/admin lazy-loaded |
 | Merchant lint | `cd frontend/merchant && npx oxlint src tests` | 0 errors (warnings only, same rule families as existing code) |
@@ -64,12 +65,12 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | M-17 | Customer status (new/active/loyal/inactive), deterministic | VERIFIED | `src/lib/customerSegments.js`; unit IT; FE group filter + badges; FE `relationships.test.tsx` | — |
 | M-18 | Customer value: total spend, first/last order | VERIFIED | `customerValue`; IT; FE spend/average/first-last; FE `relationships.test.tsx` | — |
 | M-19 | Favourite products (repeat + explicit) | VERIFIED | CRM `favouriteProducts`; IT; FE "Buys again and again"; FE `relationships.test.tsx` | — |
-| M-20 | Communication preferences respected | PARTIAL | `customer_store_preferences` (0041); consent shown in CRM; senders check it (announcements, reminders, deliveries); IT; merchant sees consent in CRM (FE `relationships.test.tsx`) | Customer preference screen |
+| M-20 | Communication preferences respected | VERIFIED | `customer_store_preferences` (0041); consent shown in CRM; senders check it (announcements, reminders, deliveries); IT; merchant sees consent in CRM (FE `relationships.test.tsx`); customer Preferences + per-shop consent; FE `roadmap-customer.test.jsx` | — |
 | M-21 | Digital Khata (merchant-controlled ledger) | VERIFIED | migration 0037, `src/modules/merchantKhata/*`; IT `khata.test.js`; FE KhataPage (accounts, statement, entries, settings); FE `operations.test.tsx` (idempotency key per entry, refusals) | — |
-| M-22 | Khata statements (charges, payments, balance, due dates) | PARTIAL | merchant + customer statement endpoints; customer Khata screens exist (FE); merchant statement screen + FE tests | Customer khata screen to show the new entry kinds / due dates |
+| M-22 | Khata statements (charges, payments, balance, due dates) | VERIFIED | merchant + customer statement endpoints; customer Khata screens exist (FE); merchant statement screen + FE tests; customer khata statement shows entry kind, due date, payment method; FE `roadmap-customer.test.jsx` | — |
 | M-23 | Due dates & reminders without rewriting history | VERIFIED | `khata_reminders`, opt-in auto reminders job; IT (reminder adds no ledger row); FE due date on credit, manual reminder (refusal shown), automatic reminders toggle; FE `operations.test.tsx`, `screens.test.tsx` (automation) | — |
 | M-24 | Audit-safe corrections | VERIFIED | immutable + undeletable entries, linked reversals; IT (DB refuses update/delete, single reversal); FE Reverse with reason; adjustment needs a reason client- and server-side; FE `operations.test.tsx` | — |
-| M-25 | Cancellation & refund settlement linked to order/payment, no lost history | PARTIAL | migrations 0038/0043, `src/modules/refunds/*`; IT `refunds.test.js` (15) + substitution adjustment refunds; merchant order detail RefundPanel (retry/confirm cash) + RefundsPage; FE `screens.test.tsx`, `operations.test.tsx` | Customer refund tracker UI |
+| M-25 | Cancellation & refund settlement linked to order/payment, no lost history | VERIFIED | migrations 0038/0043, `src/modules/refunds/*`; IT `refunds.test.js` (15) + substitution adjustment refunds; merchant order detail RefundPanel (retry/confirm cash) + RefundsPage; FE `screens.test.tsx`, `operations.test.tsx`; customer refund tracker; FE `roadmap-customer.test.jsx` | — |
 | M-26 | Khata refund/adjustment as separate linked ledger event | VERIFIED | `refund_credit` entries linked to refund + order; IT; FE khata shows "Refund credited" and offers no reversal of it; FE `operations.test.tsx` | — |
 
 ## 4. Merchant side — P3 Loyalty, P4 Analytics, P5 Acquisition
@@ -77,7 +78,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
 | M-27 | Merchant-specific loyalty rules | VERIFIED | migration 0042 `loyalty_programs`; IT `retention.test.js`; FE Promotions → Loyalty points; FE `relationships.test.tsx` | — |
-| M-28 | Rewards created and granted | VERIFIED | rewards → personal coupon in one transaction; IT; FE rewards create/pause; FE `relationships.test.tsx` | Customer redemption UI is C-side |
+| M-28 | Rewards created and granted | VERIFIED | rewards → personal coupon in one transaction; IT; FE rewards create/pause; FE `relationships.test.tsx`; customer redemption on Points screen | — |
 | M-29 | Loyalty history (earn/redeem) | VERIFIED | immutable `loyalty_ledger`; IT; FE points history + adjust (refusal shown) in customer detail; FE `relationships.test.tsx` | — |
 | M-30 | Sales analytics (totals, trends) | VERIFIED | `src/modules/analytics/*`; IT checks against independent SQL totals; FE AnalyticsPage (period presets/custom, daily bars); FE `relationships.test.tsx` | — |
 | M-31 | Order analytics (count, status patterns) | VERIFIED | same; IT; FE AnalyticsPage; FE `relationships.test.tsx` | — |
@@ -101,7 +102,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | M-44 | Low-stock alerts | VERIFIED | job + `GET …/low-stock`; IT (once per variant per day); FE InboxPage (low stock → What to reorder) + Automation low-stock list; FE `operations.test.tsx`, `screens.test.tsx` | — |
 | M-45 | Expiry alerts | VERIFIED | job; IT (expiring and expired, once each); FE InboxPage (batch alerts → Batches) + BatchesPage; FE `operations.test.tsx` | — |
 | M-46 | Expiry-based local offers (product, price, validity, location) | VERIFIED | `store_offers` (0042), `src/modules/offers/*`; IT (batch cap, cut-off refusal); FE OfferForm (from a batch or any product); FE `relationships.test.tsx` (batch-tied body, cut-off refusal) | — |
-| M-47 | Location-based offer banner | PARTIAL | `GET /offers/nearby`; IT (radius, nearest first) | Customer banner |
+| M-47 | Location-based offer banner | VERIFIED | `GET /offers/nearby`; IT (radius, nearest first); Home "Offers near you" (location only on tap, rounded, no token); FE `roadmap-customer.test.jsx` | — |
 | M-48 | Automatic offer expiry (period, sold out, cut-off), server-side | VERIFIED | live check on every read + in `create_order`; expiry job; IT; FE offers list shows status and end reason, "End now"; FE `relationships.test.tsx` | — |
 | M-49 | Notifications with delivery/status handling | VERIFIED (in-app) | merchant inbox (0036), `notification_deliveries`, channel provider boundary; IT; FE InboxPage (unread, mark read, open target); FE `operations.test.tsx` | External SMS/WhatsApp/email delivery **BLOCKED** (no vendor credentials); provider boundary exists |
 | M-50 | Recurring operations | VERIFIED | `recurring_tasks`, job; IT (once per due time, store-time schedule); FE AutomationPage tasks (weekly/monthly need a day); FE `screens.test.tsx` | — |
@@ -126,7 +127,7 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
 | C-01 | Registration/login | VERIFIED | `auth.test.js` (API), `auth*.test.jsx` (FE), existing screens | — |
-| C-02 | Customer profile + basic shopping preferences | PARTIAL | profile VERIFIED (existing); preferences API + IT `relationship.test.js` | Preferences screen |
+| C-02 | Customer profile + basic shopping preferences | VERIFIED | profile VERIFIED (existing); preferences API + IT `relationship.test.js`; customer Preferences screen (`/account/preferences`); FE `roadmap-customer.test.jsx` | — |
 | C-03 | Store discovery via URL/QR | VERIFIED | store page, directory; `stores.test.js`, `store-page.test.jsx`; IT publish flow | — |
 | C-04 | Store/catalogue browsing | VERIFIED | `catalogue.test.jsx`, `stores.test.js` | — |
 | C-05 | Product search within store | VERIFIED | `store-search.test.jsx`, `stores.test.js` | — |
@@ -136,13 +137,13 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | C-09 | Variants: each line correct SKU/price/availability | VERIFIED | IT `commerceFlow.test.js`; FE product detail | — |
 | C-10 | Address management | VERIFIED | `addresses.test.js`, `addresses.test.jsx` | — |
 | C-11 | Pickup/delivery selection | VERIFIED | `checkout.test.js`, `checkout.test.jsx` | — |
-| C-12 | Checkout confirms items, price, fulfilment, address, charges | VERIFIED | quote endpoint + checkout screen tests | New quote fields (benefits, free-delivery progress) not yet shown |
+| C-12 | Checkout confirms items, price, fulfilment, address, charges | VERIFIED | quote endpoint + checkout screen tests; checkout shows coupon/points lines, waived delivery, free-delivery progress from the quote; FE `roadmap-customer.test.jsx` | — |
 | C-13 | Payment, reliably confirmed, never paid on client say-so | VERIFIED (simulated provider) | `payments.test.js`, `payment.test.jsx`, IT | Live gateway **BLOCKED** (only the mock provider; no gateway credentials) |
 | C-14 | Exactly one order per confirmed checkout | VERIFIED | idempotency in `create_order`; IT duplicate key | — |
 | C-15 | Clear order status | VERIFIED | `orders.test.jsx`, timeline | — |
-| C-16 | Cancellation/rejection without inconsistent payment/order states | PARTIAL | refunds IT; order screen exists | Customer refund tracker UI for new fields |
+| C-16 | Cancellation/rejection without inconsistent payment/order states | VERIFIED | refunds IT; order screen exists; order page refund tracker + cancellation rule and refund destination before cancelling; FE `roadmap-customer.test.jsx` | — |
 | C-17 | Order history | VERIFIED | `orders.test.jsx` | — |
-| C-18 | Persistent receipt | VERIFIED | `ReceiptPage`, `orderLifecycle.test.js` | Receipt shows refund (API done, UI pending) |
+| C-18 | Persistent receipt | VERIFIED | `ReceiptPage`, `orderLifecycle.test.js`; receipt Refund block (amount, destination, status, reference); FE `roadmap-customer.test.jsx` | — |
 | C-19 | Reorder re-checks price and availability | VERIFIED | `orders.test.js` reorder; FE | — |
 | C-20 | Notifications for payment/order/status | VERIFIED | `notifications.test.js`, FE notifications | — |
 | C-21 | Multi-weight / multi-variant cart (1 kg + 500 g) | VERIFIED | IT `commerceFlow.test.js` (separate lines, SKUs, reservations), existing FE variant picker | — |
@@ -154,52 +155,52 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
 | C-24 | Saved shops | VERIFIED | existing saved stores (API + FE) | — |
-| C-25 | Buy again | PARTIAL | `GET /me/buy-again`; IT | Screen |
+| C-25 | Buy again | VERIFIED | `GET /me/buy-again`; IT; My shopping → Buy again (usual size and quantity); FE `roadmap-customer.test.jsx` | — |
 | C-26 | One-tap reorder (revalidated) | VERIFIED | existing reorder (API + FE) | — |
-| C-27 | Shopping lists | PARTIAL | lists API; IT | Screen |
-| C-28 | Shopping templates | PARTIAL | templates + reminders; IT | Screen |
+| C-27 | Shopping lists | VERIFIED | lists API; IT; Lists screens (free text + products, tick, put in cart with report); FE `roadmap-customer.test.jsx` | — |
+| C-28 | Shopping templates | VERIFIED | templates + reminders; IT; templates need a shop, optional reminder every N days; FE `roadmap-customer.test.jsx` | — |
 | C-29 | Saved addresses | VERIFIED | existing | — |
-| C-30 | Saved payment preference (no credentials) | PARTIAL | `preferred_payment_method`; IT refuses card fields | Screen |
-| C-31 | Saved delivery preference | PARTIAL | `preferred_fulfilment`; quick checkout; IT | Screen |
-| C-32 | Favourites / recently viewed / purchased | PARTIAL | APIs; IT (tracking off forgets) | Screens; event recording from the app |
-| C-33 | Smart cart (deterministic) | PARTIAL | `GET /me/smart-cart`; IT | Screen |
-| C-34 | Quick checkout | PARTIAL | `POST /checkout/quick`; IT | Screen |
-| C-35 | Product/store sharing | MISSING_OR_BROKEN | — | Share buttons |
+| C-30 | Saved payment preference (no credentials) | VERIFIED | `preferred_payment_method`; IT refuses card fields; Preferences (method name only) + quick checkout applies it; FE `roadmap-customer.test.jsx` | — |
+| C-31 | Saved delivery preference | VERIFIED | `preferred_fulfilment`; quick checkout; IT; Preferences + quick checkout; FE `roadmap-customer.test.jsx` | — |
+| C-32 | Favourites / recently viewed / purchased | VERIFIED | APIs; IT (tracking off forgets); My shopping tabs (buy again by recency, favourites, recently viewed), heart on product page; FE `roadmap-customer.test.jsx` | — |
+| C-33 | Smart cart (deterministic) | VERIFIED | `GET /me/smart-cart`; IT; cart "You usually also get" + add missing, failures reported; FE `roadmap-customer.test.jsx` | — |
+| C-34 | Quick checkout | VERIFIED | `POST /checkout/quick`; IT; cart "Quick checkout" → review pre-filled from `POST /checkout/quick`; FE `roadmap-customer.test.jsx` | — |
+| C-35 | Product/store sharing | VERIFIED | —; Share / WhatsApp on store page, Share on product page (native share or copy); FE `roadmap-customer.test.jsx` | — |
 | C-36 | Follow/save merchant | VERIFIED | saved stores | — |
-| C-37 | Ask the shop | PARTIAL | conversations; IT `messaging.test.js`; merchant Messages screen (FE `screens.test.tsx`) | Customer screens |
-| C-38 | Special requests | PARTIAL | same; IT; merchant side in Messages | Customer screens |
-| C-39 | Order messaging | PARTIAL | same; IT; merchant side in Messages | Customer screens |
-| C-40 | Merchant-specific offers shown | PARTIAL | `GET /stores/:slug/offers`; IT | Store page section |
-| C-41 | Communication preferences | PARTIAL | per-store preferences; IT | Screen |
-| C-42 | Store-specific reorder & loyalty | PARTIAL | buy-again per store, loyalty per store; IT | Screens |
-| C-43 | Store-specific notifications (opted-in) | PARTIAL | announcements; IT; merchant Announcements screen (FE `relationships.test.tsx`) | Customer opt-in screen (receipt uses the existing notifications screen) |
-| C-44 | Merchant-specific loyalty benefits | PARTIAL | points at checkout; IT | Checkout UI |
-| C-45 | Points & rewards history | PARTIAL | `GET /stores/:id/loyalty`; IT | Screen |
-| C-46 | Coupons | PARTIAL | coupons + atomic limits; IT (expired, used-up race, per-customer); merchant Coupons screen (FE `screens.test.tsx`) | Checkout UI |
-| C-47 | First-order / repeat benefits | PARTIAL | audiences `new`/`returning`; IT | UI |
-| C-48 | Free pickup/delivery thresholds | PARTIAL | free-delivery threshold (existing) + `freeDelivery` progress in quote + free-delivery coupon; IT | Checkout UI |
-| C-49 | Consent-based occasion offers | PARTIAL | birthday audience + consent; unit-tested window | UI |
-| C-50 | Deterministic personalized offers | PARTIAL | `couponsForCustomer` (eligibility-ranked) | UI |
-| C-51 | Reorder reminders | PARTIAL | job; IT | — (notification shown by existing screen) |
-| C-52 | Favourite-store benefits | PARTIAL | `followers` and `loyal` audiences | UI |
+| C-37 | Ask the shop | VERIFIED | conversations; IT `messaging.test.js`; merchant Messages screen (FE `screens.test.tsx`); "Ask the shop" (store page), "Ask about this" (product page), Messages screens; FE `roadmap-customer.test.jsx` | — |
+| C-38 | Special requests | VERIFIED | same; IT; merchant side in Messages; special request with type; FE `roadmap-customer.test.jsx` | — |
+| C-39 | Order messaging | VERIFIED | same; IT; merchant side in Messages; "Message the shop about this order" + thread replies; FE `roadmap-customer.test.jsx` | — |
+| C-40 | Merchant-specific offers shown | VERIFIED | `GET /stores/:slug/offers`; IT; store page "Offers here" (live offers + coupons); FE `roadmap-customer.test.jsx` | — |
+| C-41 | Communication preferences | VERIFIED | per-store preferences; IT; Preferences per-shop toggles + on the store page; FE `roadmap-customer.test.jsx` | — |
+| C-42 | Store-specific reorder & loyalty | VERIFIED | buy-again per store, loyalty per store; IT; per-shop points page, store-page link, buy again; FE `roadmap-customer.test.jsx` | — |
+| C-43 | Store-specific notifications (opted-in) | VERIFIED | announcements; IT; merchant Announcements screen (FE `relationships.test.tsx`); per-shop opt-in screen; FE `roadmap-customer.test.jsx` | — |
+| C-44 | Merchant-specific loyalty benefits | VERIFIED | points at checkout; IT; checkout "Use my points", clamped to the quote's cap; FE `roadmap-customer.test.jsx` | — |
+| C-45 | Points & rewards history | VERIFIED | `GET /stores/:id/loyalty`; IT; Points screens (balance, rewards, history, redeem → coupon); FE `roadmap-customer.test.jsx` | — |
+| C-46 | Coupons | VERIFIED | coupons + atomic limits; IT (expired, used-up race, per-customer); merchant Coupons screen (FE `screens.test.tsx`); checkout coupon entry + eligible coupons as chips, refusal shown and removable; FE `roadmap-customer.test.jsx` | — |
+| C-47 | First-order / repeat benefits | VERIFIED | audiences `new`/`returning`; IT; eligibility decided by the server (audiences); the app shows the customer's eligible coupons; FE `roadmap-customer.test.jsx` | — |
+| C-48 | Free pickup/delivery thresholds | VERIFIED | free-delivery threshold (existing) + `freeDelivery` progress in quote + free-delivery coupon; IT; checkout free-delivery progress; FE `roadmap-customer.test.jsx` | — |
+| C-49 | Consent-based occasion offers | VERIFIED | birthday audience + consent; unit-tested window; Preferences: birthday offers opt-in, month/day only; FE `roadmap-customer.test.jsx` | — |
+| C-50 | Deterministic personalized offers | VERIFIED | `couponsForCustomer` (eligibility-ranked); personal coupons from `GET /stores/:slug/offers` shown on store page and checkout; FE `roadmap-customer.test.jsx` | — |
+| C-51 | Reorder reminders | VERIFIED | job; IT; templates carry the reminder rhythm; reminders arrive in Notifications; FE `roadmap-customer.test.jsx` | — |
+| C-52 | Favourite-store benefits | VERIFIED | `followers` and `loyal` audiences; follower-audience coupons shown the same way; FE `roadmap-customer.test.jsx` | — |
 
 ## 5. Customer side — P5 Trust, P6 Intelligence foundation, P7 Assisted intelligence
 
 | ID | Requirement | Status | Evidence | Remaining |
 |---|---|---|---|---|
 | C-53 | Accurate availability | VERIFIED | live stock on reads; reservation at order | — |
-| C-54 | Transparent pricing & charges | VERIFIED | quote + "+ GST" (existing FE) | Discount lines in UI |
-| C-55 | Explicit substitutions with approval | PARTIAL | migration 0043; IT (approve, decline, auto for allow_similar, never pays more); merchant propose/withdraw in order detail | Customer approve/decline UI |
+| C-54 | Transparent pricing & charges | VERIFIED | quote + "+ GST" (existing FE); coupon/points discount lines in checkout and order; FE `roadmap-customer.test.jsx` | — |
+| C-55 | Explicit substitutions with approval | VERIFIED | migration 0043; IT (approve, decline, auto for allow_similar, never pays more); merchant propose/withdraw in order detail; order page accept/decline with note, refusal shown; FE `roadmap-customer.test.jsx` | — |
 | C-56 | Reliable payment confirmation | VERIFIED (simulated provider) | see C-13 | Live gateway BLOCKED |
 | C-57 | Receipts & audit trail | VERIFIED | receipts, status history | — |
-| C-58 | Refund/cancellation rules, eligibility, status | PARTIAL | `order.cancellation`, `order.refund`; IT | UI |
+| C-58 | Refund/cancellation rules, eligibility, status | VERIFIED | `order.cancellation`, `order.refund`; IT; cancellation rule + refund method before cancelling, tracker after; FE `roadmap-customer.test.jsx` | — |
 | C-59 | Merchant response status | VERIFIED | order timeline (existing) | — |
 | C-60 | Order timeline | VERIFIED | `OrderTimeline.jsx`, tests | — |
-| C-61 | Customer support / escalation | PARTIAL | escalation to platform; IT; reviewer console Escalated support (FE `admin.test.tsx`) | Customer screens |
+| C-61 | Customer support / escalation | VERIFIED | escalation to platform; IT; reviewer console Escalated support (FE `admin.test.tsx`); customer escalation (order/support only), automatic escalation after 24 h (backend `escalateUnanswered`, IT `messaging.test.js`), reviewer console; FE `roadmap-customer.test.jsx` | — |
 | C-62 | Notification reliability | PARTIAL | delivery tracking; IT | External channels BLOCKED (no vendor) |
-| C-63 | Refund tracking status (amount, times, reference, reason) | PARTIAL | `order.refund.events`, `nextStep`; IT | Customer UI |
-| C-64 | Behaviour events | PARTIAL | `customer_events`, consent; IT | Recording from the customer app |
-| C-65 | Deterministic customer metrics | PARTIAL | `GET /me/insights`; IT | Screen |
+| C-63 | Refund tracking status (amount, times, reference, reason) | VERIFIED | `order.refund.events`, `nextStep`; IT; refund tracker (amount, method, status timeline, reference, reason); FE `roadmap-customer.test.jsx` | — |
+| C-64 | Behaviour events | VERIFIED | `customer_events`, consent; IT; store_view / product_view / search recorded only when signed in (`src/lib/track.js`); FE `roadmap-customer.test.jsx` | — |
+| C-65 | Deterministic customer metrics | VERIFIED | `GET /me/insights`; IT; "Your shopping at a glance" in My shopping; FE `roadmap-customer.test.jsx` | — |
 | C-66 | Natural-language search | MISSING_OR_BROKEN | — | Deterministic NL parser |
 | C-67 | Smart basket generation | MISSING_OR_BROKEN | — | |
 | C-68 | Shopping assistant (grounded) | MISSING_OR_BROKEN | — | |
@@ -219,25 +220,25 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 | S-03 | Inventory → availability updates | VERIFIED | IT ledger + reservations; inventory, purchases and batches screens (FE tests) | — |
 | S-04 | Order → merchant → status visible | VERIFIED | IT + both apps | — |
 | S-05 | Sale → ledger once → history → analytics | VERIFIED | IT (ledger once, analytics totals); FE Reports screen (`relationships.test.tsx`) | — |
-| S-06 | Customer relationship → CRM → reorder/favourites | PARTIAL | IT; merchant CRM screen (FE tests) | Customer favourites / buy-again / reminders UI |
-| S-07 | Loyalty: rules → earn/redeem → consistent history | PARTIAL | IT; merchant loyalty + points history screens (FE tests) | Customer points/redeem UI in checkout |
-| S-08 | Khata: record → customer visibility → audit | PARTIAL | IT; merchant khata screen (FE tests); customer khata screen (existing) | Customer screen: new entry kinds, due dates, reversals |
+| S-06 | Customer relationship → CRM → reorder/favourites | VERIFIED | IT; merchant CRM screen (FE tests); customer favourites / buy again / usual basket / reminders; FE `roadmap-customer.test.jsx` | — |
+| S-07 | Loyalty: rules → earn/redeem → consistent history | VERIFIED | IT; merchant loyalty + points history screens (FE tests); customer points in checkout and history; FE `roadmap-customer.test.jsx` | — |
+| S-08 | Khata: record → customer visibility → audit | VERIFIED | IT; merchant khata screen (FE tests); customer khata screen (existing); customer statement with entry kinds; FE `roadmap-customer.test.jsx` | — |
 | S-09 | Notifications on business events | VERIFIED (in-app) | IT across modules; merchant inbox (FE tests); customer notifications screen (existing) | External channels BLOCKED (no vendor) |
-| S-10 | Cancellation & refund reconciled across systems | PARTIAL | IT (`refunds.test.js`, `khata.test.js`, `messaging.test.js`); merchant refund screens (FE tests) | Customer refund tracker |
+| S-10 | Cancellation & refund reconciled across systems | VERIFIED | IT (`refunds.test.js`, `khata.test.js`, `messaging.test.js`); merchant refund screens (FE tests); customer refund tracker; FE `roadmap-customer.test.jsx` | — |
 
 ## 7. Engineering rules and 8. Definition of done
 
 | ID | Rule | Status | Evidence |
 |---|---|---|---|
-| E-01 | Vertical slices | PARTIAL | Backend + merchant slices complete with tests; customer-app slices pending for new features |
+| E-01 | Vertical slices | PARTIAL | Every non-AI feature is a full slice (DB → API → both apps → tests); the Phase D/E intelligence slices are not built |
 | E-02 | Reuse shared concepts, no duplicates | VERIFIED | new features build on products/variants/orders/payments/ledger; one pricing engine |
 | E-03 | Never trust client input | VERIFIED | Zod `.strict()` schemas on every route; route audit (1102 tests) |
 | E-04 | Tenant isolation and customer ownership | VERIFIED (API) | route audit + isolation cases in every IT file |
 | E-05 | Traceable inventory and financial records | VERIFIED | immutable ledgers (inventory, khata, loyalty, refund events, messages, verification events) |
 | E-06 | Automation/AI propose, confirm important changes | PARTIAL | automation only notifies/drafts; AI not built |
 | E-07 | Templates are defaults only | VERIFIED | IT (explicit values win, no overwrite on re-apply) |
-| E-08 | Loading/empty/error/success states | PARTIAL | every new merchant screen uses Spinner / EmptyState / ErrorState (retry) / toasts; customer screens pending |
-| E-09 | Failure paths tested | PARTIAL | backend thoroughly; merchant FE tests assert server refusals are shown (409/422/403/401); customer FE pending |
+| E-08 | Loading/empty/error/success states | VERIFIED | every new screen in both apps has loading, empty, error (with retry) and success states; FE tests exercise them |
+| E-09 | Failure paths tested | VERIFIED | backend thoroughly; FE tests in both apps assert server refusals reach the user (409/422/403/401/404) |
 | E-10 | A screen is not a feature | — | rule respected: nothing marked VERIFIED without its screen |
 | E-11 | Refund rule (paid cancellation linked & traceable) | VERIFIED (backend) | IT `refunds.test.js` |
 
@@ -245,24 +246,16 @@ These are ordering rules, satisfied by the order of work on this branch; each ph
 
 | Status | Count |
 |---|---|
-| VERIFIED | 88 (incl. 2 "VERIFIED (simulated provider)", 2 "VERIFIED (in-app)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
-| IMPLEMENTED_NEEDS_TESTING | 2 |
-| PARTIAL | 45 |
-| MISSING_OR_BROKEN | 19 |
-| BLOCKED | 0 whole requirements (live payment gateway, external notification channels and AI image reading are blocked sub-parts, noted in their rows) |
+| VERIFIED | 131 (incl. 2 "VERIFIED (simulated provider)", 2 "VERIFIED (in-app)", 1 "VERIFIED (API)", 1 "VERIFIED (backend)") |
+| IMPLEMENTED_NEEDS_TESTING | 2 (M-05 unit display, C-23 browser end-to-end run) |
+| PARTIAL | 3 (C-62 external channels, E-01 and E-06 — both wait on the intelligence phase) |
+| MISSING_OR_BROKEN | 18 (M-52…M-60 and C-66…C-74: the Phase D/E intelligence features) |
+| BLOCKED | 0 whole requirements (live payment gateway, external SMS/WhatsApp/email delivery and AI image reading are blocked sub-parts, noted in their rows) |
 
-Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10, which is a rule about rating). VERIFIED: 88 / 154 = **57%** (was 39 / 154 = 25% at commit `132e595`). Every merchant-side requirement in §4 P1–P4 and Phase C is now VERIFIED except M-05 (customer-side unit display), M-20/M-22/M-25 (their remaining part is a customer screen) and M-47 (customer offer banner). The remaining PARTIAL rows are almost all "backend + merchant done, customer screen not built yet"; the MISSING rows are the AI / intelligence phase.
+Counted by script over the 154 rated rows (M-01…M-60, C-01…C-74, S-01…S-10, E-01…E-11, minus E-10). VERIFIED: 131 / 154 = **85%** (25% at `132e595`, 57% at `ab902b4`). Every non-AI requirement is implemented in the database, API, both apps and tests, except the three named above.
 
 ## Next incomplete requirement
 
-Customer-app screens, in this order:
-
-1. **C-63 / C-58 / C-16 / C-18 refund tracker** — order detail and receipt show the refund (amount, method, status timeline, reference, reason) from `GET /orders/:id` / `GET /me/refunds`.
-2. **C-55 substitution approve/decline** on the order detail.
-3. **C-44…C-48 checkout benefits** — coupon entry, points redemption, free-delivery progress, discount lines (C-54) from the quote.
-4. **C-02 / C-30 / C-31 / C-41 / M-20 preferences and consent** screen.
-5. **C-25 / C-27 / C-28 / C-32 / C-33 / C-34** buy again, lists, templates, favourites/recent, smart cart, quick checkout; **C-64** event recording.
-6. **C-37…C-39 / C-61** ask the shop, special requests, order messages, support escalation.
-7. **C-40 / C-47 / M-47 / C-49 / C-50 / C-52** store offers section and nearby-offers banner; **C-45** points history; **C-35** share buttons; **M-22 / S-08** khata entry kinds and due dates.
-
-Then Phase D/E intelligence (M-52…M-60, C-66…C-74): deterministic engines first, with an optional Claude provider behind `AI_PROVIDER` (no key in this environment, so provider-backed parts will be reported BLOCKED rather than claimed).
+1. **M-05** — show price per kg/litre on the customer product page from `weight_grams`, with unit tests.
+2. **Phase D/E intelligence (M-52…M-60, C-66…C-74)**, deterministic engines first, each proposing and never applying without confirmation (E-06): demand forecast and stock-out risk (M-56/M-57), smart catalogue suggestions (M-55), co-purchase recommendations (C-69), replenishment prediction (C-70), smart substitutions (C-71), personalised discovery (C-72), natural-language search parser (C-66), smart basket (C-67), voice input → proposed actions via the browser speech API (M-52, C-73), k-anonymous cross-store insights (M-58), grounded assistants (M-59, C-68) and invoice text extraction (M-54). Provider-backed parts (image recognition M-53, image/PDF invoices) use an optional Claude provider behind `AI_PROVIDER`; with no key here they are reported BLOCKED, not claimed.
+3. **C-23** — a browser end-to-end run of the required flow against a running stack.

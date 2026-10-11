@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatPaise } from '../../lib/money.js';
 
 /**
@@ -125,12 +126,19 @@ export function Review({ quote }) {
 
       <dl className="checkout__totals">
         <Row label="Subtotal">{formatPaise(totals.subtotalPaise)}</Row>
-        {totals.discountPaise > 0 ? (
+        {quote.benefits?.coupon?.applies && quote.benefits.coupon.discountPaise > 0 ? (
+          <Row label={`Coupon ${quote.benefits.coupon.code}`}>−{formatPaise(quote.benefits.coupon.discountPaise)}</Row>
+        ) : null}
+        {quote.benefits?.loyalty?.discountPaise > 0 ? (
+          <Row label={`${quote.benefits.loyalty.pointsUsed} points`}>−{formatPaise(quote.benefits.loyalty.discountPaise)}</Row>
+        ) : null}
+        {totals.discountPaise > 0 && !quote.benefits ? (
           <Row label="Discount">−{formatPaise(totals.discountPaise)}</Row>
         ) : null}
         {fulfilmentMode === 'delivery' ? (
           <Row label="Delivery">
             {totals.deliveryFeePaise > 0 ? formatPaise(totals.deliveryFeePaise) : 'Free'}
+            {totals.waivedDeliveryPaise > 0 ? <span className="muted"> (coupon)</span> : null}
           </Row>
         ) : null}
         {totals.taxPaise > 0 ? <Row label="GST">{formatPaise(totals.taxPaise)}</Row> : null}
@@ -138,6 +146,7 @@ export function Review({ quote }) {
           {formatPaise(totals.totalPaise)}
         </Row>
       </dl>
+
 
       <div className="checkout__where">
         {fulfilmentMode === 'delivery' && address ? (
@@ -199,5 +208,120 @@ export function QuoteIssues({ blockers, warnings }) {
         </ul>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Coupons and points (roadmap §5 P4). The quote judges both: a code that does
+ * not apply comes back as a blocker with the reason, and the most points this
+ * order can take comes back with the quote — nothing is worked out here.
+ */
+export function Benefits({ coupons, couponCode, onCoupon, loyalty, quoteLoyalty, redeemPoints, onRedeem, disabled }) {
+  const [draft, setDraft] = useState('');
+  const balance = quoteLoyalty?.balancePoints ?? loyalty?.balance?.points ?? 0;
+  const program = loyalty?.program ?? null;
+  const max = quoteLoyalty?.maxRedeemablePoints ?? null;
+  const pointValue = quoteLoyalty?.pointValuePaise ?? program?.pointValuePaise ?? null;
+
+  return (
+    <div className="stack">
+      {couponCode ? (
+        <div className="notice notice--success spread">
+          <span>
+            Coupon <strong>{couponCode}</strong> added
+          </span>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => onCoupon(null)} disabled={disabled}>
+            Remove
+          </button>
+        </div>
+      ) : (
+        <form
+          className="field__with-action"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (draft.trim()) onCoupon(draft.trim().toUpperCase());
+          }}
+        >
+          <input
+            className="field__input"
+            aria-label="Coupon code"
+            placeholder="Coupon code"
+            value={draft}
+            maxLength={30}
+            onChange={(event) => setDraft(event.target.value)}
+            disabled={disabled}
+          />
+          <button type="submit" className="btn btn--secondary btn--sm" disabled={disabled || !draft.trim()}>
+            Apply
+          </button>
+        </form>
+      )}
+
+      {!couponCode && (coupons ?? []).length > 0 ? (
+        <ul className="checkout__coupons" aria-label="Coupons you can use">
+          {coupons.map((coupon) => (
+            <li key={coupon.id ?? coupon.code}>
+              <button type="button" className="coupon-chip" onClick={() => onCoupon(coupon.code)} disabled={disabled}>
+                <strong>{coupon.code}</strong> · {coupon.title}
+                {coupon.minOrderPaise ? <span className="muted"> (on {formatPaise(coupon.minOrderPaise)}+)</span> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {program && balance > 0 ? (
+        <label className="choice">
+          <input
+            type="checkbox"
+            checked={redeemPoints > 0}
+            onChange={(event) => onRedeem(event.target.checked ? Math.max(max ?? balance, 1) : 0)}
+            disabled={disabled}
+          />
+          <span className="choice__body">
+            <span className="choice__label">
+              Use my points — you have {balance}
+              {pointValue ? ` (worth ${formatPaise(balance * pointValue)})` : ''}
+            </span>
+            <span className="choice__detail">
+              {max !== null && redeemPoints > 0
+                ? `Using ${redeemPoints} points on this order (at most ${max}).`
+                : program.summary ?? 'Points can pay for part of an order.'}
+            </span>
+          </span>
+        </label>
+      ) : program ? (
+        <p className="muted">You earn points here: {program.summary}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** How close a delivery order is to free delivery. */
+export function FreeDeliveryProgress({ freeDelivery }) {
+  if (!freeDelivery) return null;
+  return freeDelivery.isUnlocked ? (
+    <p className="notice notice--success">Free delivery unlocked.</p>
+  ) : (
+    <p className="notice notice--info">
+      Add <strong className="numeric">{formatPaise(freeDelivery.remainingPaise)}</strong> more for free delivery
+      (on orders of {formatPaise(freeDelivery.thresholdPaise)} or more).
+    </p>
+  );
+}
+
+/** What to do if an item is out of stock — asked before the order, not after. */
+export function SubstitutionChoice({ value, onChange, options, disabled }) {
+  return (
+    <div className="choices" role="radiogroup" aria-label="If something is out of stock">
+      {Object.entries(options).map(([code, label]) => (
+        <label key={code} className={`choice${value === code ? ' choice--selected' : ''}`}>
+          <input type="radio" name="substitutionPreference" value={code} checked={value === code} onChange={() => onChange(code)} disabled={disabled} />
+          <span className="choice__body">
+            <span className="choice__label">{label}</span>
+          </span>
+        </label>
+      ))}
+    </div>
   );
 }

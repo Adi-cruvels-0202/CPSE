@@ -11,7 +11,7 @@ import './Tools.css';
 
 /**
  * Customer questions, special requests and order conversations (roadmap §5
- * P5). A thread nobody answers in time is escalated to platform support by the
+ * P5). An order conversation left unanswered for 24 hours is escalated to platform support by the
  * jobs runner, so the "Escalated" tab is the one to watch.
  */
 

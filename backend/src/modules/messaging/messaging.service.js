@@ -223,6 +223,55 @@ export async function escalate(customerId, conversationId, { reason }) {
   return getCustomerConversation(customerId, conversationId);
 }
 
+export const UNANSWERED_ESCALATION_HOURS = 24;
+
+/**
+ * The scheduled half of the escalation path (roadmap §5 P5): a conversation
+ * about an order that has waited on the shop for a day goes to CPSE support by
+ * itself. Questions and special requests are not orders and are left to the
+ * shop. Idempotent — the status guard on the update means a second run, or two
+ * instances, escalate each conversation once.
+ */
+export async function escalateUnanswered({ now = new Date(), afterHours = UNANSWERED_ESCALATION_HOURS } = {}) {
+  const cutoff = new Date(now.getTime() - afterHours * 3_600_000).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('conversations')
+    .select(CONVERSATION_COLUMNS)
+    .in('kind', ['order', 'support'])
+    .eq('status', 'awaiting_store')
+    .lte('last_message_at', cutoff)
+    .limit(200);
+  fail(error, 'Could not load conversations.');
+  let escalated = 0;
+  for (const row of data ?? []) {
+    const reason = `No reply from the shop in ${afterHours} hours.`;
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('conversations')
+      .update({ status: 'escalated', escalated_at: now.toISOString(), escalation_reason: reason, kind: 'support' })
+      .eq('id', row.id)
+      .eq('status', 'awaiting_store')
+      .select('id')
+      .maybeSingle();
+    fail(updateError, 'Could not escalate.');
+    if (!updated) continue;
+    escalated += 1;
+    await supabaseAdmin.from('messages').insert({ conversation_id: row.id, sender_type: 'system', body: `${reason} Passed to CPSE support.` });
+    await emitToStore(row.store_id, {
+      type: 'support_ticket',
+      title: `Escalated to CPSE support: ${row.subject}`,
+      body: reason,
+      payload: { conversation_id: row.id },
+    });
+    await notifications.emit(row.customer_id, {
+      type: 'support_update',
+      title: `CPSE support is looking at: ${row.subject}`,
+      body: 'The shop has not replied, so our support team will.',
+      payload: { conversation_id: row.id },
+    });
+  }
+  return { escalated };
+}
+
 export async function resolveByCustomer(customerId, conversationId) {
   const row = await findCustomerConversation(customerId, conversationId);
   const { error } = await supabaseAdmin.from('conversations').update({ status: 'resolved', resolved_at: new Date().toISOString() }).eq('id', row.id);

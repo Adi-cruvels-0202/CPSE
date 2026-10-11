@@ -112,6 +112,46 @@ describe('asking the shop', () => {
   });
 });
 
+describe('automatic escalation of unanswered order conversations', () => {
+  it('passes an order conversation the shop left for a day to support, once; questions and fresh ones stay', async () => {
+    const { escalateUnanswered } = await import('../../src/modules/messaging/messaging.service.js');
+    const { shop, rice, customer } = await shopAndCustomer();
+    await flow.addToCart(customer, shop.store.id, rice.product.id, rice.kg.id, 1);
+    const { order } = expectStatus(await flow.placeOrder(customer, { storeId: shop.store.id }), 201);
+    const start = (body) => call('post', '/conversations', customer.auth, body);
+    const stale = expectStatus(await start({ kind: 'order', orderId: order.id, subject: 'Where is my order?', message: 'Still not here.' }), 201).conversation;
+    const fresh = expectStatus(await start({ kind: 'order', orderId: order.id, subject: 'Can you add a bag?', message: 'Thanks.' }), 201).conversation;
+    const question = expectStatus(await start({ kind: 'question', storeId: shop.store.id, subject: 'Do you stock ghee?', message: '1 kg?' }), 201).conversation;
+    await sql(`update conversations set last_message_at = now() - interval '25 hours' where id = any($1)`, [[stale.id, question.id]]);
+
+    expect(await escalateUnanswered()).toEqual({ escalated: 1 });
+    expect(await escalateUnanswered()).toEqual({ escalated: 0 });
+
+    const after = expectStatus(await call('get', `/conversations/${stale.id}`, customer.auth), 200).conversation;
+    expect(after.status).toBe('escalated');
+    expect(after.messages.at(-1)).toMatchObject({ from: 'system' });
+    expect(after.messages.at(-1).body).toContain('No reply from the shop in 24 hours');
+    expect(expectStatus(await call('get', `/conversations/${fresh.id}`, customer.auth), 200).conversation.status).toBe('awaiting_store');
+    expect(expectStatus(await call('get', `/conversations/${question.id}`, customer.auth), 200).conversation.status).toBe('awaiting_store');
+
+    const admin = await flow.newAdmin();
+    expect(expectStatus(await call('get', '/admin/support', admin.auth), 200).conversations.map((c) => c.id)).toEqual([stale.id]);
+    expect((await sql(`select count(*)::int as n from merchant_notifications where type = 'support_ticket'`))[0].n).toBe(1);
+    expect((await sql(`select count(*)::int as n from notifications where type = 'support_update'`))[0].n).toBe(1);
+  });
+
+  it('a shop reply in time keeps the conversation with the shop', async () => {
+    const { escalateUnanswered } = await import('../../src/modules/messaging/messaging.service.js');
+    const { shop, rice, customer } = await shopAndCustomer();
+    await flow.addToCart(customer, shop.store.id, rice.product.id, rice.kg.id, 1);
+    const { order } = expectStatus(await flow.placeOrder(customer, { storeId: shop.store.id }), 201);
+    const c = expectStatus(await call('post', '/conversations', customer.auth, { kind: 'order', orderId: order.id, subject: 'Timing', message: 'When?' }), 201).conversation;
+    expectStatus(await call('post', `${base(shop)}/conversations/${c.id}/messages`, shop.merchant, { body: 'By 6 pm.' }), 201);
+    await sql(`update conversations set last_message_at = now() - interval '30 hours' where id = $1`, [c.id]);
+    expect(await escalateUnanswered()).toEqual({ escalated: 0 });
+  });
+});
+
 describe('substitutions', () => {
   async function orderWith(customer, shop, rice, body = {}) {
     await flow.addToCart(customer, shop.store.id, rice.product.id, rice.kg.id, 2);

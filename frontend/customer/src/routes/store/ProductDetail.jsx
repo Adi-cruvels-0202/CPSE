@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
@@ -7,6 +7,9 @@ import { RemoteImage } from '../../components/RemoteImage.jsx';
 import { QuantityStepper } from '../../components/QuantityStepper.jsx';
 import { AddToCartButton } from '../../components/AddToCartButton.jsx';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { track } from '../../lib/track.js';
+import { ProductKeep } from './ProductKeep.jsx';
 import './ProductDetail.css';
 
 /**
@@ -33,6 +36,13 @@ export function ProductDetail() {
   // carry a variant that belongs to the previous one.
   const [variantId, setVariantId] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const { isSignedIn } = useAuth();
+
+  // Feeds the customer's own "Recently viewed" (if they allow it).
+  const viewed = data?.product ?? null;
+  useEffect(() => {
+    if (viewed) track({ eventType: 'product_view', storeId: viewed.storeId, productId: viewed.id });
+  }, [viewed?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) return <ProductSkeleton />;
 
@@ -130,6 +140,8 @@ export function ProductDetail() {
           </p>
         ) : null}
       </div>
+
+      <ProductKeep product={product} storeSlug={slug} storeName={data.store?.name ?? product.storeName} isSignedIn={isSignedIn} variantId={variantId} />
     </article>
   );
 }

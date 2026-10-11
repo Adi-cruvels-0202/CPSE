@@ -11,6 +11,8 @@ import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/Stat
 import { Catalogue } from './Catalogue.jsx';
 import { StoreFacts } from './StoreFacts.jsx';
 import { StoreLocation } from './StoreLocation.jsx';
+import { StoreConnect, StoreOffers } from './StoreExtras.jsx';
+import { track } from '../../lib/track.js';
 import './StorePage.css';
 
 /**
@@ -64,6 +66,12 @@ export function StorePage() {
     if (data?.store) rememberStore(data.store);
   }, [data?.store]);
 
+  // One view per visit to this shop, for the customer's own "recently" lists.
+  const viewedStoreId = data?.store?.id ?? null;
+  useEffect(() => {
+    if (viewedStoreId) track({ eventType: 'store_view', storeId: viewedStoreId });
+  }, [viewedStoreId]);
+
   if (loading) return <StorePageSkeleton />;
 
   if (error) {
@@ -98,6 +106,9 @@ export function StorePage() {
           open{status.detail ? `, ${status.detail.toLowerCase()}` : ''}.
         </p>
       ) : null}
+
+      <StoreConnect store={store} isSignedIn={isSignedIn} />
+      <StoreOffers slug={slug} />
 
       <nav className="store__actions" aria-label="Browse this store">
         <Link to={`/store/${slug}/search`} className="store__search" aria-label="Search this store">

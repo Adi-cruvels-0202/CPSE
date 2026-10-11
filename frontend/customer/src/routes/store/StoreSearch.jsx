@@ -5,6 +5,7 @@ import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { useDebounced } from '../../hooks/useDebounced.js';
 import { EmptyState, ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { ProductCard } from './ProductCard.jsx';
+import { track } from '../../lib/track.js';
 import './StoreSearch.css';
 
 /**
@@ -48,6 +49,11 @@ export function StoreSearch() {
     [slug, query],
     { enabled },
   );
+
+  // What was searched for, once it settles — never each keystroke.
+  useEffect(() => {
+    if (enabled) track({ eventType: 'search', query: query.slice(0, 200) });
+  }, [enabled, query]);
 
   return (
     <div className="search">

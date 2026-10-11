@@ -7,6 +7,7 @@ import { describeStatus } from '../lib/storeHours.js';
 import { formatSince, isTerminal, meaningFor, toneFor } from '../lib/orderStatus.js';
 import { RemoteImage, hasImage } from '../components/RemoteImage.jsx';
 import { Skeleton } from '../components/states/States.jsx';
+import { NearbyOffers } from './NearbyOffers.jsx';
 import './Home.css';
 
 /**
@@ -28,6 +29,9 @@ export function Home() {
             : 'Order from the shops around you — pick one below to start.'}
         </p>
       </header>
+
+      {/* Outside the signed-in switch, so it keeps its state when the session resolves. */}
+      <NearbyOffers />
 
       {signedIn ? (
         <>

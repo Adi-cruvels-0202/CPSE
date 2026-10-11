@@ -23,6 +23,11 @@ import { SavedStoresPage } from './routes/saved/SavedStoresPage.jsx';
 import { NotificationsPage } from './routes/notifications/NotificationsPage.jsx';
 import { KhataPage } from './routes/khata/KhataPage.jsx';
 import { KhataAccountPage } from './routes/khata/KhataAccountPage.jsx';
+import { MyShoppingPage } from './routes/engage/MyShoppingPage.jsx';
+import { ListPage, ListsPage } from './routes/engage/ListsPage.jsx';
+import { PreferencesPage } from './routes/engage/PreferencesPage.jsx';
+import { PointsPage, StorePointsPage } from './routes/engage/PointsPage.jsx';
+import { ConversationPage, MessagesPage, NewMessagePage } from './routes/engage/MessagesPage.jsx';
 import { NotFound } from './routes/NotFound.jsx';
 
 /**
@@ -154,6 +159,80 @@ export function AppRoutes() {
           element={
             <RequireAuth>
               <AddressesPage />
+            </RequireAuth>
+          }
+        />
+
+        {/* Roadmap §5 P2–P5: repeat shopping, preferences, points, messages. */}
+        <Route
+          path="my-shopping"
+          element={
+            <RequireAuth>
+              <MyShoppingPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="lists"
+          element={
+            <RequireAuth>
+              <ListsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="lists/:listId"
+          element={
+            <RequireAuth>
+              <ListPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="account/preferences"
+          element={
+            <RequireAuth>
+              <PreferencesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="points"
+          element={
+            <RequireAuth>
+              <PointsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="points/:storeId"
+          element={
+            <RequireAuth>
+              <StorePointsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="messages"
+          element={
+            <RequireAuth>
+              <MessagesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="messages/new"
+          element={
+            <RequireAuth>
+              <NewMessagePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="messages/:conversationId"
+          element={
+            <RequireAuth>
+              <ConversationPage />
             </RequireAuth>
           }
         />

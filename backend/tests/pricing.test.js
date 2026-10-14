@@ -7,6 +7,7 @@ import {
   priceTotals,
   meetsMinimumOrder,
   formatPaise,
+  pricePerKgPaise,
 } from '../src/lib/pricing.js';
 
 /** Checklist 5.9 — the totals maths, tested without a database in the way. */
@@ -160,5 +161,26 @@ describe('formatPaise', () => {
   it('renders paise as rupees with two decimals', () => {
     expect(formatPaise(19900)).toBe('₹199.00');
     expect(formatPaise(0)).toBe('₹0.00');
+  });
+});
+
+describe('price per kilogram (roadmap §4 P1 units)', () => {
+  it('makes pack sizes comparable', () => {
+    expect(pricePerKgPaise(12000, 1000, 'kg')).toBe(12000);
+    expect(pricePerKgPaise(6500, 500, 'kg')).toBe(13000);
+    expect(pricePerKgPaise(4500, 250, 'g')).toBe(18000);
+    expect(pricePerKgPaise(9900, 5000, 'pack')).toBe(1980);
+  });
+
+  it('rounds to the paisa', () => {
+    expect(pricePerKgPaise(1000, 300, 'g')).toBe(3333);
+  });
+
+  it('says nothing when the weight is unknown or the unit is a volume', () => {
+    expect(pricePerKgPaise(5000, null, 'kg')).toBeNull();
+    expect(pricePerKgPaise(5000, 0, 'kg')).toBeNull();
+    expect(pricePerKgPaise(5000, 12.5, 'kg')).toBeNull();
+    expect(pricePerKgPaise(5000, 1000, 'l')).toBeNull();
+    expect(pricePerKgPaise(5000, 500, 'ml')).toBeNull();
   });
 });

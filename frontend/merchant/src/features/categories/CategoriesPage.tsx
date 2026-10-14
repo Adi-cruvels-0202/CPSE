@@ -1,24 +1,28 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { categoryApi } from '../../api/endpoints';
+import { catalogueOpsApi } from '../../api/ops';
 import { errorMessage } from '../../api/client';
 import type { Category } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
-import { EmptyState, NoStore, Spinner } from '../../components/common/ui';
-import { IconTag, IconPlus, IconEdit, IconEye } from '../../components/icons/Icons';
+import { EmptyState, Modal, NoStore, Spinner } from '../../components/common/ui';
+import { IconTag, IconPlus, IconEdit, IconEye, IconTrash } from '../../components/icons/Icons';
 import './Categories.css';
 
 /**
- * Categories, in the order customers see them. There is no delete: removing a
- * category would quietly uncategorise its products. Hide it instead — its
- * products still show under "all".
+ * Categories, in the order customers see them. Move them up and down to change
+ * that order. Deleting asks where the products go — another category, or
+ * none — so nothing is ever uncategorised silently; hiding is the gentler
+ * option, and its products still show under "all".
  */
 export default function CategoriesPage() {
   const { activeStoreId } = useActiveStore();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Category | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<Category | null>(null);
+  const [moving, setMoving] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['categories', activeStoreId],
@@ -42,6 +46,22 @@ export default function CategoriesPage() {
     }
   };
 
+  const move = async (index: number, by: -1 | 1) => {
+    const order = categories.map((c) => c.id);
+    const target = index + by;
+    if (target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    setMoving(true);
+    try {
+      await catalogueOpsApi.reorderCategories(activeStoreId, order);
+      await reload();
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setMoving(false);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -62,11 +82,15 @@ export default function CategoriesPage() {
       ) : (
         <div className="table-container">
           <table className="table">
-            <thead><tr><th style={{ width: 60 }}>#</th><th>Name</th><th>Description</th><th>Products</th><th>Status</th><th style={{ width: 120 }}></th></tr></thead>
+            <thead><tr><th style={{ width: 96 }}>Order</th><th>Name</th><th>Description</th><th>Products</th><th>Status</th><th style={{ width: 150 }}></th></tr></thead>
             <tbody>
               {categories.map((category, index) => (
                 <tr key={category.id}>
-                  <td style={{ color: 'var(--color-text-tertiary)' }}>{index + 1}</td>
+                  <td style={{ color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>
+                    {index + 1}
+                    <button className="btn btn-ghost btn-sm" disabled={moving || index === 0} onClick={() => move(index, -1)} aria-label={`Move ${category.name} up`}>↑</button>
+                    <button className="btn btn-ghost btn-sm" disabled={moving || index === categories.length - 1} onClick={() => move(index, 1)} aria-label={`Move ${category.name} down`}>↓</button>
+                  </td>
                   <td style={{ fontWeight: 'var(--font-semibold)' }}>{category.name}</td>
                   <td style={{ color: 'var(--color-text-secondary)', maxWidth: 300 }}><span className="truncate" style={{ display: 'block' }}>{category.description || '—'}</span></td>
                   <td>{category.productCount}</td>
@@ -75,6 +99,7 @@ export default function CategoriesPage() {
                     <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
                       <button className="btn btn-ghost btn-sm" onClick={() => setEditing(category)} aria-label={`Edit ${category.name}`}><IconEdit size={14} /></button>
                       <button className="btn btn-ghost btn-sm" onClick={() => toggle(category)} aria-label={category.isActive ? 'Hide' : 'Show'} title={category.isActive ? 'Hide from customers' : 'Show to customers'}><IconEye size={14} /></button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setDeleting(category)} aria-label={`Delete ${category.name}`} title="Delete"><IconTrash size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -92,7 +117,57 @@ export default function CategoriesPage() {
           onSaved={() => { setEditing(null); reload(); }}
         />
       )}
+      {deleting && (
+        <DeleteCategoryModal
+          storeId={activeStoreId}
+          category={deleting}
+          others={categories.filter((c) => c.id !== deleting.id)}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => { setDeleting(null); reload(); queryClient.invalidateQueries({ queryKey: ['products'] }); }}
+        />
+      )}
     </div>
+  );
+}
+
+function DeleteCategoryModal({ storeId, category, others, onClose, onDeleted }: {
+  storeId: string; category: Category; others: Category[]; onClose: () => void; onDeleted: () => void;
+}) {
+  const { showToast } = useToast();
+  const [target, setTarget] = useState(others[0]?.id ?? '');
+  const [busy, setBusy] = useState(false);
+  const hasProducts = category.productCount > 0;
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      const body = !hasProducts ? {} : target ? { moveToCategoryId: target } : { uncategorise: true };
+      const { movedProducts } = await catalogueOpsApi.deleteCategory(storeId, category.id, body);
+      showToast(movedProducts ? `${category.name} deleted; ${movedProducts} products moved.` : `${category.name} deleted.`, 'success');
+      onDeleted();
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Delete ${category.name}?`} onClose={onClose} busy={busy}
+      footer={<>
+        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+        <button type="button" className="btn btn-danger" onClick={remove} disabled={busy}>{busy ? 'Deleting…' : 'Delete'}</button>
+      </>}>
+      {hasProducts ? (
+        <div className="input-wrapper">
+          <label className="input-label" htmlFor="cat-move">It has {category.productCount} products. Move them to</label>
+          <select id="cat-move" className="input-field" value={target} onChange={(e) => setTarget(e.target.value)}>
+            {others.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <option value="">No category</option>
+          </select>
+        </div>
+      ) : <p>It has no products. This cannot be undone.</p>}
+    </Modal>
   );
 }
 

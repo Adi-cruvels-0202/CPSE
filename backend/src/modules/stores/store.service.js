@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { notFound, upstreamFailure } from '../../lib/errors.js';
 import { resolveOpenState } from '../../lib/openingHours.js';
+import { pricePerKgPaise } from '../../lib/pricing.js';
 
 /**
  * Storefront reads. Checklist 3.1 – 3.6.
@@ -19,7 +20,7 @@ export const STORE_COLUMNS = `
   address_line1, address_line2, city, state, postal_code, country,
   latitude, longitude, opening_hours, timezone,
   pickup_enabled, delivery_enabled, min_order_paise, delivery_fee_paise,
-  free_delivery_threshold_paise, accepts_cash, accepts_online,
+  free_delivery_threshold_paise, accepts_cash, accepts_online, khata_enabled,
   is_active, is_published, created_at, updated_at
 `;
 
@@ -142,7 +143,7 @@ export function toPublicStore(row, { isSaved = null, now = new Date(), holidays 
     },
     // What this store takes (migration 0025, set by the merchant). Declared
     // here so the storefront can render it without a second endpoint.
-    payment: { online: row.accepts_online, cashOnDelivery: row.accepts_cash },
+    payment: { online: row.accepts_online, cashOnDelivery: row.accepts_cash, khata: Boolean(row.khata_enabled) },
     isSaved,
   };
 }
@@ -352,7 +353,7 @@ export async function listProducts(slug, { categoryId, page, limit, availableOnl
 // Never cost_paise: what the merchant paid is not the customer's business
 // (MERCHANT_RULES P-11).
 const VARIANT_COLUMNS = `
-  id, product_id, name, sku, price_paise, mrp_paise,
+  id, product_id, name, sku, price_paise, mrp_paise, weight_grams,
   quantity_on_hand, reserved_quantity, is_available, sort_order
 `;
 
@@ -366,6 +367,9 @@ export function toPublicVariant(row, product) {
     // Absolute, never a delta (decision D15) — the order snapshot copies it.
     pricePaise: row.price_paise,
     mrpPaise: row.mrp_paise ?? null,
+    weightGrams: row.weight_grams ?? null,
+    // For comparing pack sizes; null when the weight is unknown.
+    pricePerKgPaise: pricePerKgPaise(row.price_paise, row.weight_grams ?? null, product?.unit),
     // Available (on hand − reserved), never on hand: customer API change 3.
     stock,
     isAvailable: row.is_available,

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { Suspense, lazy, useState, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -19,6 +19,27 @@ import OrdersPage from './features/orders/OrdersPage';
 import AccountSettingsPage from './features/account/AccountSettingsPage';
 import { EmptyState } from './components/common/ui';
 import { IconStore } from './components/icons/Icons';
+
+// The tools behind "More" load on first visit, keeping the everyday screens light.
+const MorePage = lazy(() => import('./features/tools/MorePage'));
+const InboxPage = lazy(() => import('./features/tools/InboxPage'));
+const MessagesPage = lazy(() => import('./features/tools/MessagesPage'));
+const RefundsPage = lazy(() => import('./features/tools/RefundsPage'));
+const PurchasesPage = lazy(() => import('./features/tools/PurchasesPage'));
+const BatchesPage = lazy(() => import('./features/tools/BatchesPage'));
+const SuggestionsPage = lazy(() => import('./features/tools/SuggestionsPage'));
+const CatalogueToolsPage = lazy(() => import('./features/tools/CatalogueToolsPage'));
+const CustomersPage = lazy(() => import('./features/tools/CustomersPage'));
+const KhataPage = lazy(() => import('./features/tools/KhataPage'));
+const PromotionsPage = lazy(() => import('./features/tools/PromotionsPage'));
+const AnnouncementsPage = lazy(() => import('./features/tools/AnnouncementsPage'));
+const AnalyticsPage = lazy(() => import('./features/tools/AnalyticsPage'));
+const AutomationPage = lazy(() => import('./features/tools/AutomationPage'));
+const SharePage = lazy(() => import('./features/tools/SharePage'));
+const VerificationPage = lazy(() => import('./features/tools/VerificationPage'));
+const InsightsPage = lazy(() => import('./features/tools/InsightsPage'));
+// Platform reviewers: a separate sign-in and session (src/admin/adminApi.ts).
+const AdminApp = lazy(() => import('./admin/AdminApp'));
 
 /**
  * The merchant app, served by the backend at /merchant (the customer app is
@@ -64,6 +85,10 @@ function UnavailableScreen() {
   );
 }
 
+function Lazy({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<div className="spinner spinner-lg" role="status" aria-label="Loading" style={{ margin: 'var(--space-8) auto' }} />}>{children}</Suspense>;
+}
+
 /** Merchant screens: signed in, and a merchant. */
 function MerchantRoute({ children }: { children: ReactNode }) {
   const { status } = useAuth();
@@ -92,6 +117,7 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<SignedOutRoute><LoginPage /></SignedOutRoute>} />
                 <Route path="/register" element={<SignedOutRoute><RegisterPage /></SignedOutRoute>} />
+                <Route path="/admin/*" element={<Lazy><AdminApp /></Lazy>} />
 
                 <Route path="/" element={<MerchantRoute><MerchantLayout /></MerchantRoute>}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
@@ -106,6 +132,23 @@ export default function App() {
                   <Route path="sales/new" element={<NewSalePage />} />
                   <Route path="sales" element={<SalesHistoryPage />} />
                   <Route path="account" element={<AccountSettingsPage />} />
+                  <Route path="more" element={<Lazy><MorePage /></Lazy>} />
+                  <Route path="inbox" element={<Lazy><InboxPage /></Lazy>} />
+                  <Route path="messages" element={<Lazy><MessagesPage /></Lazy>} />
+                  <Route path="refunds" element={<Lazy><RefundsPage /></Lazy>} />
+                  <Route path="purchases" element={<Lazy><PurchasesPage /></Lazy>} />
+                  <Route path="batches" element={<Lazy><BatchesPage /></Lazy>} />
+                  <Route path="suggestions" element={<Lazy><SuggestionsPage /></Lazy>} />
+                  <Route path="catalogue-tools" element={<Lazy><CatalogueToolsPage /></Lazy>} />
+                  <Route path="customers" element={<Lazy><CustomersPage /></Lazy>} />
+                  <Route path="khata" element={<Lazy><KhataPage /></Lazy>} />
+                  <Route path="promotions" element={<Lazy><PromotionsPage /></Lazy>} />
+                  <Route path="announcements" element={<Lazy><AnnouncementsPage /></Lazy>} />
+                  <Route path="analytics" element={<Lazy><AnalyticsPage /></Lazy>} />
+                  <Route path="automation" element={<Lazy><AutomationPage /></Lazy>} />
+                  <Route path="share" element={<Lazy><SharePage /></Lazy>} />
+                  <Route path="verification" element={<Lazy><VerificationPage /></Lazy>} />
+                  <Route path="insights" element={<Lazy><InsightsPage /></Lazy>} />
                 </Route>
 
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

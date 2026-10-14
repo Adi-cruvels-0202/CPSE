@@ -128,9 +128,14 @@ export function KhataAccountPage() {
               <li key={entry.id} className="khata-entry">
                 <span className="khata-entry__body">
                   <span className="khata-entry__what">
-                    {entry.description ?? (entry.type === 'debit' ? 'Bought on credit' : 'Payment')}
+                    {entry.description ?? entry.entryLabel ?? (entry.type === 'debit' ? 'Bought on credit' : 'Payment')}
                   </span>
-                  <span className="khata-entry__when">{formatDate(entry.occurredAt)}</span>
+                  <span className="khata-entry__when">
+                    {formatDate(entry.occurredAt)}
+                    {entry.description && entry.entryLabel ? ` · ${entry.entryLabel}` : ''}
+                    {entry.dueDate && entry.type === 'debit' ? ` · due ${formatDate(entry.dueDate)}` : ''}
+                    {entry.paymentMethod ? ` · ${entry.paymentMethod.replace('_', ' ')}` : ''}
+                  </span>
                 </span>
 
                 {entry.orderId ? (

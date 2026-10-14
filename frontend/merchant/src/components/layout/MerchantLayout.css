@@ -178,7 +178,7 @@
 }
 .shell .shell__main { padding-bottom: calc(var(--bottom-nav-height) + var(--space-6) + env(safe-area-inset-bottom)); }
 
-.shell__tabs-inner { display: grid; grid-template-columns: repeat(6, 1fr); height: 100%; }
+.shell__tabs-inner { display: grid; grid-template-columns: repeat(7, 1fr); height: 100%; }
 
 .shell__tab {
   display: flex;

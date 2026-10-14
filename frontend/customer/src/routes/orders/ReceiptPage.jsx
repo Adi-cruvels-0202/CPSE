@@ -6,6 +6,12 @@ import { REFUND_WORKING_DAYS, formatDate, formatWhen } from '../../lib/orderStat
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import './Receipt.css';
 
+const REFUND_METHOD = {
+  provider: 'The account you paid from',
+  khata_credit: 'Your khata with this shop',
+  cash: 'Cash, from the shop',
+};
+
 /**
  * The receipt — checklist 11.10.
  *
@@ -146,7 +152,34 @@ export function ReceiptPage() {
 
         {/* A receipt for a cancelled order that was paid online has to account for
             the money, or it reads as a bill for something that never happened. */}
-        {receipt.status === 'cancelled' && receipt.payment?.status === 'paid' ? (
+        {receipt.refund ? (
+          <section className="receipt__block" data-testid="receipt-refund">
+            <h3>Refund</h3>
+            <dl className="receipt__pairs">
+              <div>
+                <dt>Amount</dt>
+                <dd className="numeric">{formatPaise(receipt.refund.amountPaise)}</dd>
+              </div>
+              <div>
+                <dt>To</dt>
+                <dd>{REFUND_METHOD[receipt.refund.method] ?? receipt.refund.method}</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  {receipt.refund.statusLabel}
+                  {receipt.refund.refundedAt ? ` · ${formatWhen(receipt.refund.refundedAt)}` : ''}
+                </dd>
+              </div>
+              {receipt.refund.reference ? (
+                <div>
+                  <dt>Reference</dt>
+                  <dd className="numeric">{receipt.refund.reference}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </section>
+        ) : receipt.status === 'cancelled' && receipt.payment?.status === 'paid' ? (
           <p className="notice notice--info">
             This order was cancelled. {formatPaise(receipt.totals.totalPaise)} will be refunded to
             the account it was paid from, usually within {REFUND_WORKING_DAYS} working days.
@@ -160,7 +193,11 @@ export function ReceiptPage() {
               <div>
                 <dt>Method</dt>
                 <dd>
-                  {receipt.payment.method === 'online' ? 'Paid online' : 'Cash on collection or delivery'}
+                  {receipt.payment.method === 'online'
+                    ? 'Paid online'
+                    : receipt.payment.method === 'khata'
+                      ? 'On khata (store credit)'
+                      : 'Cash on collection or delivery'}
                 </dd>
               </div>
               {receipt.payment.status ? (
@@ -195,7 +232,7 @@ export function ReceiptPage() {
         <footer className="receipt__foot muted">
           <p>
             {receipt.isTaxInvoice ? 'Tax invoice. ' : null}
-            Prices include tax. Keep this for your records.
+            Item prices are before GST, which is shown on its own line. Keep this for your records.
           </p>
         </footer>
       </article>

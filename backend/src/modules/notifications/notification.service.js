@@ -47,6 +47,7 @@ export async function emit(customerId, { type, title, body = null, payload = {} 
       .maybeSingle();
 
     if (error) throw error;
+    if (data) await queueDeliveries(data, customerId, type, payload);
     return data ?? null;
   } catch (error) {
     // Deliberately swallowed: see the note at the top of this file.
@@ -57,6 +58,35 @@ export async function emit(customerId, { type, title, body = null, payload = {} 
     });
     return null;
   }
+}
+
+/**
+ * Delivery tracking (roadmap Phase C): the in-app copy is delivered by being
+ * written; SMS, WhatsApp and email are queued only where the customer opted in
+ * for that store — and promotional messages only with their promotions
+ * consent. The delivery job (src/jobs) attempts them and records the outcome.
+ */
+const PROMOTIONAL = new Set(['offer', 'store_update', 'reorder_reminder']);
+
+async function queueDeliveries(row, customerId, type, payload) {
+  const now = new Date().toISOString();
+  const deliveries = [{ notification_id: row.id, channel: 'in_app', status: 'delivered', delivered_at: now }];
+  if (payload?.store_id) {
+    const { data: prefs } = await supabaseAdmin
+      .from('customer_store_preferences')
+      .select('allow_promotions, allow_sms, allow_whatsapp, allow_email')
+      .eq('customer_id', customerId)
+      .eq('store_id', payload.store_id)
+      .maybeSingle();
+    const allowed = !PROMOTIONAL.has(type) || prefs?.allow_promotions;
+    if (prefs && allowed) {
+      for (const [channel, on] of [['sms', prefs.allow_sms], ['whatsapp', prefs.allow_whatsapp], ['email', prefs.allow_email]]) {
+        if (on) deliveries.push({ notification_id: row.id, channel, status: 'pending', next_attempt_at: now });
+      }
+    }
+  }
+  const { error } = await supabaseAdmin.from('notification_deliveries').insert(deliveries);
+  if (error) logger.warn('Could not record notification deliveries', { reason: error.message });
 }
 
 /** Called by order creation, once the order exists. */
@@ -174,4 +204,29 @@ export async function markAllRead(customerId) {
 
   fail(error, 'Could not update your notifications.');
   return { updated: (data ?? []).length, unreadCount: 0 };
+}
+
+/** How each of a notification's deliveries went — the customer's own only. */
+export async function deliveriesFor(customerId, notificationId) {
+  const { data: owned, error } = await supabaseAdmin
+    .from('notifications')
+    .select('id')
+    .eq('id', notificationId)
+    .eq('customer_id', customerId)
+    .maybeSingle();
+  fail(error, 'Could not load the notification.');
+  if (!owned) throw notFound('Notification');
+  const { data, error: deliveryError } = await supabaseAdmin
+    .from('notification_deliveries')
+    .select('channel, status, attempts, last_error, delivered_at, updated_at')
+    .eq('notification_id', notificationId);
+  fail(deliveryError, 'Could not load the deliveries.');
+  return (data ?? []).map((row) => ({
+    channel: row.channel,
+    status: row.status,
+    attempts: row.attempts,
+    lastError: row.last_error ?? null,
+    deliveredAt: row.delivered_at ?? null,
+    updatedAt: row.updated_at,
+  }));
 }

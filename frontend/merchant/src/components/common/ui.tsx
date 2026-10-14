@@ -72,3 +72,62 @@ export const formatDateTime = (iso: string) =>
   new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
 export const titleCase = (value: string) => value.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+
+/** A request that failed: what went wrong, and a way to try again. */
+export function ErrorState({ error, onRetry, title = 'That did not load' }: { error: unknown; onRetry?: () => void; title?: string }) {
+  const message = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+  return (
+    <div className="alert-strip alert-strip-danger" role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+      <span><strong>{title}.</strong> {message}</span>
+      {onRetry && <button type="button" className="btn btn-secondary btn-sm" onClick={onRetry}>Try again</button>}
+    </div>
+  );
+}
+
+export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+  return (
+    <div className="page-header">
+      <div>
+        <h1 className="page-title">{title}</h1>
+        {subtitle && <p className="page-subtitle">{subtitle}</p>}
+      </div>
+      {actions && <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>{actions}</div>}
+    </div>
+  );
+}
+
+/** The standard dialog frame. `busy` stops it closing mid-save. */
+export function Modal({ title, onClose, children, footer, size, busy = false }: {
+  title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; size?: 'lg'; busy?: boolean;
+}) {
+  return (
+    <div className="dialog-overlay" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <div className={`dialog-content${size === 'lg' ? ' dialog-lg' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+        <div className="dialog-header"><h2 className="dialog-title">{title}</h2></div>
+        <div className="dialog-body">{children}</div>
+        <div className="dialog-footer">{footer ?? <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Close</button>}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Underlined section tabs inside a page. */
+export function SubTabs<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
+  return (
+    <div className="tabs" role="tablist" style={{ marginBottom: 'var(--space-4)', overflowX: 'auto' }}>
+      {options.map((option) => (
+        <button key={option.value} type="button" role="tab" aria-selected={value === option.value}
+          className={`tab${value === option.value ? ' tab-active' : ''}`} onClick={() => onChange(option.value)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export const formatDate = (iso: string | null | undefined) =>
+  iso ? new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—';
+
+/** A fresh key for an idempotent write (one per form submission, reused on retry). */
+export const newIdempotencyKey = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;

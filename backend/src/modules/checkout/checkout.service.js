@@ -1,5 +1,6 @@
 import { unprocessable } from '../../lib/errors.js';
-import { priceTotals, meetsMinimumOrder, formatPaise } from '../../lib/pricing.js';
+import { priceTotals, meetsMinimumOrder, formatPaise, allocateDiscount, deliveryFeeFor } from '../../lib/pricing.js';
+import { evaluateBenefits } from '../benefits/benefits.service.js';
 import { resolveOpenState } from '../../lib/openingHours.js';
 import { loadCart } from '../cart/cart.service.js';
 import { holidaysFor } from '../stores/store.service.js';
@@ -69,7 +70,10 @@ export const storeSnapshot = (store) => ({
  * be ordered — all of them at once, so the checkout screen can list what to fix
  * instead of revealing one problem per attempt.
  */
-export async function buildQuote(customerId, { storeId, fulfilmentMode, addressId, customerNote }) {
+export async function buildQuote(
+  customerId,
+  { storeId, fulfilmentMode, addressId, customerNote, couponCode = null, redeemPoints = null, substitutionPreference = null },
+) {
   const { store, cart, lines } = await loadCart(customerId, storeId);
 
   const blockers = [];
@@ -105,8 +109,36 @@ export async function buildQuote(customerId, { storeId, fulfilmentMode, addressI
     }
   }
 
-  const purchasable = lines.filter((line) => line.isPurchasable);
-  const totals = priceTotals({ lines: purchasable, store, fulfilmentMode });
+  const offerPriced = lines.filter((line) => line.isPurchasable);
+  for (const line of offerPriced) {
+    for (const notice of line.notices ?? []) warnings.push({ itemId: line.id, ...notice });
+  }
+
+  // Coupon and points (roadmap §5 P4), judged on the item value after offers.
+  const itemSubtotal = offerPriced.reduce((sum, line) => sum + line.lineSubtotalPaise, 0);
+  const benefits =
+    couponCode || redeemPoints
+      ? await evaluateBenefits(store, customerId, {
+          couponCode,
+          redeemPoints,
+          subtotalPaise: itemSubtotal,
+          deliveryFeePaise: deliveryFeeFor(store, fulfilmentMode, itemSubtotal),
+          fulfilmentMode,
+        })
+      : null;
+  for (const blocker of benefits?.blockers ?? []) blockers.push(blocker);
+  const discountPaise = benefits && benefits.blockers.length === 0 ? benefits.discountPaise : 0;
+  const waivedDeliveryPaise = benefits && benefits.blockers.length === 0 ? benefits.waivedDeliveryPaise : 0;
+
+  // The discount's share of each line lowers that line's taxable value.
+  const purchasable = allocateDiscount(offerPriced, discountPaise);
+  const priced = priceTotals({ lines: purchasable, store, fulfilmentMode, discountPaise });
+  const totals = {
+    ...priced,
+    deliveryFeePaise: priced.deliveryFeePaise - waivedDeliveryPaise,
+    totalPaise: priced.totalPaise - waivedDeliveryPaise,
+    waivedDeliveryPaise,
+  };
 
   // Checklist 6.9. Measured on the subtotal, so the delivery fee cannot be what
   // carries an order over the store's floor.
@@ -132,6 +164,13 @@ export async function buildQuote(customerId, { storeId, fulfilmentMode, addressI
     });
   }
 
+  // Roadmap §5 P4 "Fulfilment thresholds": how close delivery is to free.
+  const threshold = store.free_delivery_threshold_paise ?? null;
+  const freeDelivery =
+    fulfilmentMode === 'delivery' && store.delivery_enabled && threshold !== null
+      ? { thresholdPaise: threshold, remainingPaise: Math.max(threshold - totals.subtotalPaise, 0), isUnlocked: totals.subtotalPaise >= threshold }
+      : null;
+
   return {
     storeId: store.id,
     cartId: cart?.id ?? null,
@@ -143,11 +182,14 @@ export async function buildQuote(customerId, { storeId, fulfilmentMode, addressI
     lines: purchasable,
     unavailableLines: lines.filter((line) => !line.isPurchasable),
     totals,
+    freeDelivery,
+    benefits: benefits ? { coupon: benefits.coupon, loyalty: benefits.loyalty } : null,
+    substitutionPreference: substitutionPreference ?? null,
     blockers,
     warnings,
     canPlaceOrder: blockers.length === 0,
     // Everything order creation needs, so it never re-derives pricing.
-    _internal: { store, address, lines: purchasable, totals },
+    _internal: { store, address, lines: purchasable, totals, benefits },
   };
 }
 
@@ -172,4 +214,45 @@ export function assertQuotePlaceable(quote) {
 
   const [first] = quote.blockers;
   throw unprocessable(first.code, first.message, { blockers: quote.blockers });
+}
+
+/**
+ * Roadmap §5 P2 "Quick checkout": the choices this customer usually makes —
+ * fulfilment, default address, payment method — applied to this store where
+ * it allows them, and the normal quote for them. Nothing is placed here; the
+ * customer confirms the quote and places the order through the usual path.
+ */
+export async function quickQuote(customerId, { storeId }) {
+  const { getPreferences } = await import('../engagement/engagement.service.js');
+  const preferences = await getPreferences(customerId);
+  const { store } = await loadCart(customerId, storeId);
+
+  const modes = [store.pickup_enabled && 'pickup', store.delivery_enabled && 'delivery'].filter(Boolean);
+  let fulfilmentMode = modes.includes(preferences.preferredFulfilment) ? preferences.preferredFulfilment : modes[0];
+  const addressId = fulfilmentMode === 'delivery' ? preferences.defaultAddressId : null;
+  // No saved address: pickup is the quick path if the store offers it.
+  if (fulfilmentMode === 'delivery' && !addressId && modes.includes('pickup')) fulfilmentMode = 'pickup';
+
+  const accepts = { cash: store.accepts_cash, online: store.accepts_online, khata: Boolean(store.khata_enabled) };
+  const paymentMethod = accepts[preferences.preferredPaymentMethod]
+    ? preferences.preferredPaymentMethod
+    : store.accepts_cash
+      ? 'cash'
+      : 'online';
+
+  const quote = await quoteCheckout(customerId, {
+    storeId,
+    fulfilmentMode,
+    addressId: fulfilmentMode === 'delivery' ? addressId : null,
+    substitutionPreference: preferences.preferredSubstitution,
+  });
+  return {
+    settings: {
+      fulfilmentMode,
+      addressId: fulfilmentMode === 'delivery' ? addressId : null,
+      paymentMethod,
+      substitutionPreference: preferences.preferredSubstitution,
+    },
+    quote,
+  };
 }

@@ -7,6 +7,7 @@ import { describeStatus } from '../lib/storeHours.js';
 import { formatSince, isTerminal, meaningFor, toneFor } from '../lib/orderStatus.js';
 import { RemoteImage, hasImage } from '../components/RemoteImage.jsx';
 import { Skeleton } from '../components/states/States.jsx';
+import { NearbyOffers } from './NearbyOffers.jsx';
 import './Home.css';
 
 /**
@@ -54,6 +55,10 @@ export function Home() {
           </section>
         </>
       )}
+
+      {/* After the switch, at the same place for both: it keeps its state when
+          the session resolves, and never pushes a live order down the page. */}
+      <NearbyOffers />
     </div>
   );
 }

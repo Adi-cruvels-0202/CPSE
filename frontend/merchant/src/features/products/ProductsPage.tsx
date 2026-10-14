@@ -1,14 +1,15 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { productApi, categoryApi } from '../../api/endpoints';
+import { catalogueOpsApi, intelligenceApi, type ProductRecognition, type ProductSuggestion } from '../../api/ops';
 import { errorMessage } from '../../api/client';
 import type { Category, Product, Variant } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise, paiseToRupees, rupeesToPaise } from '../../lib/money';
 import { EmptyState, NoStore, Pagination, Spinner } from '../../components/common/ui';
-import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash, IconTag } from '../../components/icons/Icons';
+import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash, IconTag, IconCopy } from '../../components/icons/Icons';
 import './Products.css';
 
 const UNITS = ['pcs', 'kg', 'g', 'l', 'ml', 'm', 'cm', 'dozen', 'pack', 'box', 'pair', 'set', 'roll', 'plate', 'serving'];
@@ -63,6 +64,18 @@ export default function ProductsPage() {
       else await productApi.activate(activeStoreId, product.id);
       showToast(product.isActive ? `${product.name} is now unavailable to customers` : `${product.name} is available again`, 'info');
       reload();
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    }
+  };
+
+  /** A copy starts hidden, with no stock and fresh SKUs, and opens for editing. */
+  const duplicate = async (product: Product) => {
+    try {
+      const { product: copy } = await catalogueOpsApi.duplicate(activeStoreId, product.id);
+      showToast(`Copied as “${copy.name}” — hidden until you make it available.`, 'success');
+      reload();
+      setOpenId(copy.id);
     } catch (err) {
       showToast(errorMessage(err), 'error');
     }
@@ -139,6 +152,7 @@ export default function ProductsPage() {
                       <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => setOpenId(product.id)} aria-label={`Edit ${product.name}`}><IconEdit size={18} /></button>
                         <button className="btn btn-ghost btn-sm" onClick={() => toggle(product)} title={product.isActive ? 'Make unavailable' : 'Make available'} aria-label="Toggle availability"><IconEye size={18} /></button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => duplicate(product)} title="Duplicate" aria-label={`Duplicate ${product.name}`}><IconCopy size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -202,6 +216,60 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
   const [hasOptions, setHasOptions] = useState(false);
   const [variants, setVariants] = useState<VariantRow[]>([emptyVariant('Default')]);
   const [isSaving, setIsSaving] = useState(false);
+  const [suggestion, setSuggestion] = useState<ProductSuggestion | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
+
+  // Roadmap Phase D "Smart suggestions": category, unit and GST from the name.
+  // Shown with reasons; applied only by "Use these".
+  const suggest = async () => {
+    setSuggesting(true);
+    try {
+      setSuggestion((await intelligenceApi.suggest(storeId, form.name.trim())).suggestion);
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setSuggesting(false);
+    }
+  };
+  // Roadmap Phase D "Product recognition": a photo of the pack, read by the
+  // vision model and matched to this shop's catalogue. Applied only by "Use these".
+  const [recognition, setRecognition] = useState<ProductRecognition | null>(null);
+  const [recognizing, setRecognizing] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const identify = async (file: File) => {
+    setRecognizing(true);
+    setRecognition(null);
+    try {
+      setRecognition((await intelligenceApi.recognize(storeId, file)).recognition);
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setRecognizing(false);
+    }
+  };
+  const applyRecognition = () => {
+    const s = recognition!.suggestion!;
+    setForm({
+      ...form,
+      name: s.name.slice(0, 200),
+      categoryId: s.category?.id && categories.some((c) => c.id === s.category!.id) ? s.category.id : form.categoryId,
+      unit: s.unit && (UNITS as readonly string[]).includes(s.unit.value) ? s.unit.value : form.unit,
+      taxPercent: s.taxPercent && ['0', '5', '12', '18', '28'].includes(String(s.taxPercent.value)) ? String(s.taxPercent.value) : form.taxPercent,
+    });
+    if (s.mrpPaise !== null) setVariants(variants.map((v, i) => (i === 0 ? { ...v, mrp: paiseToRupees(s.mrpPaise!) } : v)));
+    setRecognition(null);
+  };
+
+  const applySuggestion = () => {
+    const s = suggestion!.suggestions;
+    setForm({
+      ...form,
+      categoryId: s.category?.id && categories.some((c) => c.id === s.category!.id) ? s.category.id : form.categoryId,
+      unit: s.unit && (UNITS as readonly string[]).includes(s.unit.value) ? s.unit.value : form.unit,
+      taxPercent: s.taxPercent && ['0', '5', '12', '18', '28'].includes(String(s.taxPercent.value)) ? String(s.taxPercent.value) : form.taxPercent,
+    });
+    setSuggestion(null);
+  };
 
   const setVariant = (index: number, field: keyof VariantRow, value: string) =>
     setVariants(variants.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
@@ -248,6 +316,16 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
               <div className="input-wrapper" style={{ flex: 2 }}>
                 <label className="input-label" htmlFor="product-name">Name *</label>
                 <input id="product-name" className="input-field" required maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. India Gate Basmati Rice" autoFocus />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={suggest} disabled={suggesting || form.name.trim().length < 2}>
+                    {suggesting ? 'Thinking…' : 'Suggest category, unit and GST'}
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoInput.current?.click()} disabled={recognizing}>
+                    {recognizing ? 'Reading the photo…' : 'Identify from photo'}
+                  </button>
+                  <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden
+                    aria-label="Product photo" data-testid="product-photo" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void identify(file); }} />
+                </div>
               </div>
               <div className="input-wrapper" style={{ flex: 1 }}>
                 <label className="input-label" htmlFor="product-category">Category</label>
@@ -257,6 +335,41 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
                 </select>
               </div>
             </div>
+            {recognition && (
+              <div className="alert-strip alert-strip-info" style={{ display: 'block' }} data-testid="product-recognition">
+                {!recognition.identified ? (
+                  <div>{recognition.note}</div>
+                ) : recognition.match ? (
+                  <div><strong>You already sell “{recognition.match.name}”.</strong> {recognition.match.by === 'barcode' ? 'The barcode matches it.' : 'The name on the pack matches it.'} Edit that product instead of adding a new one.</div>
+                ) : recognition.suggestion && (
+                  <>
+                    <div>From the photo: <strong>{recognition.suggestion.name}</strong>{recognition.read.mrpPaise !== null ? <> · MRP {formatPaise(recognition.read.mrpPaise)}</> : null}</div>
+                    {recognition.suggestion.category && <div>Category: <strong>{recognition.suggestion.category.name}</strong></div>}
+                    {recognition.suggestion.unit && <div>Sold by: <strong>{recognition.suggestion.unit.value}</strong></div>}
+                    {recognition.suggestion.taxPercent && <div>GST: <strong>{recognition.suggestion.taxPercent.value}%</strong></div>}
+                    {recognition.suggestion.duplicates.length > 0 && <div>Similar to your “{recognition.suggestion.duplicates[0].name}”.</div>}
+                    <div className="tiny">{recognition.note}</div>
+                  </>
+                )}
+                <div style={{ marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' }}>
+                  {recognition.identified && !recognition.match && recognition.suggestion && <button type="button" className="btn btn-secondary btn-sm" onClick={applyRecognition}>Use these</button>}
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRecognition(null)}>Dismiss</button>
+                </div>
+              </div>
+            )}
+            {suggestion && (
+              <div className="alert-strip alert-strip-info" style={{ display: 'block' }} data-testid="product-suggestion">
+                {suggestion.duplicates.length > 0 && <div><strong>You already have “{suggestion.duplicates[0].name}”.</strong> Add a size to it instead?</div>}
+                {suggestion.suggestions.category && <div>Category: <strong>{suggestion.suggestions.category.name}</strong> — {suggestion.suggestions.category.reason}</div>}
+                {suggestion.suggestions.unit && <div>Sold by: <strong>{suggestion.suggestions.unit.value}</strong> — {suggestion.suggestions.unit.reason}</div>}
+                {suggestion.suggestions.taxPercent && <div>GST: <strong>{suggestion.suggestions.taxPercent.value}%</strong> — {suggestion.suggestions.taxPercent.reason}</div>}
+                {!suggestion.suggestions.category && !suggestion.suggestions.unit && !suggestion.suggestions.taxPercent && <div>No suggestion for this name.</div>}
+                <div style={{ marginTop: 'var(--space-2)', display: 'flex', gap: 'var(--space-2)' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={applySuggestion}>Use these</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSuggestion(null)}>Dismiss</button>
+                </div>
+              </div>
+            )}
             <div className="input-wrapper">
               <label className="input-label" htmlFor="product-description-2">Description</label>
               <textarea id="product-description-2" className="input-field textarea-field" maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />

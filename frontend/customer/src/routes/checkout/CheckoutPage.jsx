@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { ApiError } from '../../lib/api.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
@@ -9,12 +9,16 @@ import { FormError } from '../../components/FormError.jsx';
 import { AddressCard } from '../addresses/AddressCard.jsx';
 import { AddressForm } from '../addresses/AddressForm.jsx';
 import {
+  Benefits,
+  FreeDeliveryProgress,
   FulfilmentChoice,
   PaymentChoice,
   QuoteIssues,
   Review,
   Step,
+  SubstitutionChoice,
 } from './CheckoutSections.jsx';
+import { SUBSTITUTION_PREFERENCE } from '../orders/OrderExtras.jsx';
 import './Checkout.css';
 
 /**
@@ -46,10 +50,15 @@ const FALLBACK_FULFILMENT = {
 export function CheckoutPage() {
   const { storeId } = useParams();
   const navigate = useNavigate();
+  // Quick checkout (roadmap §5 P2) arrives with the saved choices already made.
+  const preset = useLocation().state?.quick ?? null;
 
-  const [fulfilmentMode, setFulfilmentMode] = useState(null);
-  const [addressId, setAddressId] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [fulfilmentMode, setFulfilmentMode] = useState(preset?.fulfilmentMode ?? null);
+  const [addressId, setAddressId] = useState(preset?.addressId ?? null);
+  const [paymentMethod, setPaymentMethod] = useState(preset?.paymentMethod ?? 'cash');
+  const [couponCode, setCouponCode] = useState(null);
+  const [redeemPoints, setRedeemPoints] = useState(0);
+  const [substitutionPreference, setSubstitutionPreference] = useState(preset?.substitutionPreference ?? null);
   const [note, setNote] = useState('');
   const [addingAddress, setAddingAddress] = useState(false);
   const [placeError, setPlaceError] = useState(null);
@@ -83,6 +92,17 @@ export function CheckoutPage() {
   });
   const addresses = useApiQuery(() => endpoints.addresses.list(), []);
   const methods = useApiQuery(() => endpoints.payments.methods(), []);
+  // Benefits and saved choices. Each is optional: checkout works without them.
+  const offers = useApiQuery(() => endpoints.stores.offers(storeSlug), [storeSlug], { enabled: Boolean(storeSlug) });
+  const loyalty = useApiQuery(() => endpoints.loyalty.store(storeId), [storeId]);
+  const preferences = useApiQuery(() => endpoints.preferences.get(), []);
+  const khata = useApiQuery(() => endpoints.khata.list(), []);
+
+  useEffect(() => {
+    if (substitutionPreference === null && preferences.data?.preferences) {
+      setSubstitutionPreference(preferences.data.preferences.preferredSubstitution ?? 'contact_me');
+    }
+  }, [preferences.data, substitutionPreference]);
 
   const fulfilment = store.data?.store?.fulfilment;
 
@@ -90,16 +110,26 @@ export function CheckoutPage() {
   // Until the store loads, the server's list stands; the order would be refused
   // with PAYMENT_METHOD_UNAVAILABLE anyway.
   const accepts = store.data?.store?.payment;
-  const offeredMethods = useMemo(
-    () =>
-      (methods.data?.methods ?? []).filter((method) => {
-        if (!accepts) return true;
-        if (method.code === 'online') return accepts.online;
-        if (method.code === 'cash') return accepts.cashOnDelivery;
-        return true;
-      }),
-    [methods.data, accepts],
-  );
+  // Khata at checkout: only where the shop offers it and has given this
+  // customer a credit limit. The server still checks the limit on the order.
+  const khataAccount = (khata.data?.accounts ?? []).find((account) => account.storeId === storeId && account.isActive);
+  const khataCredit = khataAccount?.availableCreditPaise ?? null;
+  const offeredMethods = useMemo(() => {
+    const list = (methods.data?.methods ?? []).filter((method) => {
+      if (!accepts) return true;
+      if (method.code === 'online') return accepts.online;
+      if (method.code === 'cash') return accepts.cashOnDelivery;
+      return true;
+    });
+    if (accepts?.khata && khataCredit !== null && !list.some((method) => method.code === 'khata')) {
+      list.push({
+        code: 'khata',
+        label: 'Add to my khata',
+        description: `Pay the shop later. ${formatPaise(khataCredit)} of credit available.`,
+      });
+    }
+    return list;
+  }, [methods.data, accepts, khataCredit]);
 
   useEffect(() => {
     if (offeredMethods.length > 0 && !offeredMethods.some((method) => method.code === paymentMethod)) {
@@ -136,12 +166,21 @@ export function CheckoutPage() {
         storeId,
         fulfilmentMode,
         ...(needsAddress && addressId ? { addressId } : {}),
+        ...(couponCode ? { couponCode } : {}),
+        ...(redeemPoints > 0 ? { redeemPoints } : {}),
       }),
-    [storeId, fulfilmentMode, needsAddress ? addressId : null],
+    [storeId, fulfilmentMode, needsAddress ? addressId : null, couponCode, redeemPoints],
     { enabled: canQuote },
   );
 
   const quoted = quote.data?.quote ?? null;
+
+  // Asking for every point can be more than this order may take; the quote says
+  // the most it allows, and checkout uses that instead of leaving a dead end.
+  const pointsCap = quoted?.blockers?.find((blocker) => blocker.code === 'ABOVE_MAX_REDEEM')?.maxRedeemablePoints;
+  useEffect(() => {
+    if (pointsCap !== undefined && redeemPoints > pointsCap) setRedeemPoints(pointsCap);
+  }, [pointsCap, redeemPoints]);
 
   /**
    * Places the order.
@@ -164,6 +203,9 @@ export function CheckoutPage() {
           ...(needsAddress ? { addressId } : {}),
           paymentMethod,
           ...(note.trim() ? { customerNote: note.trim() } : {}),
+          ...(couponCode ? { couponCode } : {}),
+          ...(redeemPoints > 0 ? { redeemPoints } : {}),
+          ...(substitutionPreference ? { substitutionPreference } : {}),
           expectedTotalPaise: quoted.totals.totalPaise,
         },
         idempotencyKey,
@@ -284,8 +326,30 @@ export function CheckoutPage() {
         />
       </Step>
 
+      <Step step={needsAddress ? 4 : 3} title="Coupons and points">
+        <Benefits
+          coupons={offers.data?.coupons}
+          couponCode={couponCode}
+          onCoupon={setCouponCode}
+          loyalty={loyalty.data?.loyalty}
+          quoteLoyalty={quoted?.benefits?.loyalty}
+          redeemPoints={redeemPoints}
+          onRedeem={setRedeemPoints}
+          disabled={placing}
+        />
+      </Step>
+
+      <Step step={needsAddress ? 5 : 4} title="If something is out of stock">
+        <SubstitutionChoice
+          value={substitutionPreference ?? 'contact_me'}
+          onChange={setSubstitutionPreference}
+          options={SUBSTITUTION_PREFERENCE}
+          disabled={placing}
+        />
+      </Step>
+
       <Step
-        step={needsAddress ? 4 : 3}
+        step={needsAddress ? 6 : 5}
         title="Anything the shop should know?"
         hint="Optional — a floor number, a preferred time, how ripe you like the bananas."
       >
@@ -301,7 +365,7 @@ export function CheckoutPage() {
         />
       </Step>
 
-      <Step step={needsAddress ? 5 : 4} title="Check it over">
+      <Step step={needsAddress ? 7 : 6} title="Check it over">
         {!canQuote ? (
           <p className="muted">Choose an address to see the total.</p>
         ) : quote.loading ? (
@@ -311,6 +375,7 @@ export function CheckoutPage() {
         ) : quoted ? (
           <>
             <QuoteIssues blockers={quoted.blockers} warnings={quoted.warnings} />
+            <FreeDeliveryProgress freeDelivery={quoted.freeDelivery} />
             <Review quote={quoted} />
           </>
         ) : null}

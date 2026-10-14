@@ -94,6 +94,35 @@ export function priceTotals({ lines, store = null, fulfilmentMode = null, discou
 }
 
 /**
+ * Spreads an order-level discount (coupon, points) across its lines in
+ * proportion to each line's subtotal — the last line takes the rounding
+ * remainder, so the shares add up to the discount exactly. Each line's tax is
+ * then charged on its price after its share, which is what a discount given
+ * before the sale does to the taxable value.
+ *
+ * Returns new line objects; `lineTotalPaise` stays price × quantity + tax (the
+ * order_items CHECK), and the share is reported as `discountPaise`.
+ */
+export function allocateDiscount(lines, discountPaise) {
+  const subtotal = lines.reduce((sum, line) => sum + line.lineSubtotalPaise, 0);
+  const discount = Math.min(Math.max(discountPaise, 0), subtotal);
+  if (discount === 0 || subtotal === 0) {
+    return lines.map((line) => ({ ...line, discountPaise: 0 }));
+  }
+
+  let given = 0;
+  return lines.map((line, index) => {
+    const share =
+      index === lines.length - 1
+        ? discount - given
+        : Math.floor((discount * line.lineSubtotalPaise) / subtotal);
+    given += share;
+    const taxPaise = taxFor(line.lineSubtotalPaise - share, line.taxPercent);
+    return { ...line, discountPaise: share, taxPaise, lineTotalPaise: line.lineSubtotalPaise + taxPaise };
+  });
+}
+
+/**
  * Minimum-order rule (checklist 6.9). Evaluated on the subtotal, not the total:
  * a delivery fee must not be what lifts an order over the store's floor.
  */
@@ -104,3 +133,16 @@ export function meetsMinimumOrder(store, subtotalPaise) {
 /** Paise → a display string. Used in customer-facing messages, never in maths. */
 export const formatPaise = (paise) =>
   `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Units whose quantity is a liquid volume: `weight_grams` cannot describe them. */
+const VOLUME_UNITS = new Set(['l', 'ml']);
+
+/**
+ * Roadmap §4 P1 "consistent quantity handling": the price per kilogram of a
+ * variant with a known weight, so a 500 g and a 1 kg pack can be compared.
+ * Rounded to the paisa. null when the weight is unknown or not a weight.
+ */
+export function pricePerKgPaise(pricePaise, weightGrams, unit = 'pcs') {
+  if (!Number.isInteger(weightGrams) || weightGrams <= 0 || VOLUME_UNITS.has(unit)) return null;
+  return Math.round((pricePaise * 1000) / weightGrams);
+}

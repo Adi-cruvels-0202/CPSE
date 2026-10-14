@@ -110,7 +110,7 @@ export function CartPage() {
    * and decides — they are never carried through to checkout on a number they
    * have not seen (backend D31).
    */
-  const goToCheckout = async () => {
+  const goToCheckout = async (quick = false) => {
     if (busy || !cart) return;
     setBusy(true);
     setActionError(null);
@@ -138,6 +138,14 @@ export function CartPage() {
         return;
       }
 
+      // Quick checkout (roadmap §5 P2): the saved fulfilment, address, payment
+      // and substitution choices, applied to this cart. The review screen still
+      // shows everything before anything is placed.
+      if (quick) {
+        const { data: quickData } = await endpoints.checkout.quick(storeId);
+        navigate(`/checkout/${storeId}`, { state: { quick: quickData.settings } });
+        return;
+      }
       navigate(`/checkout/${storeId}`);
     } catch (caught) {
       setActionError(caught);
@@ -199,14 +207,25 @@ export function CartPage() {
 
       <Totals totals={cart.totals} />
 
+      <UsualBasket storeId={storeId} onAdded={refetch} />
+
       <div className="cart__actions">
         <button
           type="button"
           className="btn btn--block"
-          onClick={goToCheckout}
+          onClick={() => goToCheckout(false)}
           disabled={busy || !cart.isCheckoutReady}
         >
           {busy ? 'Checking…' : 'Checkout'}
+        </button>
+
+        <button
+          type="button"
+          className="btn btn--secondary btn--block"
+          onClick={() => goToCheckout(true)}
+          disabled={busy || !cart.isCheckoutReady}
+        >
+          Quick checkout with my usual choices
         </button>
 
         {!cart.isCheckoutReady ? (
@@ -226,6 +245,54 @@ export function CartPage() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The smart cart (roadmap §5 P2, deterministic): what this customer usually
+ * buys here and is not in the cart yet, added through the normal cart rules.
+ */
+function UsualBasket({ storeId, onAdded }) {
+  const usual = useApiQuery(() => endpoints.shopping.smartCart(storeId), [storeId]);
+  const [result, setResult] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const smart = usual.data?.smartCart;
+  if (!smart || smart.missingFromCart.length === 0) {
+    return result ? <AddedReport result={result} /> : null;
+  }
+  const add = async () => {
+    setAdding(true);
+    setFailure(null);
+    try {
+      const { data } = await endpoints.shopping.addUsual(storeId, true);
+      setResult(data);
+      await Promise.all([onAdded(), usual.refetch()]);
+    } catch (caught) {
+      setFailure(caught);
+    } finally {
+      setAdding(false);
+    }
+  };
+  return (
+    <section className="card stack" aria-labelledby="usual-heading">
+      <h2 id="usual-heading" className="cart__usual-title">You usually also get</h2>
+      <p className="muted">{smart.missingFromCart.map((item) => `${item.name}${item.usualQuantity > 1 ? ` × ${item.usualQuantity}` : ''}`).join(', ')}</p>
+      <FormError error={failure} />
+      <button type="button" className="btn btn--secondary btn--sm" onClick={add} disabled={adding}>
+        {adding ? 'Adding…' : 'Add them'}
+      </button>
+      <p className="field__hint">{smart.rule}</p>
+    </section>
+  );
+}
+
+function AddedReport({ result }) {
+  return (
+    <div className={`notice notice--${result.failed.length ? 'warning' : 'success'}`} role="status">
+      Added {result.added.length} {result.added.length === 1 ? 'item' : 'items'}.
+      {result.failed.length ? ` Not added: ${result.failed.map((f) => `${f.name} (${f.message})`).join('; ')}.` : ''}
     </div>
   );
 }

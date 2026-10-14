@@ -90,3 +90,52 @@ export function khataUpdated(account, { storeName }) {
     payload: { khata_account_id: account.id, store_id: account.store_id },
   };
 }
+
+const refundPayload = (order, refund) => ({
+  ...orderPayload(order),
+  refund_id: refund.id,
+  refund_status: refund.status,
+});
+
+const rupees = (paise) =>
+  `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * Roadmap §5 P5 Refund Tracking Status. The amount is the customer's own money
+ * coming back, which is exactly what they need to see — still no card or bank
+ * detail, of which the portal has none.
+ */
+export function refundInitiated(order, refund) {
+  return {
+    type: 'refund_initiated',
+    title: `Refund of ${rupees(refund.amount_paise)} started for ${order.order_number}`,
+    body:
+      refund.method === 'provider'
+        ? 'We have asked the payment partner to return your money. We will tell you when it is confirmed.'
+        : 'Your refund is being processed.',
+    payload: refundPayload(order, refund),
+  };
+}
+
+export function refundCompleted(order, refund) {
+  return {
+    type: 'refund_completed',
+    title: `Refund of ${rupees(refund.amount_paise)} completed for ${order.order_number}`,
+    body:
+      refund.method === 'khata_credit'
+        ? 'The amount has been credited to your khata at this store.'
+        : refund.method === 'cash'
+          ? 'The store has returned the amount in cash.'
+          : 'The payment partner has confirmed the refund. Banks usually show it within 5–7 working days.',
+    payload: refundPayload(order, refund),
+  };
+}
+
+export function refundFailed(order, refund) {
+  return {
+    type: 'refund_failed',
+    title: `Refund for ${order.order_number} did not go through`,
+    body: 'The store has been told and will retry or contact you. You can also raise a support request from the order.',
+    payload: refundPayload(order, refund),
+  };
+}

@@ -5,6 +5,9 @@ import { paymentProvider } from './provider.js';
 import { findOwnedOrder, transitionOrder, getOrder } from '../orders/order.service.js';
 import { orderStatusForPayment } from '../orders/order.state.js';
 import * as notifications from '../notifications/notification.service.js';
+import { emitToStore } from '../notifications/merchantNotification.service.js';
+import * as refunds from '../refunds/refund.service.js';
+import { isTerminal } from '../orders/order.state.js';
 
 /**
  * Payments — checklist 7.10 – 7.16.
@@ -84,6 +87,10 @@ export async function initiatePayment(customerId, orderId) {
   if (SETTLED.includes(payment.status)) {
     throw conflict('This payment has already been settled.');
   }
+  // Taking money for an order that has ended would only mean refunding it.
+  if (order.status !== 'pending_payment') {
+    throw conflict('This order is no longer waiting for payment.', { status: order.status });
+  }
 
   const provider = paymentProvider(payment.provider);
   const result = provider.initiate({ order, payment });
@@ -130,6 +137,8 @@ export async function handleWebhook({ rawBody, signature, body, providerName }) 
   const provider = paymentProvider(providerName);
   const event = provider.handleWebhook({ rawBody, signature, body });
 
+  if (event.kind === 'refund') return refunds.handleRefundEvent(providerName, event);
+
   const payment = await findPaymentByRef(providerName, event.providerRef);
   // An unknown reference is acknowledged, not errored: a gateway that gets a
   // 4xx will retry forever, and there is nothing here to retry into.
@@ -155,7 +164,7 @@ export async function handleWebhook({ rawBody, signature, body, providerName }) 
 
   const { data: orderRow, error } = await supabaseAdmin
     .from('orders')
-    .select('id, order_number, status, payment_status, customer_id')
+    .select('id, order_number, status, payment_status, customer_id, store_id, fulfilment_mode')
     .eq('id', payment.order_id)
     .maybeSingle();
 
@@ -198,6 +207,14 @@ async function applyOutcome(orderRow, payment, outcome, changedBy) {
       note: outcome.status === 'paid' ? 'Payment confirmed' : 'Payment cancelled',
       patch: { payment_status: outcome.status },
     });
+    if (nextOrderStatus === 'placed') {
+      await emitToStore(orderRow.store_id, {
+        type: 'order_placed',
+        title: `New order ${orderRow.order_number} (paid online)`,
+        payload: { order_id: orderRow.id, order_number: orderRow.order_number },
+        dedupeKey: `order_placed:${orderRow.id}`,
+      });
+    }
   } else {
     // No status change, but the order's payment_status must still follow.
     const { error } = await supabaseAdmin
@@ -206,6 +223,12 @@ async function applyOutcome(orderRow, payment, outcome, changedBy) {
       .eq('id', orderRow.id);
 
     fail(error, 'Could not update the order payment status.');
+
+    // Out of order: the money arrived after the order had already ended (the
+    // expiry sweep, or the customer cancelling mid-payment). It is owed back.
+    if (outcome.status === 'paid' && isTerminal(orderRow.status) && orderRow.status !== 'completed') {
+      await refunds.refundLateCapture(orderRow.id);
+    }
   }
 
   return updated;

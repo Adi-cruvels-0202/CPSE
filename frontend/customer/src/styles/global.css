@@ -255,6 +255,24 @@ ul, ol {
   display: flex;
 }
 
+/* An input with one or more buttons beside it (coupon, list line, reply,
+   assistant). The input gives way, so the row never outgrows a phone screen. */
+.inline-form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.inline-form .field__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-form .btn {
+  flex-shrink: 0;
+}
+
 .field__with-action .field__input {
   flex: 1;
   /* Room for the button, so a long password never runs under it. */

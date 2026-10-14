@@ -345,9 +345,9 @@ describe('blockers and warnings', () => {
     });
 
     await screen.findByRole('heading', { level: 1, name: 'Checkout' });
+    // The quote arrives after the page: wait for it, not for the race.
+    const alert = await screen.findByRole('alert');
     expect(placeButton()).toBeDisabled();
-
-    const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent(/start at ₹199\.00/);
     expect(alert).toHaveTextContent(/Add ₹70\.00 more/);
   });
@@ -369,7 +369,7 @@ describe('blockers and warnings', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Checkout' });
     // Blocking a closed shop would simply lose the order.
-    expect(screen.getByText(/closed right now/i)).toBeInTheDocument();
+    expect(await screen.findByText(/closed right now/i)).toBeInTheDocument();
     expect(placeButton()).toBeEnabled();
   });
 

@@ -232,7 +232,7 @@ export function ReceiptPage() {
         <footer className="receipt__foot muted">
           <p>
             {receipt.isTaxInvoice ? 'Tax invoice. ' : null}
-            Prices include tax. Keep this for your records.
+            Item prices are before GST, which is shown on its own line. Keep this for your records.
           </p>
         </footer>
       </article>

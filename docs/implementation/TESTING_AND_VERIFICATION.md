@@ -8,7 +8,7 @@ Every number here is from a run on this branch (`feature/roadmap-completion`,
 | Suite | Command | Files | Tests | Result |
 |---|---|---|---|---|
 | Backend — api, sql, integration | `cd backend && npx vitest run` | 54 | 2257 | all pass |
-| Customer app | `cd frontend/customer && npx vitest run` | 20 | 716 | all pass, on repeated full runs |
+| Customer app | `cd frontend/customer && npx vitest run` | 20 | 717 | all pass, on repeated full runs |
 | Merchant app | `cd frontend/merchant && npx vitest run` | 12 | 190 | all pass |
 | Merchant typecheck + build | `cd frontend/merchant && npm run build` | — | — | clean; main chunk 383 kB, tool and admin screens lazy-loaded |
 | Customer build | `cd frontend/customer && npm run build` | — | — | clean |
@@ -62,6 +62,36 @@ these assert the rules and the classes the screens rely on; the pixel check is
 the browser pass above. Not checked: real devices, other phone sizes, landscape,
 and screens behind data the seed did not create (for example a khata account's
 statement dialog).
+
+## Browser walk-through (Playwright)
+
+Run on 2026-10-14 with `playwright-cli` (Chromium) against the real backend
+and production builds on local Postgres (PGlite, every migration, seeded shop),
+with live Gemini for photos. The API rate limit was raised for the run
+(`RATE_LIMIT_MAX`); the first sweep at the default limit hit 429s, which both
+apps showed correctly as "Too many API requests" with Try again.
+
+**Sweep.** Every route of both apps — 34 merchant (including the reviewer
+console) and 22 customer pages, following in-app links to detail pages — at
+1280 × 800 and 375 × 812: **0** console errors, uncaught page errors, failed
+API calls, sideways overflow, off-screen controls or error banners.
+
+**Flows, driven as a user would:**
+
+| Flow | Checked |
+|---|---|
+| Customer: store → cart → checkout with coupon WELCOME10 → cash pickup order | discount ₹59.70, GST recomputed on the discounted line (₹8.78), total ₹546.08, same on the order page |
+| Merchant: accept → preparing → ready → completed | each status reached the customer's timeline; cash marked paid; stock reduced; 5 points earned; receipt correct |
+| Merchant counter sale | quantity capped at stock (1), charged INV-000001 ₹312.00, stock reduced |
+| New product → Identify from photo (file picker) → Use these → save | product created with name and MRP from the photo |
+| Purchases → invoice PDF → Use 3 lines → Receive stock | purchase confirmed; stock up (oil 10 → 16, dal 0 → 15, rice 1 kg 0 → 12); batches R-91 and SO-4 with expiries and costs |
+| Customer: online payment (simulated) → cancel | refund opened by itself, shown to the customer and on the merchant's Refunds page |
+| Customer ↔ shop message about an order | merchant inbox, reply, customer sees it and is notified |
+| Reviewer console | verification and escalated-support queues load |
+
+Found and fixed: the receipt footer said "Prices include tax" while GST is
+added on top and shown as its own line; it now says so (customer
+`roadmap-customer.test.jsx`).
 
 ## Photo reading against the live model
 

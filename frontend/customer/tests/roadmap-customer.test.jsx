@@ -89,6 +89,12 @@ describe('refund tracking on an order', () => {
     expect(block).toHaveTextContent('Your khata with this shop');
     expect(block).toHaveTextContent('Refunded');
   });
+
+  it('says GST is added on top, as the receipt shows it', async () => {
+    renderAt('/orders/order-1/receipt', { '/orders/order-1/receipt': ok({ receipt: receiptFixture() }) });
+    expect(await screen.findByText(/Item prices are before GST, which is shown on its own line\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Prices include tax/)).not.toBeInTheDocument();
+  });
 });
 
 describe('substitutions', () => {

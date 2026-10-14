@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { ownStore, respond, storeIdParams, uuid } from '../../lib/merchantRoute.js';
 import { validate } from '../../middleware/validate.js';
 import { optionalAuth, requireCustomer } from '../../middleware/requireAuth.js';
+import { receiveDocument } from '../../lib/documentUpload.js';
 import * as merchant from './merchantIntelligence.service.js';
+import * as vision from './vision.service.js';
 import * as customer from './customerIntelligence.service.js';
 
 /**
@@ -37,6 +39,22 @@ merchantIntelligenceRouter.post(
   '/:storeId/intelligence/invoice',
   ...ownStore({ body: z.object({ text: text(20_000) }).strict() }),
   respond(async (req) => ({ invoice: await merchant.extractInvoice(req.store, req.body) })),
+);
+
+// Photos and documents (multipart field "file", at most 5 MB). Read-only too:
+// the answer is a proposal for the merchant to check.
+merchantIntelligenceRouter.post(
+  '/:storeId/intelligence/recognize',
+  ...ownStore({ write: true }),
+  receiveDocument,
+  respond(async (req) => ({ recognition: await vision.recognizeProduct(req.store, req.file) })),
+);
+
+merchantIntelligenceRouter.post(
+  '/:storeId/intelligence/invoice-file',
+  ...ownStore({ write: true }),
+  receiveDocument,
+  respond(async (req) => ({ invoice: await vision.extractInvoiceFromFile(req.store, req.file) })),
 );
 
 merchantIntelligenceRouter.post(

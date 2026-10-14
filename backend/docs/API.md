@@ -1100,8 +1100,11 @@ as `skipped` with the reason — never claimed as sent.
 ### Intelligence (forecasts, suggestions, assistants)
 
 Roadmap Phase D/E and §5 P6. **Every endpoint here is read-only** — the POSTs
-carry text to read, not changes to make. All of it is deterministic (no model
-is called; `AI_PROVIDER` stays `none`), so the same data gives the same answer.
+carry text or a file to read, not changes to make. Everything except the two
+photo endpoints (`recognize`, `invoice-file`) is deterministic — no model is
+called, so the same data gives the same answer. Those two ask a vision model
+(`AI_PROVIDER=gemini`) to read the file, then validate and match its answer
+against the shop's own records like any other input.
 What they suggest is applied only when a person confirms it through the
 ordinary endpoint a proposal names.
 
@@ -1111,7 +1114,9 @@ Merchant — bearer, merchant, on the caller's own store:
 |---|---|
 | `GET /merchant/stores/:storeId/intelligence/stock` | `?horizonDays=14&leadDays=7` → `{ stock: { today, counts, items: [{ productId, variantId, name, available, soldLast30, forecast: { confidence: insufficient\|low\|medium\|high, reason, dailyAverage, nextDaysUnits }, health: { status: stockout\|at_risk\|overstock\|slow\|healthy\|unknown\|untracked, daysOfCover, note }, proposedReorderQuantity }], method } }`. No forecast with under 14 days of history or under 3 selling days — it says so instead. |
 | `POST /merchant/stores/:storeId/intelligence/product-suggestions` | `{ name }` → `{ suggestion: { suggestions: { category, unit, taxPercent, weightGrams, variants }, duplicates, related, nextActions, note } }`, each suggestion with its reason; from the store's own products first, then the industry templates. |
-| `POST /merchant/stores/:storeId/intelligence/invoice` | `{ text }` (pasted invoice) → `{ invoice: { invoiceNumber, invoiceDate, statedTotalPaise, computedTotalPaise, totalMatches, lines: [{ source, readAs, match, confidence, warnings, alternatives }], skipped } }`. **422 `NOTHING_READ`** when no line has a name, quantity and price. Nothing is saved; the purchase is created as usual. Reading images or PDFs needs an AI provider, which is not configured. |
+| `POST /merchant/stores/:storeId/intelligence/invoice` | `{ text }` (pasted invoice) → `{ invoice: { invoiceNumber, invoiceDate, statedTotalPaise, computedTotalPaise, totalMatches, lines: [{ source, readAs, match, confidence, warnings, alternatives }], skipped } }`. **422 `NOTHING_READ`** when no line has a name, quantity and price. Nothing is saved; the purchase is created as usual. |
+| `POST /merchant/stores/:storeId/intelligence/invoice-file` | Multipart, field `file` (JPEG/PNG/WebP photo or PDF, ≤ 5 MB) → the same `{ invoice }` as `/invoice` plus `source: "file"` and `transcript` (the lines the vision model read, which then go through the same text reader and checks). Lines without a whole quantity and a price are listed in `skipped`. **422 `NOTHING_READ`**, **422 `IMAGE_INVALID`**, **502 `AI_BAD_RESPONSE`** (unusable model answer), **503 `AI_UNAVAILABLE`** (no provider configured, or busy). Write-rate limited. Nothing is saved. |
+| `POST /merchant/stores/:storeId/intelligence/recognize` | Multipart, field `file` (JPEG/PNG/WebP photo, ≤ 5 MB; PDFs → 422 `IMAGE_INVALID`) → `{ recognition: { read: { isProduct, name, brand, sizeText, category, barcode, mrpRupees, mrpPaise, weightGrams, confidence }, identified, match: { productId, variantId, name, by: barcode\|name, score, isAvailable, pricePaise } \| null, candidates: [ … up to 3 ], suggestion: { name, category, unit, taxPercent, weightGrams, mrpPaise, barcode, duplicates } \| null, note } }`. `identified` is false below confidence 0.5 or when no product is seen. A readable barcode matches exactly; otherwise names are compared with the shop's catalogue. `suggestion` (for the New product form) only when nothing in the shop matches. **502 `AI_BAD_RESPONSE`**, **503 `AI_UNAVAILABLE`**. Write-rate limited. Nothing is saved. |
 | `POST /merchant/stores/:storeId/intelligence/command` | `{ text }` (typed or spoken: "add 10 basmati rice 1 kg", "set price of sugar to 45", "mark ghee out of stock") → `{ command: { understood, proposal: { summary, apply: { method, path, body }, requiresConfirmation: true } \| null, problem, options } }`. |
 | `POST /merchant/stores/:storeId/intelligence/ask` | `{ question }` → `{ reply: { kind: answer\|proposal\|help, intent, answer, data, source, actions } }` — sales, best and slow sellers, what is running low, forecast, khata owed, open orders; commands are answered with a proposal. |
 | `GET /merchant/stores/:storeId/intelligence/area` | `{ area: { city, minStores, otherStores, benchmarks: [{ name, basis: per_kg\|per_pack, yourPricePaise, area: { stores, p25, median, p75 }, position }], popularNearby, note } }`. Only from **at least 5 other shops** in the same city, one figure per shop, never naming a shop. |

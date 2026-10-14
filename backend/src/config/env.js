@@ -68,11 +68,16 @@ const envSchema = z.object({
   NOTIFY_WEBHOOK_SECRET: z.string().min(16).default('dev-only-notify-secret-change-me'),
 
   // Intelligence (src/modules/intelligence) is deterministic and needs no
-  // provider. 'none' is the only value this build accepts: a model provider
-  // (for photo recognition and photo/PDF invoices) would need the official
-  // Anthropic SDK added as a dependency first, so it is refused rather than
-  // accepted and silently ignored.
-  AI_PROVIDER: z.enum(['none']).default('none'),
+  // provider. A vision model adds two things only: recognising a product from
+  // a photo and reading an invoice photo/PDF (src/lib/ai.js). 'none' turns
+  // those off and they say so; 'gemini' uses Google's Gemini Developer API.
+  AI_PROVIDER: z.enum(['none', 'gemini']).default('none'),
+  GEMINI_API_KEY: z.string().min(1).optional(),
+  // An alias that follows Google's current Flash-Lite model (fast enough for a
+  // shop counter), and a pinned model tried once if the first is unavailable.
+  AI_MODEL: z.string().min(1).default('gemini-flash-lite-latest'),
+  AI_FALLBACK_MODEL: z.string().min(1).default('gemini-3.5-flash-lite'),
+  AI_TIMEOUT_MS: z.coerce.number().int().min(2000).max(120_000).default(30_000),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),

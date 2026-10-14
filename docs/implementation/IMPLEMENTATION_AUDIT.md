@@ -3,8 +3,8 @@
 What `feature/roadmap-completion` adds to implement
 `Local_Commerce_Final_Development_Functional_Roadmap.docx`, how it is built,
 and what is left. Requirement-by-requirement status and evidence:
-[ROADMAP_REQUIREMENTS_MATRIX.md](ROADMAP_REQUIREMENTS_MATRIX.md) — **152 of 154
-verified, 2 blocked** by missing external credentials.
+[ROADMAP_REQUIREMENTS_MATRIX.md](ROADMAP_REQUIREMENTS_MATRIX.md) — **153 of 154
+verified, 1 blocked** (C-23: the Supabase project supplied does not exist).
 
 ## Rules every feature follows
 
@@ -49,12 +49,13 @@ are documented in `backend/docs/API.md`.
 ### Merchant app (`frontend/merchant`)
 
 A "More" hub with: inbox, customer messages, refunds, purchases (with
-invoice reading), batches & expiry, what to reorder, catalogue tools,
+invoice reading from text, photo or PDF), batches & expiry, what to reorder, catalogue tools,
 customers, khata, loyalty/coupons/offers, announcements, reports,
 automation, insights (demand, stock health, assistant with voice, area
 benchmarks), share (link, QR, WhatsApp, map) and verification. Also order
 refunds and substitutions, category order/delete, product duplicate and
-suggestions, barcode and camera scanning at the till, and a platform
+suggestions, product recognition from a photo (New product and the till),
+barcode and camera scanning at the till, and a platform
 reviewer console at `/merchant/admin` with its own session.
 
 ### Customer app (`frontend/customer`)
@@ -70,11 +71,16 @@ events (signed in, consent respected).
 
 ## Decisions worth knowing
 
-- **No AI SDK.** Every intelligence feature is deterministic. Claude support
-  needs `@anthropic-ai/sdk`, and installing it would rewrite
-  `backend/package-lock.json`, which holds the owner's uncommitted changes
-  that were not to be touched. `AI_PROVIDER` accepts only `none` until that
-  is decided.
+- **A model only where reading is needed.** Forecasts, suggestions, the
+  assistants and text invoices stay deterministic. Only photo recognition and
+  invoice photos/PDFs call a vision model — Google Gemini through the official
+  `@google/genai`, chosen because the owner supplied a Gemini key — behind
+  `AI_PROVIDER=gemini` in `src/lib/ai.js`. Its JSON is schema-validated and
+  matched to the shop's own records; invoice files are transcribed into the
+  same lines as pasted text so one parser applies every check. Installing the
+  SDK changed `backend/package-lock.json`; that diff also drops npm's `libc`
+  fields (an npm-version difference, the same as the owner's earlier local
+  change).
 - **Reviewer console inside the merchant app.** It is mounted at
   `/merchant/admin` with a separate localStorage session
   (`cpse.admin.session`), so a reviewer and a shop owner in the same browser
@@ -89,11 +95,9 @@ events (signed in, consent respected).
 
 | Item | Blocked by |
 |---|---|
-| Browser end-to-end run (C-23) | a Supabase project and `backend/.env` |
-| Photo product recognition (M-53), photo/PDF invoices (M-54 part) | an AI provider and the SDK dependency |
+| Browser end-to-end run (C-23) | a Supabase project that exists (the URL supplied does not resolve) |
+| Photo reading accuracy on real camera photos and handwritten bills | real shop photos; verified on rendered images only |
 | Live payments, SMS/WhatsApp/email | provider credentials |
 
-Uncommitted files outside this work were left as they were:
-`backend/package-lock.json`, `frontend/customer/package-lock.json`,
-`frontend/merchant/package-lock.json`, the roadmap `.docx` and `.DS_Store`
-files. Nothing has been pushed.
+Left uncommitted on purpose: `backend/.env` (credentials; git-ignored), the
+roadmap `.docx`, `.DS_Store` files and the owner's `.gitignore` change.

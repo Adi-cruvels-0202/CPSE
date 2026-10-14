@@ -468,6 +468,18 @@ export interface ProductSuggestion {
   };
   duplicates: { productId: string; name: string }[]; related: { productId: string; name: string }[]; nextActions: { type: string; text: string }[];
 }
+export interface ProductRecognition {
+  read: { isProduct: boolean; name: string | null; brand: string | null; sizeText: string | null; category: string | null; barcode: string | null; mrpPaise: number | null; weightGrams: number | null; confidence: number };
+  identified: boolean;
+  match: { productId: string; variantId: string | null; name: string; by: 'barcode' | 'name'; score: number; isAvailable: boolean; pricePaise: number | null } | null;
+  candidates: { productId: string; variantId: string | null; name: string; score: number; isAvailable: boolean; pricePaise: number | null }[];
+  suggestion: {
+    name: string; category: ProductSuggestion['suggestions']['category']; unit: ProductSuggestion['suggestions']['unit'];
+    taxPercent: ProductSuggestion['suggestions']['taxPercent']; weightGrams: number | null; mrpPaise: number | null; barcode: string | null;
+    duplicates: ProductSuggestion['duplicates'];
+  } | null;
+  note: string;
+}
 export interface AreaInsights {
   city: string | null; minStores: number; otherStores?: number; note: string;
   benchmarks: { productId: string; variantId: string; name: string; basis: 'per_kg' | 'per_pack'; yourPricePaise: number; area: { stores: number; p25: number; median: number; p75: number }; position: 'below_most' | 'typical' | 'above_most' }[];
@@ -480,6 +492,10 @@ export const intelligenceApi = {
     api.get<{ stock: { today: string; horizonDays: number; leadDays: number; counts: Record<string, number>; items: StockItem[]; method: string } }>(`${store(storeId)}/intelligence/stock`, params),
   suggest: (storeId: string, name: string) => api.post<{ suggestion: ProductSuggestion }>(`${store(storeId)}/intelligence/product-suggestions`, { name }),
   invoice: (storeId: string, text: string) => api.post<{ invoice: InvoiceRead }>(`${store(storeId)}/intelligence/invoice`, { text }),
+  /** A photo or PDF of a supplier bill, read by the vision model into the same shape as pasted text. */
+  invoiceFile: (storeId: string, file: File) => api.upload<{ invoice: InvoiceRead & { source: 'file'; transcript: string[] } }>(`${store(storeId)}/intelligence/invoice-file`, file),
+  /** A photo of a product: matched to this shop's catalogue, or a prefill for a new one. */
+  recognize: (storeId: string, file: File) => api.upload<{ recognition: ProductRecognition }>(`${store(storeId)}/intelligence/recognize`, file),
   command: (storeId: string, text: string) => api.post<{ command: CommandResult }>(`${store(storeId)}/intelligence/command`, { text }),
   ask: (storeId: string, question: string) => api.post<{ reply: AssistantReply }>(`${store(storeId)}/intelligence/ask`, { question }),
   area: (storeId: string) => api.get<{ area: AreaInsights }>(`${store(storeId)}/intelligence/area`),

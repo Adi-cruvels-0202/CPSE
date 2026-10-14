@@ -112,7 +112,7 @@ describe('reading an invoice', () => {
     await render(<PurchasesPage />);
     await click(await waitFor(() => byText('button', 'Read an invoice')));
     await type(document.getElementById('inv-text') as HTMLTextAreaElement, 'Basmati Rice 1kg 10 x 92\nUnicorn 1 x 5');
-    await click(byText('button', 'Read'));
+    await click(byText('button', 'Read text'));
     await waitFor(() => text().includes('the invoice says ₹1,000.00, check it'));
     expect(text()).toContain('Supplier: Gupta Wholesale (your saved supplier)');
     expect(text()).toContain('R-77');
@@ -176,6 +176,126 @@ describe('camera scanning at the counter', () => {
     await render(<NewSalePage />);
     await waitFor(() => document.getElementById('pos-search'));
     expect(document.querySelector('button[aria-label="Scan with camera"]')).toBeNull();
+  });
+});
+
+// ── Photos (roadmap Phase D "Product recognition", "Invoice extraction") ───
+
+const choose = async (input: HTMLInputElement, file: File) => {
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  await act(async () => { input.dispatchEvent(new Event('change', { bubbles: true })); });
+};
+const photo = () => new File(['jpeg'], 'pack.jpg', { type: 'image/jpeg' });
+const read = { isProduct: true, name: 'Iodised Salt', brand: 'Tata', sizeText: '1 kg', category: 'Salt', barcode: null, mrpPaise: 2800, weightGrams: 1000, confidence: 0.95 };
+
+describe('identifying a product from a photo', () => {
+  const categories = [{ id: B, name: 'Staples', description: null, productCount: 1, isActive: true }];
+  const screen = (recognition: unknown) => fakeServer([
+    ['GET', base('/categories'), () => ({ data: { categories } })],
+    ['GET', base('/products'), () => ({ data: { products: [] }, meta: { ...META, total: 0 } })],
+    ['POST', base('/intelligence/recognize'), () => ({ data: { recognition } })],
+  ]);
+  const openForm = async () => {
+    await render(<ProductsPage />);
+    await click(await waitFor(() => byText('button', 'Add product')));
+  };
+
+  it('fills the New product form from the photo only when asked, and saves nothing', async () => {
+    const sent = screen({ read, identified: true, match: null, candidates: [], note: 'Read from the photo — check it.', suggestion: {
+      name: 'Tata Iodised Salt 1 kg', category: { id: B, name: 'Staples', reason: 'x' }, unit: { value: 'kg', reason: 'x' }, taxPercent: { value: 0, reason: 'x' },
+      weightGrams: 1000, mrpPaise: 2800, barcode: null, duplicates: [] } });
+    await openForm();
+    expect(byText('button', 'Identify from photo')).toBeTruthy();
+    await choose(document.querySelector('[data-testid="product-photo"]') as HTMLInputElement, photo());
+    await waitFor(() => text().includes('From the photo: Tata Iodised Salt 1 kg'));
+    expect(sent.find((r) => r.url.endsWith('/intelligence/recognize'))!.body).toBeInstanceOf(FormData);
+    expect((document.getElementById('product-name') as HTMLInputElement).value).toBe('');
+    await click(byText('button', 'Use these'));
+    expect((document.getElementById('product-name') as HTMLInputElement).value).toBe('Tata Iodised Salt 1 kg');
+    expect((document.getElementById('product-category') as HTMLSelectElement).value).toBe(B);
+    expect((document.getElementById('product-sold-by') as HTMLSelectElement).value).toBe('kg');
+    expect((document.querySelector('input[aria-label="MRP ₹"]') as HTMLInputElement).value).toBe('28.00');
+    expect(sent.filter((r) => r.method === 'POST' && r.url.endsWith('/products'))).toHaveLength(0);
+  });
+
+  it('says when the shop already sells it, and when the photo could not be read', async () => {
+    screen({ read, identified: true, match: { productId: A, variantId: V, name: 'Tata Salt (1 kg)', by: 'barcode', score: 1, isAvailable: true, pricePaise: 2800 }, candidates: [], suggestion: null, note: '' });
+    await openForm();
+    await choose(document.querySelector('[data-testid="product-photo"]') as HTMLInputElement, photo());
+    await waitFor(() => text().includes('You already sell “Tata Salt (1 kg)”.'));
+    expect(text()).toContain('The barcode matches it.');
+    expect(() => byText('button', 'Use these')).toThrow();
+    await cleanup();
+
+    screen({ read: { ...read, confidence: 0.2 }, identified: false, match: null, candidates: [], suggestion: null, note: 'The photo reader is not sure what this is.' });
+    await openForm();
+    await choose(document.querySelector('[data-testid="product-photo"]') as HTMLInputElement, photo());
+    await waitFor(() => text().includes('The photo reader is not sure what this is.'));
+  });
+
+  it('shows the server’s refusal when no AI provider is set up', async () => {
+    fakeServer([
+      ['GET', base('/categories'), () => ({ data: { categories } })],
+      ['GET', base('/products'), () => ({ data: { products: [] }, meta: { ...META, total: 0 } })],
+      ['POST', base('/intelligence/recognize'), () => ({ status: 503, error: { code: 'AI_UNAVAILABLE', message: 'Reading photos is not available right now (no AI provider is configured). Fill the form in by hand.' } })],
+    ]);
+    await openForm();
+    await choose(document.querySelector('[data-testid="product-photo"]') as HTMLInputElement, photo());
+    await waitFor(() => text().includes('Reading photos is not available right now'));
+  });
+
+  it('adds a recognised item at the counter', async () => {
+    const product = { id: A, name: 'Basmati Rice', description: null, categoryId: null, unit: 'kg', taxPercent: 0, trackInventory: true, isActive: true, images: [], variants: [{ id: V, name: '1 kg', sku: 'R1', barcode: null, pricePaise: 12000, isActive: true, availableQuantity: 5 }] };
+    const sent = fakeServer([
+      ['GET', base('/categories'), () => ({ data: { categories: [] } })],
+      ['GET', base('/products'), () => ({ data: { products: [product] }, meta: META })],
+      ['POST', base('/intelligence/recognize'), () => ({ data: { recognition: { read: { ...read, name: 'Basmati Rice' }, identified: true, match: { productId: A, variantId: V, name: 'Basmati Rice (1 kg)', by: 'name', score: 1, isAvailable: true, pricePaise: 12000 }, candidates: [], suggestion: null, note: '' } } })],
+    ]);
+    await render(<NewSalePage />);
+    await waitFor(() => text().includes('Basmati Rice'));
+    expect(document.querySelector('button[aria-label="One more"]')).toBeNull();
+    await choose(document.querySelector('[data-testid="sale-photo"]') as HTMLInputElement, photo());
+    await waitFor(() => text().includes('Added Basmati Rice (1 kg) — check it is the right item.'));
+    expect(document.querySelectorAll('.sale-cart-items button[aria-label="One more"]')).toHaveLength(1);
+    expect(sent.filter((r) => r.url.endsWith('/sales'))).toHaveLength(0);
+  });
+
+  it('says so at the counter when the recognised item is out of stock', async () => {
+    const product = { id: A, name: 'Basmati Rice', description: null, categoryId: null, unit: 'kg', taxPercent: 0, trackInventory: true, isActive: true, images: [], variants: [{ id: V, name: '1 kg', sku: 'R1', barcode: null, pricePaise: 12000, isActive: true, availableQuantity: 0 }] };
+    fakeServer([
+      ['GET', base('/categories'), () => ({ data: { categories: [] } })],
+      ['GET', base('/products'), () => ({ data: { products: [product] }, meta: META })],
+      ['POST', base('/intelligence/recognize'), () => ({ data: { recognition: { read, identified: true, match: { productId: A, variantId: V, name: 'Basmati Rice (1 kg)', by: 'name', score: 1, isAvailable: true, pricePaise: 12000 }, candidates: [], suggestion: null, note: '' } } })],
+    ]);
+    await render(<NewSalePage />);
+    await waitFor(() => text().includes('Basmati Rice'));
+    await choose(document.querySelector('[data-testid="sale-photo"]') as HTMLInputElement, photo());
+    await waitFor(() => text().includes('Basmati Rice (1 kg) is out of stock.'));
+    expect((document.getElementById('pos-search') as HTMLInputElement).value).toBe('Basmati Rice');
+    expect(document.querySelectorAll('.sale-cart-items button[aria-label="One more"]')).toHaveLength(0);
+  });
+});
+
+describe('reading an invoice from a photo or PDF', () => {
+  it('uploads the file and shows the lines read from it for checking', async () => {
+    const sent = fakeServer([
+      ['GET', base('/purchases'), () => ({ data: { purchases: [] }, meta: { ...META, total: 0 } })],
+      ['GET', base('/products'), () => ({ data: { products: [] }, meta: META })],
+      ['GET', base('/suppliers'), () => ({ data: { suppliers: [] } })],
+      ['POST', base('/intelligence/invoice-file'), () => ({ data: { invoice: { source: 'file', transcript: [], supplier: null, warnings: [], invoiceNumber: 'GW-204', invoiceDate: '2026-10-12', statedTotalPaise: 114000, computedTotalPaise: 114000, totalMatches: true, skipped: [], lines: [
+        { source: 'Basmati Rice 1 kg Batch R-91 Exp 08/2027 12 x 95', readAs: { name: 'Basmati Rice 1 kg', quantity: 12, unitCostPaise: 9500, batchNumber: 'R-91', expiresOn: '2027-08-31' }, match: { productId: A, variantId: V, name: 'Basmati Rice (1 kg)', lastCostPaise: 9000 }, confidence: 'high', warnings: [], alternatives: [] },
+      ] } } })],
+    ]);
+    await render(<PurchasesPage />);
+    await click(await waitFor(() => byText('button', 'Read an invoice')));
+    const input = document.getElementById('inv-file') as HTMLInputElement;
+    expect(input.accept).toContain('application/pdf');
+    await choose(input, new File(['%PDF-1.4'], 'bill.pdf', { type: 'application/pdf' }));
+    await waitFor(() => text().includes('Invoice GW-204'));
+    expect(sent.find((r) => r.url.endsWith('/intelligence/invoice-file'))!.body).toBeInstanceOf(FormData);
+    expect(text()).toContain('R-91');
+    expect(byText('button', 'Use 1 lines')).toBeTruthy();
+    expect(sent.filter((r) => r.method === 'POST' && r.url.endsWith('/purchases'))).toHaveLength(0);
   });
 });
 

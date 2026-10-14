@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi, saleApi, categoryApi } from '../../api/endpoints';
-import { catalogueOpsApi } from '../../api/ops';
+import { catalogueOpsApi, intelligenceApi } from '../../api/ops';
 import { CameraScanner, canScanWithCamera } from './CameraScanner';
 import { errorMessage } from '../../api/client';
 import type { Sale } from '../../api/types';
@@ -55,6 +55,8 @@ export default function NewSalePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState<Sale | null>(null);
   const [scanning, setScanning] = useState(false);
+  const [identifying, setIdentifying] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
   // One key per bill: a retried "Charge" after a timeout returns the same sale.
   const idempotencyKey = useRef(newKey());
 
@@ -153,6 +155,32 @@ export default function NewSalePage() {
     }
   };
 
+  /**
+   * Roadmap Phase D "Product recognition" at the counter: a photo of an item
+   * with no readable barcode. A confident match of one size is added; a match
+   * of several sizes fills the search so the right one can be tapped.
+   */
+  const identify = async (file: File) => {
+    setIdentifying(true);
+    try {
+      const { recognition } = await intelligenceApi.recognize(activeStoreId, file);
+      const item = recognition.match?.variantId ? sellables.find((s) => s.variantId === recognition.match!.variantId) : null;
+      if (!recognition.identified) showToast(recognition.note, 'error');
+      else if (item && !(item.available !== null && item.available <= 0)) {
+        add(item);
+        showToast(`Added ${recognition.match!.name} — check it is the right item.`, 'success');
+      } else if (recognition.match) {
+        if (item) showToast(`${recognition.match.name} is out of stock.`, 'error');
+        setSearch(recognition.match.name.replace(/\s*\(.*\)$/, ''));
+      }
+      else showToast(`${recognition.read.name ?? 'That item'} is not in your products.`, 'error');
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setIdentifying(false);
+    }
+  };
+
   const subtotal = cart.reduce((sum, line) => sum + line.pricePaise * line.quantity, 0);
   const tax = cart.reduce((sum, line) => sum + taxFor(line.pricePaise * line.quantity, line.taxPercent), 0);
   const discountPaise = rupeesToPaise(discount) ?? 0;
@@ -229,6 +257,13 @@ export default function NewSalePage() {
             {!search && <div className="sale-search-shortcut">⌘K</div>}
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
             {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm sale-search-camera" onClick={() => setScanning(true)} aria-label="Scan with camera">📷</button>}
+          </div>
+          <div className="sale-photo-row">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoInput.current?.click()} disabled={identifying}>
+              {identifying ? 'Reading the photo…' : 'No barcode? Identify from photo'}
+            </button>
+            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden aria-label="Item photo"
+              data-testid="sale-photo" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void identify(file); }} />
           </div>
           {(cats?.categories.length ?? 0) > 0 && (
             <div className="sale-categories">

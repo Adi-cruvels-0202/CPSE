@@ -316,22 +316,30 @@ function SupplierList({ storeId }: { storeId: string }) {
 /**
  * A supplier invoice pasted as text (roadmap Phase D "Invoice extraction"):
  * each line is read and matched to the catalogue, and the merchant chooses
- * which to carry into a draft purchase. Nothing is saved here. Reading a
- * photo or PDF needs an AI provider, which this installation does not have.
+ * which to carry into a draft purchase. Nothing is saved here. A photo or
+ * PDF is read by the vision model into the same lines and goes through the
+ * same checks; the server says so when no AI provider is configured.
  */
 function InvoiceReader({ storeId, onClose, onUse }: { storeId: string; onClose: () => void; onUse: (draft: { lines: Line[]; invoiceNumber: string | null; invoiceDate: string | null; supplierId: string | null }) => void }) {
   const { showToast } = useToast();
   const [text, setText] = useState('');
   const [read, setRead] = useState<InvoiceRead | null>(null);
   const [chosen, setChosen] = useState<Record<number, string>>({});
+  const show = ({ invoice }: { invoice: InvoiceRead }) => {
+    setRead(invoice);
+    setChosen(Object.fromEntries(invoice.lines.map((l, i) => [i, l.match?.variantId ?? ''])));
+  };
   const run = useMutation({
     mutationFn: () => intelligenceApi.invoice(storeId, text),
-    onSuccess: ({ invoice }) => {
-      setRead(invoice);
-      setChosen(Object.fromEntries(invoice.lines.map((l, i) => [i, l.match?.variantId ?? ''])));
-    },
+    onSuccess: show,
     onError: (err) => showToast(errorMessage(err), 'error'),
   });
+  const readFile = useMutation({
+    mutationFn: (file: File) => intelligenceApi.invoiceFile(storeId, file),
+    onSuccess: show,
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
+  const busy = run.isPending || readFile.isPending;
   const use = () => {
     const lines = read!.lines
       .map((l, i) => ({ l, variantId: chosen[i] }))
@@ -343,18 +351,22 @@ function InvoiceReader({ storeId, onClose, onUse }: { storeId: string; onClose: 
     onUse({ lines: lines.length ? lines : [emptyLine()], invoiceNumber: read!.invoiceNumber, invoiceDate: read!.invoiceDate, supplierId: read!.supplier?.match?.supplierId ?? null });
   };
   return (
-    <Modal title="Read an invoice" size="lg" onClose={onClose} busy={run.isPending}
+    <Modal title="Read an invoice" size="lg" onClose={onClose} busy={busy}
       footer={<>
         <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
         {read
           ? <button type="button" className="btn btn-primary" onClick={use}>Use {Object.values(chosen).filter(Boolean).length} lines</button>
-          : <button type="button" className="btn btn-primary" disabled={!text.trim() || run.isPending} onClick={() => run.mutate()}>{run.isPending ? 'Reading…' : 'Read'}</button>}
+          : <button type="button" className="btn btn-primary" disabled={!text.trim() || busy} onClick={() => run.mutate()}>{run.isPending ? 'Reading…' : 'Read text'}</button>}
       </>}>
       {!read ? (
         <div className="form-grid">
           <label className="input-label" htmlFor="inv-text">Paste the invoice text — one item per line, e.g. “Basmati Rice 1kg 10 x 92”</label>
           <textarea id="inv-text" className="input-field" rows={10} value={text} onChange={(e) => setText(e.target.value)} />
-          <p className="tiny">Photos and PDFs need an AI reading service, which is not set up — copy the text from the PDF instead.</p>
+          <label className="input-label" htmlFor="inv-file">Or upload a photo or PDF of the bill</label>
+          <input id="inv-file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="input-field" disabled={busy}
+            onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) readFile.mutate(file); }} />
+          {readFile.isPending && <p className="tiny" role="status">Reading the bill…</p>}
+          <p className="tiny">Whatever is read is shown for you to check; nothing is saved until you confirm the purchase.</p>
         </div>
       ) : (
         <div className="stack">

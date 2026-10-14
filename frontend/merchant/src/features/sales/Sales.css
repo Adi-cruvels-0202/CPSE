@@ -437,3 +437,10 @@
   }
   .sale-product-image { height: 6.5rem; }
 }
+
+/* Product recognition from a photo, under the search bar. */
+.sale-photo-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-1);
+}

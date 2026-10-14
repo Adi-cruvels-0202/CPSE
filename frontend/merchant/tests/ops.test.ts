@@ -128,6 +128,8 @@ const CALLS: [string, () => Promise<unknown>][] = [
   ['intelligence.stock', () => intelligenceApi.stock(S, { leadDays: 7 })],
   ['intelligence.suggest', () => intelligenceApi.suggest(S, 'Basmati Rice')],
   ['intelligence.invoice', () => intelligenceApi.invoice(S, 'Rice 2 x 50')],
+  ['intelligence.invoiceFile', () => intelligenceApi.invoiceFile(S, new File(['%PDF-1.4'], 'bill.pdf', { type: 'application/pdf' }))],
+  ['intelligence.recognize', () => intelligenceApi.recognize(S, new File(['x'], 'pack.jpg', { type: 'image/jpeg' }))],
   ['intelligence.command', () => intelligenceApi.command(S, 'add 10 rice')],
   ['intelligence.ask', () => intelligenceApi.ask(S, 'sales this week')],
   ['intelligence.area', () => intelligenceApi.area(S)],

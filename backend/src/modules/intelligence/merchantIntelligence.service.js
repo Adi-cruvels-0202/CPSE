@@ -25,7 +25,7 @@ function localDay(iso, timeZone) {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 }
 
-async function catalogue(store) {
+export async function catalogue(store) {
   const { data: products, error } = await supabaseAdmin
     .from('products')
     .select('id, name, category_id, unit, tax_percent, track_inventory, is_available, low_stock_threshold, created_at')
@@ -62,7 +62,7 @@ async function dailySales(store, { days = 56, now = new Date() } = {}) {
   return byVariant;
 }
 
-const label = (product, variant) => `${product.name}${variant && variant.name !== 'Default' ? ` (${variant.name})` : ''}`;
+export const label = (product, variant) => `${product.name}${variant && variant.name !== 'Default' ? ` (${variant.name})` : ''}`;
 
 // ── Forecast and stock health (Phase D) ─────────────────────────────────────
 

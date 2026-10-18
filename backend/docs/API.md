@@ -696,6 +696,445 @@ cancelled, rejected or still unpaid. `ready` covers ready for pickup and out for
 delivery. Low stock lists variants of counted, active products that can sell no
 more than their product's threshold, fewest first.
 
+### Refunds (paid cancellations)
+
+A paid order that ends **cancelled** or **rejected** — by the customer, the
+store, or the system — opens a refund in the same database transaction as the
+status change (migration 0038). The refund is linked to the order **and** the
+payment it returns; there is at most one live refund per payment, so a retried
+request or a replayed webhook can never refund twice.
+
+| Refund `status` | Meaning |
+|---|---|
+| `initiated` | Opened; not yet accepted by the payment partner. |
+| `processing` | The payment partner has accepted it and is moving the money. |
+| `refunded` | Confirmed — by the payment partner (webhook or status lookup), by the khata credit entry, or by the merchant handing cash back. Only now do the payment and the order say `refunded`. |
+| `failed` | Not completed; `failureReason` says why. The store can retry. |
+
+`method` is `provider` (back to the card/UPI/bank), `khata_credit` (a separate
+credit entry in the customer's khata at the store — settled at once, the
+original charge is never edited) or `cash`. A payment that arrives **after** its
+order was cancelled is refunded automatically.
+
+Customers see the refund on `GET /orders/:id` (`order.refund`, with its
+`events` timeline and `nextStep`) and on the receipt. Before cancelling,
+`order.cancellation` states the rule, whether the order can be cancelled, and
+`refundOnCancelPaise`.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/refunds` | Bearer, merchant. `?status=initiated,processing&page=&limit=` → `{ refunds }` (each with `orderNumber`), newest first. |
+| `GET /merchant/stores/:storeId/refunds/:refundId` | Bearer, merchant. `{ refund }` with its `events`. |
+| `POST /merchant/stores/:storeId/refunds/:refundId/retry` | Bearer, merchant. No body. A `failed` gateway refund is sent again → `{ refund }`. Anything else is **409**; a non-gateway refund is **422 `NOT_A_GATEWAY_REFUND`**. |
+| `POST /merchant/stores/:storeId/refunds/:refundId/confirm-cash` | Bearer, merchant. `{ note? }`. Records that a cash refund was handed back → `{ refund }`. Not a cash refund: **422 `NOT_A_CASH_REFUND`**. |
+
+Refund webhooks arrive on `POST /payments/webhook` with
+`{ event: "refund.processing" | "refund.processed" | "refund.failed", providerRefundRef, eventId?, failureReason? }`,
+signed like payment events. Replays (same `eventId`) and out-of-order events (a
+`processing` after `refunded`) are acknowledged with **200** and ignored.
+
+```json
+"refund": {
+  "id": "r1…", "orderId": "o1…", "paymentId": "p1…",
+  "status": "processing", "statusLabel": "Refund processing",
+  "amountPaise": 38850, "currency": "INR",
+  "method": "provider", "methodLabel": "To your original payment method",
+  "reference": "mock_rfnd_…", "reason": "Out of stock", "initiatedBy": "store",
+  "failureReason": null, "attempts": 1,
+  "initiatedAt": "…", "processingAt": "…", "refundedAt": null, "failedAt": null,
+  "nextStep": "We have asked the payment partner to return your money. …",
+  "isFinal": false,
+  "events": [{ "fromStatus": null, "toStatus": "initiated", "label": "Refund initiated", "source": "system", "note": "…", "at": "…" }]
+}
+```
+
+### Merchant khata
+
+Bearer, merchant, on the caller's own store. The khata is the merchant's
+credit ledger with a customer. Entries are **never edited or deleted**: a
+mistake is corrected by a reversal entry that points at it, and every entry
+records who made it. Outstanding and overdue amounts are computed from the
+ledger, oldest charges settled first.
+
+| | |
+|---|---|
+| `PUT /merchant/stores/:storeId/khata-settings` | Bearer, merchant. `{ khataEnabled?, khataDueDays? }` → `{ settings }`. `khataEnabled` lets customers with a credit limit choose **khata** at checkout. |
+| `GET /merchant/stores/:storeId/khata` | Bearer, merchant. `?search=&status=all\|outstanding\|overdue` → `{ accounts, summary: { accountCount, outstandingPaise, overduePaise } }`. |
+| `POST /merchant/stores/:storeId/khata` | Bearer, merchant. `{ customerId \| email \| phone, creditLimitPaise?, notes? }` → **201**. `customerId` must have ordered from the store; an email or phone must match exactly one customer (**422 `CUSTOMER_NOT_FOUND`**). One account per customer per store (**409**). |
+| `GET /merchant/stores/:storeId/khata/:accountId` | Bearer, merchant. `{ account, totals, openCharges, transactions, reminders }`. |
+| `PATCH /merchant/stores/:storeId/khata/:accountId` | Bearer, merchant. `{ creditLimitPaise?, isActive?, notes?, remindersEnabled? }`. A closed account still takes payments and corrections. |
+| `POST /merchant/stores/:storeId/khata/:accountId/entries` | Bearer, merchant. **Send `Idempotency-Key`.** `{ kind: charge\|payment\|adjustment, amountPaise, description?, dueDate?, paymentMethod?, direction?, orderId? }` → **201** `{ transaction, replayed, account }`. A charge gets `dueDate` (default: today + the store's `khataDueDays`); an adjustment needs `direction` and a reason (**422 `REASON_REQUIRED`**). |
+| `POST /merchant/stores/:storeId/khata/:accountId/entries/:transactionId/reverse` | Bearer, merchant. `{ reason }` → **201**. Adds the opposite entry for the same amount, linked to the original. Already reversed: **409**; a reversal cannot be reversed: **422 `CANNOT_REVERSE_REVERSAL`**. |
+| `POST /merchant/stores/:storeId/khata/:accountId/reminders` | Bearer, merchant. `{ note? }` → **201**. Records a snapshot of what is owed and notifies the customer. Nothing owed: **422 `NOTHING_OUTSTANDING`**; reminders off: **422 `REMINDERS_OFF`**. |
+| `GET /merchant/stores/:storeId/khata/:accountId/statement` | Bearer, merchant. `?from=&to=&page=&limit=` → opening, debits, credits, closing for the period. |
+
+**Paying on khata.** `POST /orders` accepts `paymentMethod: "khata"` when the
+store has `khataEnabled` and the customer has an active account with a credit
+limit. The charge is written in the same transaction as the order and must fit
+the limit (**422 `KHATA_LIMIT_EXCEEDED`** with `details.availablePaise`; no
+credit: **422 `KHATA_UNAVAILABLE`**). Cancelling such an order credits the
+amount back as a separate, linked `refund_credit` entry.
+
+### Merchant notifications
+
+The store's inbox: new orders, refunds that completed or failed, low stock,
+expiring batches, customer messages.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/notifications` | Bearer, merchant. `?unreadOnly=&page=&limit=` → `{ notifications, unreadCount }`, newest first. |
+| `POST /merchant/stores/:storeId/notifications/read-all` | Bearer, merchant. No body → `{ updated, unreadCount }`. |
+| `POST /merchant/stores/:storeId/notifications/:notificationId/read` | Bearer, merchant. No body → `{ notification }`. Idempotent. |
+
+### Store verification (KYC)
+
+A store is **verified before it is published** (migration 0039; the database
+refuses `is_published = true` on an unverified store, behind the API's own
+check — `POST …/publish` lists `verification` in `details.missing`). A reviewer
+revoking a verification unpublishes the store at once.
+
+| `verificationStatus` | Meaning |
+|---|---|
+| `not_submitted` | Details and documents can be edited. |
+| `pending` | Submitted; locked while a reviewer looks at it. |
+| `verified` | Approved. The store may be published. |
+| `rejected` | `rejectionReason` says what to fix; editable again, then resubmitted. |
+
+Documents go to a **private** bucket: JPEG, PNG, WebP or PDF, at most 5 MB,
+type read from the bytes (**422 `DOCUMENT_INVALID`**), images re-encoded so
+their metadata (GPS, camera) is dropped. A document is never a public URL; the
+owner or a reviewer gets a link valid for 5 minutes. No identity number is
+collected as text — mask the Aadhaar number on an Aadhaar card.
+
+Required to submit: legal name, business type, owner name and phone, a shop
+photo, identity proof and address proof — plus a GSTIN and the GST certificate
+when `gstApplicable` (**422 `VERIFICATION_INCOMPLETE`** with
+`details.missing`).
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/verification` | Bearer, merchant. `{ verification: { status, statusLabel, isEditable, details, documents, requiredDocuments, missing, rejectionReason, reviewNote, events } }`. |
+| `PUT /merchant/stores/:storeId/verification` | Bearer, merchant. `{ legalName?, businessType?, gstApplicable?, gstin?, ownerName?, ownerPhone?, ownerEmail?, businessAddress? }`. While `pending` or `verified`: **409**. |
+| `POST /merchant/stores/:storeId/verification/documents/:docType` | Bearer, merchant. Multipart `file` → **201**. `docType`: `gst_certificate`, `shop_photo`, `identity_proof`, `business_proof`, `address_proof`, `other`. Replaces the current one of that type; the old one stays on record. |
+| `DELETE /merchant/stores/:storeId/verification/documents/:documentId` | Bearer, merchant. Withdraws a document before submission. |
+| `GET /merchant/stores/:storeId/verification/documents/:documentId/url` | Bearer, merchant. `{ document, url, expiresInSeconds }`. |
+| `POST /merchant/stores/:storeId/verification/submit` | Bearer, merchant. No body → `pending`. |
+
+### Platform review (admin)
+
+Reviewers are platform admins — an auth user with a `platform_admins` row that
+only an operator creates. Every decision is recorded in the store's
+verification events with the reviewer, the reason and a snapshot of what was
+reviewed. Anyone else gets **403 `FORBIDDEN`**.
+
+| | |
+|---|---|
+| `POST /admin/auth/login` | **public.** `{ email, password }` → `{ admin, session, roles: ["admin"] }`. Not a reviewer: **403**, and the session is ended. |
+| `GET /admin/me` | Bearer, admin. `{ admin }`. |
+| `GET /admin/verifications` | Bearer, admin. `?status=pending&page=&limit=` → `{ stores }`, oldest first. |
+| `GET /admin/verifications/:storeId` | Bearer, admin. `{ store, verification }`. |
+| `GET /admin/verifications/:storeId/documents/:documentId/url` | Bearer, admin. A 5-minute link to one document. |
+| `POST /admin/verifications/:storeId/approve` | Bearer, admin. `{ note? }`. `pending` → `verified`. |
+| `POST /admin/verifications/:storeId/reject` | Bearer, admin. `{ reason, note? }` (reason 3–500 characters). `pending` or `verified` → `rejected`. |
+
+### Merchant catalogue operations
+
+Bearer, merchant, on the caller's own store. These save repeated work; every
+write goes through the same product, variant and inventory rules a hand edit
+does (roadmap §4 P1).
+
+**Industry templates and workflow defaults.** Seven templates — `grocery`,
+`pharmacy`, `clothing`, `electronics`, `bakery`, `stationery`, `general` — each
+with categories, starter products (units, variants, suggested prices and the
+usual GST rate) and workflow defaults. A template is a starting point: what it
+creates is ordinary, editable data, and applying it again skips anything the
+store already has (by name), never overwriting. New products take the store's
+defaults for anything the request leaves out.
+
+| | |
+|---|---|
+| `GET /merchant/templates` | Bearer, merchant. `{ templates: [{ industry, label, categoryCount, productCount, defaults }] }`. |
+| `GET /merchant/templates/:industry` | Bearer, merchant. `{ template }` with every starter product and its `suggestedPricePaise`. |
+| `POST /merchant/stores/:storeId/templates/apply` | Bearer, merchant. `{ industry, applyDefaults?, categories?: "all" \| [names], products?: "all" \| [{ key, name?, taxPercent?, prices?: { "<variant name>": paise } }] }` → **201** `{ report: { categoriesCreated, categoriesSkipped, productsCreated, productsSkipped, failed } }`. Products are created with no stock. |
+| `GET /merchant/stores/:storeId/defaults` | Bearer, merchant. `{ defaults: { lowStockThreshold, taxPercent, trackInventory, expiryAlertDays, templateApplied } }`. |
+| `PUT /merchant/stores/:storeId/defaults` | Bearer, merchant. Any of `{ lowStockThreshold, taxPercent, trackInventory, expiryAlertDays }`. |
+
+**Units.** `pcs` (piece), `kg`, `g`, `l` (litre), `ml`, `dozen`, `pack`
+(packet), `box`, plus `m`, `cm`, `pair`, `set`, `roll`, `plate`, `serving`. A
+variant's `weightGrams` lets customers see a price per kg.
+
+**Categories.**
+
+| | |
+|---|---|
+| `PUT /merchant/stores/:storeId/categories/order` | Bearer, merchant. `{ categoryIds }` — every category of the store, once each, in the new order (**422 `CATEGORY_SET_MISMATCH`** otherwise). → `{ categories }`. |
+| `DELETE /merchant/stores/:storeId/categories/:categoryId` | Bearer, merchant. `{ moveToCategoryId? , uncategorise? }`. A category that still has products is **409** (with `details.productCount`) unless they are moved or explicitly left uncategorised. → `{ movedProducts, categories }`. |
+
+**Duplicate and lookup.**
+
+| | |
+|---|---|
+| `POST /merchant/stores/:storeId/products/:productId/duplicate` | Bearer, merchant. `{ name? }` → **201** `{ product }`: same details and variants, new SKUs, no barcodes, no stock, **inactive** until edited. |
+| `GET /merchant/stores/:storeId/product-lookup` | Bearer, merchant. `?barcode=` or `?sku=` → `{ product, variant }`, or **404**. Barcodes are unique per store (**409 `BARCODE_TAKEN`**). The product list's `search` also matches SKUs and barcodes. |
+
+**Suppliers and purchases.** A purchase is a draft until confirmed. Confirming
+puts every line on the shelf as a `purchase` stock movement that references
+the purchase and records its unit cost (the variant's cost becomes the latest
+purchase cost), and opens a batch when the line has a batch number or expiry.
+A confirmed purchase is never edited; return goods with a stock-out
+(`returned_to_supplier`). The same supplier invoice number twice is **409**.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/suppliers` | Bearer, merchant. `?includeInactive=` → `{ suppliers }`. |
+| `POST /merchant/stores/:storeId/suppliers` | Bearer, merchant. `{ name, phone?, email?, gstin?, address?, notes? }` → **201**. Names are unique per store. |
+| `PATCH /merchant/stores/:storeId/suppliers/:supplierId` | Bearer, merchant. Any field above, or `isActive`. |
+| `GET /merchant/stores/:storeId/purchases` | Bearer, merchant. `?status=&supplierId=&page=&limit=` → `{ purchases }`. |
+| `POST /merchant/stores/:storeId/purchases` | Bearer, merchant. `{ supplierId? \| supplierName?, invoiceNumber?, invoiceDate?, purchaseDate?, notes?, items: [{ variantId, quantity, unitCostPaise, taxPaise?, batchNumber?, manufacturedOn?, expiresOn? }], confirm? }` → **201** `{ purchase }`. |
+| `GET /merchant/stores/:storeId/purchases/:purchaseId` | Bearer, merchant. `{ purchase }` with `items`. |
+| `PUT /merchant/stores/:storeId/purchases/:purchaseId` | Bearer, merchant. Same body; replaces a **draft** (**409** otherwise). |
+| `POST /merchant/stores/:storeId/purchases/:purchaseId/confirm` | Bearer, merchant. No body. Idempotent. An empty purchase: **422 `PURCHASE_EMPTY`**; an untracked product: **422 `NOT_TRACKED`**. |
+| `POST /merchant/stores/:storeId/purchases/:purchaseId/cancel` | Bearer, merchant. Drafts only. |
+
+**Batches and expiry.** `POST …/inventory/stock-in` also takes `batchNumber`,
+`manufacturedOn`, `expiresOn` to open a batch; `POST …/inventory/stock-out`
+takes `batchId` to take from one lot (an expired one being written off). As
+stock leaves the shelf, batches are drawn down first-expiring first — expired
+lots last, except for an `expired` write-off, which takes them first.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/inventory/batches` | Bearer, merchant. `?status=active\|expiring\|expired\|all&variantId=&page=&limit=` → `{ batches, summary: { expiringCount, expiredCount, expiredQuantity } }`, soonest expiry first. Each batch has `expiresOn`, `daysToExpiry`, `expiryState` (`ok`, `expiring` — within the store's `expiryAlertDays` — `expired`, `no_expiry`), `quantityRemaining`. |
+
+**Import / export and bulk actions.** Prices in the CSV are rupees (`120.50`).
+A product whose rows contain any error is skipped whole and every failed line is
+reported; the rest is applied product by product.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/catalogue/export` | Bearer, merchant. `text/csv`, one row per variant: `product_name, category, unit, tax_percent, track_inventory, low_stock_threshold, product_active, variant_name, sku, barcode, weight_grams, price, mrp, cost, quantity_on_hand, variant_active`. Cells a spreadsheet would run as formulas are prefixed with `'`. |
+| `POST /merchant/stores/:storeId/catalogue/import` | Bearer, merchant. Body: the CSV, `Content-Type: text/csv`, ≤ 2 MB, ≤ 5,000 rows. `?mode=preview` (default) → `{ rowCount, failedRows: [{ line, productName, errors }], products, summary }` and writes nothing; `?mode=commit` → `{ results: [{ line, status: created\|updated\|skipped\|failed, errors? }], summary }`. Matching is by SKU, then by product and variant name. A changed `quantity_on_hand` is a logged stock adjustment ("Catalogue import"). Missing `product_name`/`price` columns: **422 `IMPORT_HEADERS`**; empty: **422 `IMPORT_EMPTY`**; too many rows: **422 `IMPORT_TOO_LARGE`**. |
+| `POST /merchant/stores/:storeId/products/bulk` | Bearer, merchant. `{ action, productIds (≤ 200), preview (default true), … }` with `action` one of `archive`, `activate`, `deactivate`, `set_category { categoryId }`, `set_tax { taxPercent }`, `set_low_stock_threshold { threshold }`, `adjust_price_percent { percent }`, `stock_in { quantity, notes? }`. → `{ bulk: { results: [{ productId, status: ok\|applied\|failed, before, after, errors? }], summary } }`. A price change that would exceed a variant's MRP fails that product, not the batch. |
+
+### Customer preferences, lists and repeat shopping
+
+Bearer, customer — always the caller's own data. Nothing here bypasses the
+cart: adding a list or a usual basket goes through `POST /cart/items` rules, so
+price, stock and availability are checked as for any tap on "Add".
+
+| | |
+|---|---|
+| `GET /me/preferences` | Bearer. `{ preferences: { birthday, activityTracking, occasionOffers, preferredFulfilment, preferredPaymentMethod, preferredSubstitution, preferredLanguage, defaultAddressId } }`. A payment preference is a method name only — no card, UPI or bank detail is stored. |
+| `PATCH /me/preferences` | Bearer. Any of the above (birthday as `{ month, day }`, no year). Turning `activityTracking` off also deletes the recorded activity. |
+| `GET /me/store-preferences` | Bearer. Every store's communication choices the customer has set. |
+| `GET /stores/:storeId/preferences` | Bearer. This store's communication choices: `allowPromotions` (offers, announcements, occasion offers — off by default), `allowReminders`, `allowSms`, `allowWhatsapp`, `allowEmail`. Updates about an order you placed always reach you in the app. |
+| `PUT /stores/:storeId/preferences` | Bearer. Any of those switches. |
+| `POST /me/events` | Bearer. `{ eventType: store_view\|product_view\|search\|cart_remove\|checkout_start\|offer_view, storeId?, productId?, variantId?, query?, sessionId? }` → `{ recorded }`. Not recorded when tracking is off, or when the ids do not belong together. `cart_add` and `cart_abandon` are **refused (422)** here: the server records them itself — `cart_add` when an item is actually saved to a cart (any path: product page, buy again, lists, usual basket, reorder), with `{ quantity }` only; `cart_abandon` from the `abandoned-carts` job for an open cart with items, idle for 24 hours (and at most 30 days), not ordered since, once per cart per idle spell (unique `dedupe_key`). Neither is recorded when tracking is off, and neither carries prices. |
+| `GET /me/recently-viewed` | Bearer. `?storeId=` → `{ products }` (live price and availability). |
+| `GET /me/recently-purchased` | Bearer. `?storeId=` → `{ products }`, most recent first. |
+| `GET /me/buy-again` | Bearer. `?storeId=` → `{ products }` with `timesBought`, `usualQuantity`, `usualVariantId`, `lastBoughtAt`. |
+| `GET /me/smart-cart` | Bearer. `?storeId=` → `{ smartCart: { rule, basedOnOrders, usual, missingFromCart } }` — products in at least half of the customer's last ten completed orders at the store. |
+| `POST /me/smart-cart/add` | Bearer. `{ storeId, onlyMissing? }` → `{ added, failed, isComplete }`. |
+| `GET /me/insights` | Bearer. Deterministic metrics from the customer's own completed orders: frequent products and categories, favourite stores, purchase frequency, average order value, repeat rate, last purchase, common baskets, preferred fulfilment/payment/substitution, abandoned carts — each with its definition. |
+| `GET /me/favourites` | Bearer. `?storeId=` → `{ products }`. |
+| `POST /me/favourites/:productId` | Bearer. No body. Idempotent. |
+| `DELETE /me/favourites/:productId` | Bearer. Idempotent. |
+| `GET /me/lists` | Bearer. `?kind=list\|template` → `{ lists }`. |
+| `POST /me/lists` | Bearer. `{ name, kind?, storeId?, repeatEveryDays?, items? }` → **201**. A template (a recurring basket) belongs to one store; `repeatEveryDays` sets a reminder rhythm. |
+| `GET /me/lists/:listId` | Bearer. `{ list }` — items with the live product, or a free-text `label`. |
+| `PATCH /me/lists/:listId` | Bearer. `{ name?, repeatEveryDays? }`. |
+| `DELETE /me/lists/:listId` | Bearer. |
+| `POST /me/lists/:listId/items` | Bearer. `{ productId? \| label?, variantId?, quantity?, note? }` → **201**. |
+| `PATCH /me/lists/:listId/items/:itemId` | Bearer. `{ quantity?, note?, isChecked? }`. |
+| `DELETE /me/lists/:listId/items/:itemId` | Bearer. |
+| `POST /me/lists/:listId/add-to-cart` | Bearer. `{ storeId? }` → `{ added, failed, skipped, isComplete }`. Unchecked product lines of that store go into its cart. |
+| `POST /checkout/quick` | Bearer. `{ storeId }` → `{ settings: { fulfilmentMode, addressId, paymentMethod, substitutionPreference }, quote }` — the normal quote for the customer's saved choices, where the store allows them. Nothing is placed; the customer confirms with `POST /orders`. |
+
+**Coupons and points at checkout.** `POST /checkout/quote` and `POST /orders`
+also take `couponCode`, `redeemPoints` and `substitutionPreference`
+(`contact_me`, `allow_similar`, `no_substitutions`). The quote returns
+`benefits: { coupon, loyalty: { balancePoints, maxRedeemablePoints, pointsUsed, discountPaise, pointValuePaise } }`,
+`freeDelivery: { thresholdPaise, remainingPaise, isUnlocked }`, and blockers
+`COUPON_INVALID` (with `reason`), `NOT_STACKABLE`, `INSUFFICIENT_POINTS`,
+`BELOW_MIN_REDEEM`, `ABOVE_MAX_REDEEM`, `LOYALTY_UNAVAILABLE`. A discount is
+spread over the lines in proportion to their value, and each line's tax is on
+its price after its share (`lines[].discountPaise`). Order creation re-checks
+the coupon's window and both usage limits, the points balance and every offer
+under row locks, and refuses (**422 `COUPON_INVALID`**, **`INSUFFICIENT_POINTS`**,
+**`OFFER_ENDED`**) rather than honour what has gone. Cancelling or rejecting
+the order releases the coupon use and returns the points; completing it earns
+points.
+
+| | |
+|---|---|
+| `GET /me/loyalty` | Bearer. `{ accounts: [{ store, points, lifetimeEarned }] }`. |
+| `GET /stores/:storeId/loyalty` | Bearer. `{ loyalty: { store, program, balance: { points, valuePaise, … }, rewards (with canRedeem), history } }`. |
+| `POST /stores/:storeId/loyalty/rewards/:rewardId/redeem` | Bearer. No body → **201** `{ coupon, … }`: the points are taken and a personal single-use coupon is issued, in one transaction. Not enough points: **422 `INSUFFICIENT_POINTS`**. |
+
+**Local offers (public).** An offer is shown and priced only while it is live
+— inside its window, with offer units left, and short of its batch's safety
+cut-off — checked on every read and again when the order is placed. A cart
+line takes the offer price only if the offer can sell its whole quantity;
+otherwise a notice says how many are left at that price.
+
+| | |
+|---|---|
+| `GET /stores/:slug/offers` | **public.** `{ offers, coupons }` — live offers, and the store's coupons (personalised with eligibility when signed in). |
+| `GET /offers/nearby` | **public.** `?lat=&lng=&limit=` → `{ offers }`: live offers from published stores whose radius covers that point, nearest first, each with `store`, `distanceKm`, `offerPricePaise`, `listPricePaise`, `endsAt`, `unitsLeft`. |
+
+### Merchant CRM, loyalty, coupons and offers
+
+Bearer, merchant, on the caller's own store. CRM figures are computed from this
+store's own transactions only; segments are deterministic: **prospect** (no
+completed order), **new** (one, within 60 days), **active** (two or more, last
+within 60 days), **loyal** (five or more in 180 days, last within 60),
+**inactive** (none in 60 days).
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/customers` | Bearer, merchant. `?segment=&search=&sort=last_order\|total_spend\|orders\|name&page=&limit=` → `{ customers, segments, rules }`. Each: name, phone, segment, order count, total spend, average order, first/last order, median days between orders, follower, consent, khata balance, points, tags. |
+| `GET /merchant/stores/:storeId/customers/:customerId` | Bearer, merchant. `{ customer }` plus favourite products (repeat purchases and hearted), khata, purchase history at this store, notes. Someone who never dealt with the store is **404**. |
+| `PATCH /merchant/stores/:storeId/customers/:customerId` | Bearer, merchant. `{ notes?, tags? }`. |
+| `GET /merchant/stores/:storeId/customers/:customerId/points` | Bearer, merchant. `{ history }`. |
+| `POST /merchant/stores/:storeId/customers/:customerId/points` | Bearer, merchant. `{ points (signed), reason }` → **201** `{ balance, history }`. An adjustment entry, never an edit; below zero is **422 `INSUFFICIENT_POINTS`**. |
+| `GET /merchant/stores/:storeId/loyalty` | Bearer, merchant. `{ program }`. |
+| `PUT /merchant/stores/:storeId/loyalty` | Bearer, merchant. `{ isActive?, earnPointsPer100?, pointValuePaise?, minOrderPaiseToEarn?, minRedeemPoints?, maxRedeemPercent?, welcomeBonusPoints?, pointsExpireDays? }`. |
+| `GET /merchant/stores/:storeId/loyalty/rewards` | Bearer, merchant. `{ rewards }`. |
+| `POST /merchant/stores/:storeId/loyalty/rewards` | Bearer, merchant. `{ name, description?, pointsCost, discountType: flat\|percent\|free_delivery, amountOffPaise? \| percentOff? }` → **201**. A mismatched value is **422 `REWARD_INVALID`**. |
+| `PATCH /merchant/stores/:storeId/loyalty/rewards/:rewardId` | Bearer, merchant. Any of those, or `isActive`. |
+| `GET /merchant/stores/:storeId/loyalty/members` | Bearer, merchant. `{ members }`, highest balance first. |
+| `GET /merchant/stores/:storeId/coupons` | Bearer, merchant. `{ coupons }` with `timesUsed` and `totalDiscountPaise`. |
+| `POST /merchant/stores/:storeId/coupons` | Bearer, merchant. `{ code, title, discountType: percent\|flat\|free_delivery, percentOff? \| amountOffPaise?, maxDiscountPaise?, minOrderPaise?, startsAt?, endsAt?, maxUses?, maxUsesPerCustomer?, audience: all\|new\|returning\|loyal\|followers\|birthday, stackableWithLoyalty?, description? }` → **201**. A code used before: **409**; an impossible setup: **422 `COUPON_INVALID_SETUP`**. `new` is a first order at this store; `birthday` needs the customer's birthday week and their consent. |
+| `PATCH /merchant/stores/:storeId/coupons/:couponId` | Bearer, merchant. Any of those, or `isActive`. |
+| `GET /merchant/stores/:storeId/offers` | Bearer, merchant. `?status=all\|live\|scheduled\|ended` → `{ offers }`, each with `endReason`. |
+| `POST /merchant/stores/:storeId/offers` | Bearer, merchant. `{ kind: expiry\|promotion, variantId, batchId?, title, description?, offerPricePaise, startsAt?, endsAt, quantityLimit?, radiusKm?, expiryCutoffDays? }` → **201**. An expiry offer needs its batch (**422 `BATCH_REQUIRED`**), is capped at what is left of it, and is refused inside the safety cut-off (**422 `PAST_EXPIRY_CUTOFF`**); the price must be below the normal one (**422 `OFFER_NOT_LOWER`**); one live offer per variant (**409**). Also **422 `BATCH_EMPTY`**. |
+| `POST /merchant/stores/:storeId/offers/:offerId/end` | Bearer, merchant. No body. |
+
+### Conversations, substitutions and support
+
+A conversation is between one customer and one store (and, for an order, that
+order). Messages are never edited. `kind`: `question` (ask the shop),
+`special_request` (with `requestType`: `custom_item`, `packaging`,
+`delivery_time`, `bulk_order`, `other`), `order`, `support`. `status`:
+`awaiting_store`, `awaiting_customer`, `resolved`, `escalated`. Every new
+message notifies the other side; a customer writing again reopens a resolved
+conversation.
+
+| | |
+|---|---|
+| `GET /conversations` | Bearer. `?orderId=` → `{ conversations }`, most recent first, each with `isUnread`. |
+| `POST /conversations` | Bearer. `{ kind, storeId? \| orderId?, productId?, requestType?, subject, message }` → **201** `{ conversation }`. `order`/`support` need an `orderId` of the caller's own order; a product must belong to the store. |
+| `GET /conversations/:conversationId` | Bearer. `{ conversation }` with `messages`; marks it read. Another customer's is **404**. |
+| `POST /conversations/:conversationId/messages` | Bearer. `{ body }` (1–2000 characters) → **201**. |
+| `POST /conversations/:conversationId/escalate` | Bearer. `{ reason }` → the conversation moves to CPSE support (`escalated`). Only conversations about an order (**409** otherwise). |
+| `POST /conversations/:conversationId/resolve` | Bearer. No body. |
+| `GET /merchant/stores/:storeId/conversations` | Bearer, merchant. `?status=&kind=` → `{ conversations }`. |
+| `GET /merchant/stores/:storeId/conversations/:conversationId` | Bearer, merchant. `{ conversation }` with `messages`; marks it read. |
+| `POST /merchant/stores/:storeId/conversations/:conversationId/messages` | Bearer, merchant. `{ body, resolve? }` → **201**. |
+| `GET /admin/support` | Bearer, admin. Escalated conversations, oldest escalation first. |
+| `GET /admin/support/:conversationId` | Bearer, admin. Only an escalated conversation (**404** otherwise). |
+| `POST /admin/support/:conversationId/messages` | Bearer, admin. `{ body, resolve? }` → **201**; the customer is notified. |
+
+**Substitutions.** Only with the customer's agreement: an order's
+`substitutionPreference` is `contact_me` (every proposal waits for the
+customer), `allow_similar` (a replacement that costs no more is applied at
+once, and the customer told), or `no_substitutions` (the store cannot propose
+one — **409 `NO_SUBSTITUTIONS`**). The customer never pays more: a dearer
+replacement is charged at the original line's price. Applying one moves the
+stock reservation, keeps the replaced line on the order as `replacedItems`,
+recomputes the totals, and — for a prepaid order that now costs less — opens an
+`adjustment` refund for the difference (listed in `order.refundAdjustments`;
+a khata one is credited at once).
+
+| | |
+|---|---|
+| `POST /merchant/stores/:storeId/orders/:orderId/substitutions` | Bearer, merchant. `{ orderItemId, variantId, quantity?, note? }` → **201** `{ substitution }`. Only before the order is ready (**409**); one pending proposal per line (**409**); the same item is **422 `SAME_ITEM`**. |
+| `POST /merchant/stores/:storeId/substitutions/:substitutionId/withdraw` | Bearer, merchant. No body. A pending proposal only. |
+| `POST /substitutions/:substitutionId/respond` | Bearer, customer. `{ approve, note? }` → `{ substitution }`. A replacement that has since sold out is **422 `SUBSTITUTE_UNAVAILABLE`**; an answered one is **409**. |
+
+**Announcements.** Reach only customers who saved the store **and** turned
+promotions on for it; at most three a day (**429**).
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/announcements` | Bearer, merchant. `{ announcements, audience: { followers, optedIn } }`. |
+| `POST /merchant/stores/:storeId/announcements` | Bearer, merchant. `{ title, body? }` → **201** `{ announcement }` with `recipientCount`. |
+
+### Analytics, alerts, suggestions and recurring tasks
+
+Bearer, merchant, on the caller's own store.
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/analytics` | Bearer, merchant. `?from=YYYY-MM-DD&to=YYYY-MM-DD` (default: the last 30 days, store timezone; at most a year — **422 `PERIOD_TOO_LONG`**; `from` after `to` — **422 `PERIOD_INVALID`**) → `{ analytics: { period, sales (gross, orders, counter, refunds, average ticket, daily trend), orders (by status, cancellation rate, median minutes to accept, by fulfilment), products (bestSellers, slowMovers, unavailable), customers (segments, new and returning buyers), khata (outstanding, overdue, collected, charged), definitions } }`. Completed orders count once, on their completion day; cancelled and rejected orders are never sales; refunds are reported separately, not subtracted. |
+| `GET /merchant/stores/:storeId/low-stock` | Bearer, merchant. `{ items }` — counted, active variants at or under their product's alert level, emptiest first. |
+| `GET /merchant/stores/:storeId/purchase-suggestions` | Bearer, merchant. `?coverDays=14&lookbackDays=30` → `{ suggestions: { suggestions: [{ productName, variantName, available, onDraftPurchases, soldLastPeriod, dailyRate, suggestedQuantity, lastCostPaise, estimatedCostPaise, reason }] } }`. Deterministic: enough to cover `coverDays` at the recent selling rate and at least one above the alert level, less what is available and already on draft purchases. |
+| `POST /merchant/stores/:storeId/purchase-suggestions/draft` | Bearer, merchant. `{ supplierId?, items: [{ variantId, quantity, unitCostPaise }] }` → **201** `{ purchase }` as a **draft**. Nothing reaches the shelf until it is confirmed. |
+| `GET /merchant/stores/:storeId/tasks` | Bearer, merchant. `{ tasks }` — recurring operations, next run first. |
+| `POST /merchant/stores/:storeId/tasks` | Bearer, merchant. `{ title, taskType: reminder\|low_stock_report\|expiry_report\|purchase_suggestions\|khata_overdue_report, frequency: daily\|weekly\|monthly, dayOfWeek? (0 = Sunday), dayOfMonth? (1–28), timeOfDay? (HH:MM, store time) }` → **201**. At each run the store's inbox gets the report. |
+| `PATCH /merchant/stores/:storeId/tasks/:taskId` | Bearer, merchant. Any of those, or `isActive`. |
+| `DELETE /merchant/stores/:storeId/tasks/:taskId` | Bearer, merchant. |
+| `PUT /merchant/stores/:storeId/khata-settings/auto-reminders` | Bearer, merchant. `{ enabled }` — weekly automatic reminders for overdue khata accounts (customers who turned reminders off are skipped). Off by default. |
+
+**Scheduled jobs** (`src/jobs`, run in-process when `JOBS_ENABLED=true`, or
+once each by `npm run db:maintenance`): expire unpaid orders, reconcile
+refunds, end offers, low-stock alerts (one per variant per day), expiry alerts
+(one per batch and state), recurring tasks, reorder and template reminders,
+khata reminders (opt-in), points expiry, support escalation (order conversations
+unanswered by the shop for 24 hours go to CPSE support), abandoned-cart events, and
+notification deliveries. Each
+takes a lease so several instances never run the same job at once, and logs
+every run in `job_runs`.
+
+**Notification delivery.** Every notification is delivered in the app; SMS,
+WhatsApp and email are attempted only where the customer opted in for that
+store (promotional ones only with promotions consent), through
+`NOTIFY_CHANNEL_PROVIDER`. With no provider configured an attempt is recorded
+as `skipped` with the reason — never claimed as sent.
+
+| | |
+|---|---|
+| `GET /notifications/:id/deliveries` | Bearer. `{ deliveries: [{ channel, status: delivered\|pending\|sent\|failed\|skipped, attempts, lastError, deliveredAt }] }`. |
+
+
+### Intelligence (forecasts, suggestions, assistants)
+
+Roadmap Phase D/E and §5 P6. **Every endpoint here is read-only** — the POSTs
+carry text or a file to read, not changes to make. Everything except the two
+photo endpoints (`recognize`, `invoice-file`) is deterministic — no model is
+called, so the same data gives the same answer. Those two ask a vision model
+(`AI_PROVIDER=gemini`) to read the file, then validate and match its answer
+against the shop's own records like any other input.
+What they suggest is applied only when a person confirms it through the
+ordinary endpoint a proposal names.
+
+Merchant — bearer, merchant, on the caller's own store:
+
+| | |
+|---|---|
+| `GET /merchant/stores/:storeId/intelligence/stock` | `?horizonDays=14&leadDays=7` → `{ stock: { today, counts, items: [{ productId, variantId, name, available, soldLast30, forecast: { confidence: insufficient\|low\|medium\|high, reason, dailyAverage, nextDaysUnits }, health: { status: stockout\|at_risk\|overstock\|slow\|healthy\|unknown\|untracked, daysOfCover, note }, proposedReorderQuantity }], method } }`. No forecast with under 14 days of history or under 3 selling days — it says so instead. |
+| `POST /merchant/stores/:storeId/intelligence/product-suggestions` | `{ name }` → `{ suggestion: { suggestions: { category, unit, taxPercent, weightGrams, variants }, duplicates, related, nextActions, note } }`, each suggestion with its reason; from the store's own products first, then the industry templates. |
+| `POST /merchant/stores/:storeId/intelligence/invoice` | `{ text }` (pasted invoice) → `{ invoice: { invoiceNumber, invoiceDate, statedTotalPaise, computedTotalPaise, totalMatches, lines: [{ source, readAs, match, confidence, warnings, alternatives }], skipped } }`. **422 `NOTHING_READ`** when no line has a name, quantity and price. Nothing is saved; the purchase is created as usual. |
+| `POST /merchant/stores/:storeId/intelligence/invoice-file` | Multipart, field `file` (JPEG/PNG/WebP photo or PDF, ≤ 5 MB) → the same `{ invoice }` as `/invoice` plus `source: "file"` and `transcript` (the lines the vision model read, which then go through the same text reader and checks). Lines without a whole quantity and a price are listed in `skipped`. **422 `NOTHING_READ`**, **422 `IMAGE_INVALID`**, **502 `AI_BAD_RESPONSE`** (unusable model answer), **503 `AI_UNAVAILABLE`** (no provider configured, or busy). Write-rate limited. Nothing is saved. |
+| `POST /merchant/stores/:storeId/intelligence/recognize` | Multipart, field `file` (JPEG/PNG/WebP photo, ≤ 5 MB; PDFs → 422 `IMAGE_INVALID`) → `{ recognition: { read: { isProduct, name, brand, sizeText, category, barcode, mrpRupees, mrpPaise, weightGrams, confidence }, identified, match: { productId, variantId, name, by: barcode\|name, score, isAvailable, pricePaise } \| null, candidates: [ … up to 3 ], suggestion: { name, category, unit, taxPercent, weightGrams, mrpPaise, barcode, duplicates } \| null, note } }`. `identified` is false below confidence 0.5 or when no product is seen. A readable barcode matches exactly; otherwise names are compared with the shop's catalogue. `suggestion` (for the New product form) only when nothing in the shop matches. **502 `AI_BAD_RESPONSE`**, **503 `AI_UNAVAILABLE`**. Write-rate limited. Nothing is saved. |
+| `POST /merchant/stores/:storeId/intelligence/command` | `{ text }` (typed or spoken: "add 10 basmati rice 1 kg", "set price of sugar to 45", "mark ghee out of stock") → `{ command: { understood, proposal: { summary, apply: { method, path, body }, requiresConfirmation: true } \| null, problem, options } }`. |
+| `POST /merchant/stores/:storeId/intelligence/ask` | `{ question }` → `{ reply: { kind: answer\|proposal\|help, intent, answer, data, source, actions } }` — sales, best and slow sellers, what is running low, forecast, khata owed, open orders; commands are answered with a proposal. |
+| `GET /merchant/stores/:storeId/intelligence/area` | `{ area: { city, minStores, otherStores, benchmarks: [{ name, basis: per_kg\|per_pack, yourPricePaise, area: { stores, p25, median, p75 }, position }], popularNearby, note } }`. Only from **at least 5 other shops** in the same city, one figure per shop, never naming a shop. |
+| `GET /merchant/stores/:storeId/products/:productId/alternatives` | Similar, buyable products for a replacement — the same engine as the customer's. |
+
+Customer:
+
+| | |
+|---|---|
+| `GET /stores/:slug/smart-search` | Public. `?q=` in plain words ("2 kg basmati under 300", "cheapest atta", "milk on offer") → `{ search: { interpretation, parsed, results: [{ product, suggestion: { variantId, variantName, quantity, unitPricePaise, pricePerKgPaise }, totalPaise, reason, add }] } }`. |
+| `POST /stores/:slug/assistant` | Public; personal when signed in. `{ message }` → `{ reply: { kind: answer\|results\|proposal\|sign_in, intent, answer, … } }` — hours, delivery and minimum, offers, "my usual", a whole list (→ basket proposal), comparisons, search. It never adds to the cart. |
+| `GET /stores/:slug/products/:productId/recommendations` | Public. `{ recommendations: { items: [{ product, reason }], rule } }` — bought together in at least two completed orders here (180 days), then popular in the same category. |
+| `GET /stores/:slug/products/:productId/alternatives` | Public. `{ alternatives: { items: [{ product, reason, score }] } }` — similar name or category, buyable, within half to one-and-a-half times the price. |
+| `POST /stores/:storeId/basket/propose` | Bearer, customer. `{ text }` ("2 kg rice, 1 litre oil and 6 eggs") → `{ basket: { proposals: [{ text, product, suggestion, linePaise, reason, alternatives, add }], unmatched, estimatePaise } }`. Uses the customer's usual size when none is written. Nothing is added. |
+| `GET /me/replenishment` | Bearer, customer. `{ replenishment: { items: [{ product, everyDays, lastBoughtOn, dueOn, dueInDays, status: due\|soon\|later, usualQuantity, usualVariantId }], rule } }`. |
+| `GET /me/discover` | Bearer, customer. `?storeId=` → `{ discover: { basedOn, items: [{ product, reason }], offers } }` — new-to-you products from the categories you buy here. |
+
+
 ---
 
 ## Rate limits

@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { mountFrontend, closeFrontend } from './lib/frontendHost.js';
+import { startScheduler, stopScheduler } from './jobs/index.js';
 
 const app = createApp();
 
@@ -23,6 +24,7 @@ server.once('error', (error) => {
 
 server.listen(env.PORT, async () => {
   await mountFrontend(app, server);
+  startScheduler();
   logger.info('server started', {
     port: env.PORT,
     environment: env.NODE_ENV,
@@ -36,6 +38,7 @@ function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info('shutting down', { signal });
+  stopScheduler();
   // Vite holds file watchers open; without this, --watch restarts leak them.
   closeFrontend().finally(() => server.close(() => process.exit(0)));
   // Don't let a hung connection block the exit forever.

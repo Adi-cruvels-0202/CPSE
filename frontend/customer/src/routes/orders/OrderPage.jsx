@@ -15,6 +15,7 @@ import { RemoteImage } from '../../components/RemoteImage.jsx';
 import { ErrorState, LoadingBlock, Skeleton } from '../../components/states/States.jsx';
 import { FormError } from '../../components/FormError.jsx';
 import { OrderTimeline } from './OrderTimeline.jsx';
+import { RefundSection, SubstitutionSection, substitutionPreferenceLabel } from './OrderExtras.jsx';
 import './Orders.css';
 
 /**
@@ -101,14 +102,19 @@ export function OrderPage() {
 
       {/* The refund is the first thing they will look for after cancelling, so it
           stays on the order rather than only appearing in the confirmation. */}
-      {order.status === 'cancelled' && paidOnline ? (
+      {/* The refund record, when there is one, says everything — amount, where it
+          goes, how far along it is. The two notices below are for older orders. */}
+      <RefundSection order={order} />
+      <SubstitutionSection order={order} onChanged={refetch} />
+
+      {!order.refund && order.status === 'cancelled' && paidOnline ? (
         <p className="notice notice--info">
           {formatPaise(order.totals.totalPaise)} will be refunded to the account you paid from.
           Banks usually take {REFUND_WORKING_DAYS} working days to show it.
         </p>
       ) : null}
 
-      {order.status === 'cancelled' && order.paymentStatus === 'refunded' ? (
+      {!order.refund && order.status === 'cancelled' && order.paymentStatus === 'refunded' ? (
         <p className="notice notice--success">
           {formatPaise(order.totals.totalPaise)} has been refunded to the account you paid from.
         </p>
@@ -168,7 +174,7 @@ export function OrderPage() {
         <dl className="order__totals">
           <Row label="Subtotal">{formatPaise(order.totals.subtotalPaise)}</Row>
           {order.totals.discountPaise > 0 ? (
-            <Row label="Discount">−{formatPaise(order.totals.discountPaise)}</Row>
+            <Row label={discountLabel(order.benefits)}>−{formatPaise(order.totals.discountPaise)}</Row>
           ) : null}
           {order.totals.taxPaise > 0 ? (
             <Row label="GST">{formatPaise(order.totals.taxPaise)}</Row>
@@ -188,6 +194,10 @@ export function OrderPage() {
 
       <Fulfilment order={order} />
 
+      {substitutionPreferenceLabel(order.substitutionPreference) ? (
+        <p className="muted">If something is out of stock: {substitutionPreferenceLabel(order.substitutionPreference)}.</p>
+      ) : null}
+
       {order.customerNote ? (
         <section className="card stack" aria-labelledby="note-heading">
           <h2 id="note-heading" className="order__section-title">
@@ -204,6 +214,10 @@ export function OrderPage() {
           View receipt
         </Link>
 
+        <Link to={`/messages/new?orderId=${order.id}`} className="btn btn--ghost btn--block">
+          Message the shop about this order
+        </Link>
+
         {/* Checklist 11.11 */}
         <button
           type="button"
@@ -218,7 +232,10 @@ export function OrderPage() {
           cancelling ? (
             <div className="notice notice--danger stack" role="alertdialog" aria-label="Cancel this order?">
               <p>Cancel {order.orderNumber}? The shop will be told.</p>
-              {paidOnline ? (
+              {order.cancellation?.rule ? <p className="muted">{order.cancellation.rule}</p> : null}
+              {order.cancellation?.refundMethod === 'khata_credit' ? (
+                <p>{formatPaise(order.cancellation.refundOnCancelPaise)} will be credited back to your khata with this shop.</p>
+              ) : paidOnline ? (
                 <p>
                   You paid {formatPaise(order.totals.totalPaise)} online. It will be refunded to
                   the account you paid from, usually within {REFUND_WORKING_DAYS} working days.
@@ -315,6 +332,14 @@ function Fulfilment({ order }) {
       ) : null}
     </section>
   );
+}
+
+/** Says where a discount came from: a coupon, points, or both. */
+function discountLabel(benefits) {
+  const parts = [];
+  if (benefits?.couponCode) parts.push(`coupon ${benefits.couponCode}`);
+  if (benefits?.loyaltyPointsRedeemed) parts.push(`${benefits.loyaltyPointsRedeemed} points`);
+  return parts.length ? `Discount (${parts.join(' + ')})` : 'Discount';
 }
 
 function Row({ label, children, strong }) {

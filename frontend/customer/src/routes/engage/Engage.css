@@ -1,0 +1,141 @@
+/* Repeat shopping, lists, preferences, points and messages (roadmap §5 P2–P5). */
+
+.prows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.prow {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.prow__image {
+  width: 3.5rem;
+}
+
+.prow__body {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.prow__name {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.prow__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tabs__tab {
+  border: 0;
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tabs__tab--active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+  font-weight: 600;
+}
+
+.engage__title {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.engage__facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.engage__facts dt {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.engage__facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.toggle-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-2) 0;
+}
+
+.toggle-row input {
+  margin-top: 0.25rem;
+}
+
+.chat {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.chat__msg {
+  max-width: 85%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--bg-sunken);
+}
+
+.chat__msg--mine {
+  justify-self: end;
+  background: var(--bg-brand-subtle);
+}
+
+.chat__msg--system {
+  justify-self: center;
+  background: transparent;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.offer-strip {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(14rem, 80%);
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+}
+
+.offer-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  display: grid;
+  gap: 0.2rem;
+}

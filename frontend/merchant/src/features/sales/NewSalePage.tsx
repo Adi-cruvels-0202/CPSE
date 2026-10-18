@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi, saleApi, categoryApi } from '../../api/endpoints';
+import { catalogueOpsApi, intelligenceApi } from '../../api/ops';
+import { CameraScanner, canScanWithCamera } from './CameraScanner';
 import { errorMessage } from '../../api/client';
 import type { Sale } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
@@ -23,6 +25,7 @@ interface Sellable {
   productName: string;
   variantName: string | null;
   sku: string | null;
+  barcode: string | null;
   categoryId: string | null;
   imageUrl: string | null;
   pricePaise: number;
@@ -51,6 +54,9 @@ export default function NewSalePage() {
   const [discount, setDiscount] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState<Sale | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [identifying, setIdentifying] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
   // One key per bill: a retried "Charge" after a timeout returns the same sale.
   const idempotencyKey = useRef(newKey());
 
@@ -69,6 +75,7 @@ export default function NewSalePage() {
               productName: product.name,
               variantName: variant.name === 'Default' ? null : variant.name,
               sku: variant.sku,
+              barcode: variant.barcode ?? null,
               categoryId: product.categoryId,
               imageUrl: product.images[0]?.url ?? null,
               pricePaise: variant.pricePaise,
@@ -84,7 +91,7 @@ export default function NewSalePage() {
     return sellables.filter(
       (item) =>
         (!categoryId || item.categoryId === categoryId) &&
-        (!term || `${item.productName} ${item.variantName ?? ''} ${item.sku ?? ''}`.toLowerCase().includes(term)),
+        (!term || `${item.productName} ${item.variantName ?? ''} ${item.sku ?? ''} ${item.barcode ?? ''}`.toLowerCase().includes(term)),
     );
   }, [sellables, search, categoryId]);
 
@@ -114,6 +121,65 @@ export default function NewSalePage() {
         ? current.filter((line) => line.variantId !== variantId)
         : current.map((line) => (line.variantId === variantId ? { ...line, quantity: Math.min(quantity, limit(line)) } : line)),
     );
+
+  /**
+   * Enter in the search box — what a barcode scanner sends after the code.
+   * An exact barcode or SKU adds that item; otherwise a single match does.
+   * A code not in the loaded list is looked up on the server, which also
+   * catches products added since this page opened.
+   */
+  const scan = async (scanned?: string) => {
+    const code = (scanned ?? search).trim();
+    if (!code) return;
+    const exact = sellables.find((item) => item.barcode === code || item.sku?.toLowerCase() === code.toLowerCase());
+    const pick = exact ?? (shown.length === 1 ? shown[0] : null);
+    if (pick) {
+      add(pick);
+      setSearch('');
+      return;
+    }
+    try {
+      const { product, variant } = await catalogueOpsApi.lookup(activeStoreId, { barcode: code });
+      if (!product.isActive || !variant.isActive) {
+        showToast(`${product.name} is not available for sale.`, 'error');
+        return;
+      }
+      add({
+        variantId: variant.id, productName: product.name, variantName: variant.name === 'Default' ? null : variant.name, sku: variant.sku,
+        barcode: variant.barcode ?? null, categoryId: product.categoryId, imageUrl: product.images[0]?.url ?? null, pricePaise: variant.pricePaise,
+        taxPercent: product.taxPercent, available: product.trackInventory ? variant.availableQuantity : null,
+      });
+      setSearch('');
+    } catch (err) {
+      showToast(errorMessage(err, `Nothing matches ${code}.`), 'error');
+    }
+  };
+
+  /**
+   * Roadmap Phase D "Product recognition" at the counter: a photo of an item
+   * with no readable barcode. A confident match of one size is added; a match
+   * of several sizes fills the search so the right one can be tapped.
+   */
+  const identify = async (file: File) => {
+    setIdentifying(true);
+    try {
+      const { recognition } = await intelligenceApi.recognize(activeStoreId, file);
+      const item = recognition.match?.variantId ? sellables.find((s) => s.variantId === recognition.match!.variantId) : null;
+      if (!recognition.identified) showToast(recognition.note, 'error');
+      else if (item && !(item.available !== null && item.available <= 0)) {
+        add(item);
+        showToast(`Added ${recognition.match!.name} — check it is the right item.`, 'success');
+      } else if (recognition.match) {
+        if (item) showToast(`${recognition.match.name} is out of stock.`, 'error');
+        setSearch(recognition.match.name.replace(/\s*\(.*\)$/, ''));
+      }
+      else showToast(`${recognition.read.name ?? 'That item'} is not in your products.`, 'error');
+    } catch (err) {
+      showToast(errorMessage(err), 'error');
+    } finally {
+      setIdentifying(false);
+    }
+  };
 
   const subtotal = cart.reduce((sum, line) => sum + line.pricePaise * line.quantity, 0);
   const tax = cart.reduce((sum, line) => sum + taxFor(line.pricePaise * line.quantity, line.taxPercent), 0);
@@ -182,13 +248,22 @@ export default function NewSalePage() {
   return (
     <div className="sale-layout">
       <h1 className="sr-only">New counter sale</h1>
+      {scanning && <CameraScanner onClose={() => setScanning(false)} onCode={(code) => { setScanning(false); scan(code); }} />}
       <div className="sale-products-zone">
         <div className="sale-products-header">
-          <div className="sale-search-bar">
+          <div className={`sale-search-bar${canScanWithCamera() ? ' has-camera' : ''}`}>
             <IconSearch size={18} className="search-input-icon" />
-            <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search by name or SKU…" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus style={{ width: '100%' }} />
+            <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search, or scan a barcode…" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); scan(); } }} autoFocus style={{ width: '100%' }} />
             {!search && <div className="sale-search-shortcut">⌘K</div>}
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
+            {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm sale-search-camera" onClick={() => setScanning(true)} aria-label="Scan with camera">📷</button>}
+          </div>
+          <div className="sale-photo-row">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoInput.current?.click()} disabled={identifying}>
+              {identifying ? 'Reading the photo…' : 'No barcode? Identify from photo'}
+            </button>
+            <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden aria-label="Item photo"
+              data-testid="sale-photo" onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; if (file) void identify(file); }} />
           </div>
           {(cats?.categories.length ?? 0) > 0 && (
             <div className="sale-categories">

@@ -109,9 +109,9 @@ export const productApi = {
 type Movement = { variant: StockVariant; entry: LedgerEntry };
 
 export const inventoryApi = {
-  stockIn: (storeId: string, body: { variantId: string; quantity: number; unitCostPaise?: number | null; notes?: string | null }) =>
+  stockIn: (storeId: string, body: { variantId: string; quantity: number; unitCostPaise?: number | null; notes?: string | null; batchNumber?: string | null; expiresOn?: string | null; manufacturedOn?: string | null }) =>
     api.post<Movement>(`${store(storeId)}/inventory/stock-in`, body),
-  stockOut: (storeId: string, body: { variantId: string; quantity: number; reason: string; notes?: string | null }) =>
+  stockOut: (storeId: string, body: { variantId: string; quantity: number; reason: string; notes?: string | null; batchId?: string | null }) =>
     api.post<Movement>(`${store(storeId)}/inventory/stock-out`, body),
   adjust: (storeId: string, body: { variantId: string; newQuantity: number; reason: string }) =>
     api.post<Movement>(`${store(storeId)}/inventory/adjust`, body),

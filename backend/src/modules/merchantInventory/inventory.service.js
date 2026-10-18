@@ -102,6 +102,8 @@ function translateMovementError(error) {
   switch (code) {
     case 'VARIANT_NOT_FOUND':
       return notFound('Product variant');
+    case 'BATCH_NOT_FOUND':
+      return notFound('Batch');
     case 'NOT_TRACKED':
       return unprocessable('NOT_TRACKED', 'Stock is not counted for this product. Turn stock tracking on first.');
     case 'INSUFFICIENT_STOCK':
@@ -166,6 +168,10 @@ export async function recordMovement(store, merchant, kind, input) {
       unit_cost_paise: input.unitCostPaise ?? null,
       reason: input.reason ?? null,
       notes: input.notes ?? null,
+      batch_id: input.batchId ?? null,
+      batch_number: input.batchNumber ?? null,
+      manufactured_on: input.manufacturedOn ?? null,
+      expires_on: input.expiresOn ?? null,
     },
   });
   if (error) throw translateMovementError(error);
@@ -225,4 +231,87 @@ export async function listHistory(store, { variantId, productId, movementType, f
   const rows = data ?? [];
   const names = await hydrate(rows);
   return { entries: rows.map((row) => toEntry(row, names)), total: count ?? rows.length };
+}
+
+// ── Batches and expiry (migration 0040) ──────────────────────────────────────
+
+const BATCH_COLUMNS = `
+  id, store_id, product_id, variant_id, purchase_item_id, batch_number, manufactured_on, expires_on,
+  quantity_received, quantity_remaining, unit_cost_paise, created_at
+`;
+
+/** 'expired', 'expiring' (within the store's alert window) or 'ok', for a date in the store's zone. */
+export function batchExpiryState(expiresOn, today, alertDays) {
+  if (!expiresOn) return 'no_expiry';
+  if (expiresOn < today) return 'expired';
+  const [y, m, d] = today.split('-').map(Number);
+  const horizon = new Date(Date.UTC(y, m - 1, d + alertDays)).toISOString().slice(0, 10);
+  return expiresOn <= horizon ? 'expiring' : 'ok';
+}
+
+const utcDay = (isoDate) => {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+};
+
+/** Whole days from `fromDate` to `toDate`, both 'YYYY-MM-DD'. */
+export const daysBetween = (fromDate, toDate) => Math.round((utcDay(toDate) - utcDay(fromDate)) / 86_400_000);
+
+export function toBatch(row, { today, alertDays, product, variant }) {
+  const daysLeft = row.expires_on ? daysBetween(today, row.expires_on) : null;
+  return {
+    id: row.id,
+    productId: row.product_id,
+    productName: product?.name ?? null,
+    variantId: row.variant_id,
+    variantName: variant?.name ?? null,
+    sku: variant?.sku ?? null,
+    batchNumber: row.batch_number ?? null,
+    manufacturedOn: row.manufactured_on ?? null,
+    expiresOn: row.expires_on ?? null,
+    daysToExpiry: daysLeft,
+    expiryState: batchExpiryState(row.expires_on, today, alertDays),
+    quantityReceived: row.quantity_received,
+    quantityRemaining: row.quantity_remaining,
+    unitCostPaise: row.unit_cost_paise ?? null,
+    fromPurchase: Boolean(row.purchase_item_id),
+    receivedAt: row.created_at,
+  };
+}
+
+/** Batches still on the shelf, filtered by expiry state, soonest expiry first. */
+export async function listBatches(store, { status = 'active', variantId, page = 1, limit = 50, now = new Date() }) {
+  let query = supabaseAdmin.from('inventory_batches').select(BATCH_COLUMNS).eq('store_id', store.id);
+  if (status !== 'all') query = query.gt('quantity_remaining', 0);
+  if (variantId) query = query.eq('variant_id', variantId);
+  const { data, error } = await query.order('expires_on', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true });
+  if (error) throw internal('Could not load the batches.');
+
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: store.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+  const alertDays = store.expiry_alert_days ?? 30;
+  const rows = data ?? [];
+
+  const [products, variants] = await Promise.all([
+    rows.length ? supabaseAdmin.from('products').select('id, name').in('id', [...new Set(rows.map((r) => r.product_id))]) : { data: [] },
+    rows.length ? supabaseAdmin.from('product_variants').select('id, name, sku').in('id', [...new Set(rows.map((r) => r.variant_id))]) : { data: [] },
+  ]);
+  const productById = new Map((products.data ?? []).map((row) => [row.id, row]));
+  const variantById = new Map((variants.data ?? []).map((row) => [row.id, row]));
+
+  let batches = rows.map((row) =>
+    toBatch(row, { today, alertDays, product: productById.get(row.product_id), variant: variantById.get(row.variant_id) }),
+  );
+  if (status === 'expiring') batches = batches.filter((b) => b.expiryState === 'expiring');
+  if (status === 'expired') batches = batches.filter((b) => b.expiryState === 'expired');
+
+  const from = (page - 1) * limit;
+  return {
+    batches: batches.slice(from, from + limit),
+    total: batches.length,
+    summary: {
+      expiringCount: batches.filter((b) => b.expiryState === 'expiring').length,
+      expiredCount: batches.filter((b) => b.expiryState === 'expired').length,
+      expiredQuantity: batches.filter((b) => b.expiryState === 'expired').reduce((sum, b) => sum + b.quantityRemaining, 0),
+    },
+  };
 }

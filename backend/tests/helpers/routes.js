@@ -48,6 +48,7 @@ export const PUBLIC_ROUTES = new Map([
   ['POST /auth/reset-password', 'password reset completion'],
   ['POST /merchant/auth/register', 'creating a merchant account'],
   ['POST /merchant/auth/login', 'signing in to the shop app'],
+  ['POST /admin/auth/login', 'signing in as a platform reviewer'],
   ['GET /stores', 'shop directory on the public home page'],
   ['GET /stores/:slug', 'public store page — must open from a shared link'],
   ['GET /stores/:slug/categories', 'public store page'],
@@ -55,6 +56,12 @@ export const PUBLIC_ROUTES = new Map([
   ['GET /stores/:slug/products/:productId', 'public product page'],
   ['GET /stores/:slug/search', 'public store search'],
   ['GET /payments/methods', 'shown on checkout before anything exists'],
+  ['GET /stores/:slug/offers', "a store's live offers, on its public page"],
+  ['GET /offers/nearby', 'the local offer banner, before sign-in'],
+  ['GET /stores/:slug/smart-search', 'plain-words search on the public store page'],
+  ['POST /stores/:slug/assistant', 'the store page assistant — read-only, personal only when signed in'],
+  ['GET /stores/:slug/products/:productId/recommendations', 'bought-together, on the public product page'],
+  ['GET /stores/:slug/products/:productId/alternatives', 'similar products, on the public product page'],
   ['POST /payments/webhook', 'the gateway authenticates with an HMAC signature'],
 ]);
 

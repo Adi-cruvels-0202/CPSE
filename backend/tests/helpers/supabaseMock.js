@@ -79,6 +79,42 @@ const KNOWN_TABLES = [
   'store_holidays',
   'sales',
   'sale_items',
+  // Added after the mock's own fixtures were written; the integration suite
+  // (helpers/pgSupabase.js) is what exercises them. Here they are simply empty.
+  'refunds',
+  'refund_events',
+  'merchant_notifications',
+  'notification_deliveries',
+  'khata_reminders',
+  'platform_admins',
+  'store_verifications',
+  'verification_documents',
+  'verification_events',
+  'suppliers',
+  'purchases',
+  'purchase_items',
+  'inventory_batches',
+  'customer_store_preferences',
+  'favourite_products',
+  'shopping_lists',
+  'shopping_list_items',
+  'customer_events',
+  'store_customer_notes',
+  'loyalty_programs',
+  'loyalty_accounts',
+  'loyalty_rewards',
+  'loyalty_ledger',
+  'coupons',
+  'coupon_redemptions',
+  'store_offers',
+  'conversations',
+  'messages',
+  'store_announcements',
+  'order_substitutions',
+  'job_leases',
+  'job_runs',
+  'recurring_tasks',
+  'customer_reminders',
 ];
 
 /**
@@ -118,6 +154,12 @@ const COLUMN_DEFAULTS = {
     shop_category: null,
     accepts_cash: true,
     accepts_online: false,
+    khata_enabled: false,
+    khata_due_days: 30,
+    // The database default is 'not_submitted' (migration 0039). These mock
+    // tests predate verification and exercise publishing itself; the KYC gate
+    // in front of it is tested against real Postgres in tests/integration.
+    verification_status: 'verified',
   }),
 };
 
@@ -243,6 +285,10 @@ export function storeRow(overrides = {}) {
     accepts_cash: true,
     accepts_online: true,
     next_invoice_number: 1,
+    // Migrations 0037, 0039. A seeded store is a published one, so verified.
+    khata_enabled: false,
+    khata_due_days: 30,
+    verification_status: 'verified',
     created_at: '2026-09-01T10:00:00.000Z',
     updated_at: '2026-09-01T10:00:00.000Z',
     ...overrides,
@@ -493,10 +539,27 @@ function queryBuilder(table) {
    * unescaped here so a query containing a literal `%` does not match
    * everything — which is exactly what escapeSearchTerm is there to prevent.
    */
+  // PostgREST's or-list: commas separate conditions, except inside in.(…).
+  const splitTopLevel = (expression) => {
+    const parts = [];
+    let depth = 0;
+    let current = '';
+    for (const char of expression) {
+      if (char === '(') depth += 1;
+      if (char === ')') depth -= 1;
+      if (char === ',' && depth === 0) {
+        parts.push(current);
+        current = '';
+      } else current += char;
+    }
+    parts.push(current);
+    return parts;
+  };
   const parseOr = (expression) =>
-    expression.split(',').map((part) => {
+    splitTopLevel(expression).map((part) => {
       const [column, op, ...rest] = part.split('.');
       const raw = rest.join('.');
+      if (op === 'in') return { op, column, value: raw.replace(/^\(|\)$/g, '').split(',') };
       const value = op === 'ilike' ? raw.replace(/^%|%$/g, '').replace(/\\(.)/g, '$1') : raw;
       return { op, column, value };
     });
@@ -716,6 +779,8 @@ export function createOrderRpc({ payload }) {
     fulfilment_mode: payload.fulfilment_mode,
     status: payload.status,
     payment_status: payload.payment_status,
+    payment_method: payload.payment_method ?? (payload.payment ? 'online' : 'cash'),
+    cancelled_by: null,
     address_id: payload.address_id ?? null,
     delivery_address: payload.delivery_address ?? null,
     store_snapshot: payload.store_snapshot ?? null,

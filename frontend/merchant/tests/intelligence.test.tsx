@@ -77,7 +77,10 @@ describe('ask', () => {
     (window as any).SpeechRecognition = FakeRecognition;
     await render(<InsightsPage />);
     await click(byText('button', 'Ask'));
-    await click(document.querySelector('button[aria-label="Speak"]')!);
+    const speak = document.querySelector('button[aria-label="Speak"]')!;
+    expect(speak.querySelector('svg')).not.toBeNull();
+    expect(speak.textContent).not.toMatch(/\p{Extended_Pictographic}/u);
+    await click(speak);
     await waitFor(() => (document.querySelector('input[aria-label="Ask or instruct"]') as HTMLInputElement).value === 'what is running low');
   });
 });
@@ -162,7 +165,10 @@ describe('camera scanning at the counter', () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     await render(<NewSalePage />);
     await waitFor(() => text().includes('Basmati Rice'));
-    await click(document.querySelector('button[aria-label="Scan with camera"]')!);
+    const scanButton = document.querySelector('button[aria-label="Scan with camera"]')!;
+    expect(scanButton.querySelector('svg')).not.toBeNull();
+    expect(scanButton.textContent).not.toMatch(/\p{Extended_Pictographic}/u);
+    await click(scanButton);
     await waitFor(() => text().includes('₹120.00') && !document.querySelector('[aria-label="Camera"]'));
     expect(getUserMedia).toHaveBeenCalledWith({ video: { facingMode: 'environment' } });
     await act(async () => undefined);

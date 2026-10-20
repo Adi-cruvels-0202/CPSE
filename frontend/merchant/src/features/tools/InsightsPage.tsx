@@ -7,7 +7,7 @@ import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise } from '../../lib/money';
 import { EmptyState, ErrorState, NoStore, PageHeader, Spinner, SubTabs } from '../../components/common/ui';
-import { IconTrendingUp } from '../../components/icons/Icons';
+import { IconMic, IconTrendingUp } from '../../components/icons/Icons';
 import './Tools.css';
 
 /**
@@ -99,7 +99,7 @@ export function SpeakButton({ onText, label = 'Speak' }: { onText: (text: string
     setListening(true);
     recognition.start();
   };
-  return <button type="button" className="btn btn-secondary" onClick={start} disabled={listening} aria-label={label}>{listening ? 'Listening…' : '🎤 ' + label}</button>;
+  return <button type="button" className="btn btn-secondary" onClick={start} disabled={listening} aria-label={label}>{listening ? 'Listening…' : <><IconMic size={18} /> {label}</>}</button>;
 }
 
 function Ask({ storeId }: { storeId: string }) {

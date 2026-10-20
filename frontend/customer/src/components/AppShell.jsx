@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUnreadCount } from '../hooks/useUnreadCount.js';
+import { useCartCount } from '../hooks/useCartCount.js';
 import { useOnline } from '../hooks/useOnline.js';
 import './AppShell.css';
 
@@ -27,6 +28,7 @@ export function AppShell() {
   const { isSignedIn } = useAuth();
   const { pathname } = useLocation();
   const unread = useUnreadCount();
+  const inCart = useCartCount();
   const online = useOnline();
 
   /**
@@ -93,23 +95,35 @@ export function AppShell() {
       {showTabs ? (
         <nav className="shell__tabs" aria-label="Main">
           <div className="shell__tabs-inner">
-            {TABS.map(({ to, label, icon: Icon, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  `shell__tab${isActive ? ' shell__tab--active' : ''}`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon filled={isActive} />
-                    <span className="shell__tab-label">{label}</span>
-                  </>
-                )}
-              </NavLink>
-            ))}
+            {TABS.map(({ to, label, icon: Icon, end }) => {
+              // The Cart tab carries the number of items in the cart, like the bell.
+              const badge = to === '/cart' && inCart > 0 ? inCart : 0;
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  aria-label={badge ? `${label}, ${badge} ${badge === 1 ? 'item' : 'items'}` : undefined}
+                  className={({ isActive }) =>
+                    `shell__tab${isActive ? ' shell__tab--active' : ''}`
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span className="shell__tab-icon">
+                        <Icon filled={isActive} />
+                        {badge ? (
+                          <span className="shell__tab-badge" aria-hidden="true" data-testid="cart-count">
+                            {badge > 99 ? '99+' : badge}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="shell__tab-label">{label}</span>
+                    </>
+                  )}
+                </NavLink>
+              );
+            })}
           </div>
         </nav>
       ) : null}

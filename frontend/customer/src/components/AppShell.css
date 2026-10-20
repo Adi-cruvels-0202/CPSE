@@ -167,6 +167,31 @@
   transition: color var(--transition-fast);
 }
 
+.shell__tab-icon {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Items in the cart, on the Cart tab. Brand green rather than the bell's red:
+   a full cart is good news, not something needing attention. */
+.shell__tab-badge {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.7rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border: 2px solid var(--bg-surface);
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  color: var(--white);
+  font-size: 0.625rem;
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 0.8rem;
+  text-align: center;
+}
+
 .shell__tab:hover {
   text-decoration: none;
   color: var(--text-brand);
@@ -235,6 +260,12 @@
     padding: 0 var(--space-3);
     border-radius: var(--radius-full);
     font-size: var(--text-sm);
+  }
+
+  /* The cart count sticks out to the icon's right; with the label beside the
+     icon, give it room so it does not touch the word. */
+  .shell__tab-icon:has(.shell__tab-badge) {
+    margin-right: var(--space-2);
   }
 
   .shell__tab:hover {

@@ -34,8 +34,21 @@ export function SpeakButton({ onText }) {
   };
   return (
     <button type="button" className="btn btn--secondary btn--sm" onClick={start} disabled={listening} aria-label="Speak">
-      {listening ? 'Listening…' : '🎤'}
+      {listening ? 'Listening…' : <MicIcon />}
     </button>
+  );
+}
+
+/** A microphone, drawn like the app's other line icons (AppShell.jsx). */
+function MicIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+      <line x1="8" y1="22" x2="16" y2="22" />
+    </svg>
   );
 }
 

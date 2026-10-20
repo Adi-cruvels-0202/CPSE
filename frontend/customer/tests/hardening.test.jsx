@@ -8,6 +8,8 @@ import { writeSession } from '../src/lib/tokens.js';
 import {
   addressFixture,
   cartFixture,
+  cartLineFixture,
+  emptyCartFixture,
   categoriesFixture,
   created,
   customerFixture,
@@ -447,6 +449,48 @@ describe('11.16 — accessibility basics hold on every screen', () => {
  * something, and the tab bar vanished inside a shop — while carrying a bell that
  * belonged in the header.
  */
+describe('the item count on the Cart tab', () => {
+  const STORE = { id: '11111111-1111-4111-8111-000000000001', slug: 'sharma-kirana', name: 'Sharma Kirana Store' };
+  const PRODUCT = '/store/sharma-kirana/product/31111111-1111-4111-8111-000000000001';
+  const remember = async () => (await import('../src/lib/activeStore.js')).rememberStore(STORE);
+
+  it('shows how many items are in the cart of the shop you are in', async () => {
+    await remember();
+    renderAt('/orders', {
+      '/cart': ok({ cart: cartFixture({ lines: [cartLineFixture({ quantity: 2 }), cartLineFixture({ id: 'line-2', quantity: 1 })] }) }),
+    });
+    const tab = await screen.findByRole('link', { name: 'Cart, 3 items' });
+    expect(within(tab).getByTestId('cart-count')).toHaveTextContent('3');
+  });
+
+  it('goes up as soon as something is added', async () => {
+    await remember();
+    let quantity = 0;
+    const cart = () => (quantity ? cartFixture({ lines: [cartLineFixture({ quantity })] }) : emptyCartFixture());
+    const { user } = renderAt(PRODUCT, {
+      '/cart': () => ok({ cart: cart() }),
+      '/cart/items': () => {
+        quantity += 1;
+        return created({ cart: cart() });
+      },
+    });
+    await screen.findByRole('link', { name: 'Cart' });
+    expect(screen.queryByTestId('cart-count')).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole('button', { name: 'Add to cart' }));
+    expect(await screen.findByRole('link', { name: 'Cart, 1 item' })).toBeInTheDocument();
+    expect(screen.getByTestId('cart-count')).toHaveTextContent('1');
+  });
+
+  it('shows nothing when the cart is empty', async () => {
+    await remember();
+    renderAt('/orders', { '/cart': ok({ cart: emptyCartFixture() }) });
+    await screen.findByRole('heading', { level: 1, name: 'Your orders' });
+    expect(screen.getByRole('link', { name: 'Cart' })).toBeInTheDocument();
+    expect(screen.queryByTestId('cart-count')).not.toBeInTheDocument();
+  });
+});
+
 describe('navigation, after the first walkthrough', () => {
   it('puts the back link and the heart on the cover, clear of the logo', async () => {
     renderAt('/store/sharma-kirana');
@@ -467,7 +511,7 @@ describe('navigation, after the first walkthrough', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Sharma Kirana Store' });
 
-    await user.click(screen.getByRole('link', { name: 'Cart' }));
+    await user.click(screen.getByRole('link', { name: /^Cart/ }));
 
     // A cart belongs to a shop, so the tab resolves to that shop's cart.
     expect(await screen.findByRole('heading', { level: 1, name: 'Your cart' })).toBeInTheDocument();
@@ -480,7 +524,7 @@ describe('navigation, after the first walkthrough', () => {
     const { user } = renderAt('/orders');
     await screen.findByRole('heading', { level: 1, name: 'Your orders' });
 
-    await user.click(screen.getByRole('link', { name: 'Cart' }));
+    await user.click(screen.getByRole('link', { name: /^Cart/ }));
 
     expect(await screen.findByRole('heading', { name: /no cart yet/i })).toBeInTheDocument();
   });

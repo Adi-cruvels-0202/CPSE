@@ -10,7 +10,7 @@ import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise, rupeesToPaise, taxFor } from '../../lib/money';
 import { NoStore } from '../../components/common/ui';
-import { IconSearch, IconMinus, IconPlus, IconX, IconStore, IconCheck } from '../../components/icons/Icons';
+import { IconSearch, IconMinus, IconPlus, IconX, IconStore, IconCheck, IconScanBarcode } from '../../components/icons/Icons';
 import './Sales.css';
 
 /**
@@ -256,7 +256,7 @@ export default function NewSalePage() {
             <input id="pos-search" aria-label="Search products" className="input-field" placeholder="Search, or scan a barcode…" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); scan(); } }} autoFocus style={{ width: '100%' }} />
             {!search && <div className="sale-search-shortcut">⌘K</div>}
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
-            {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm sale-search-camera" onClick={() => setScanning(true)} aria-label="Scan with camera">📷</button>}
+            {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm sale-search-camera" onClick={() => setScanning(true)} aria-label="Scan with camera" title="Scan a barcode with the camera"><IconScanBarcode size={20} /></button>}
           </div>
           <div className="sale-photo-row">
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoInput.current?.click()} disabled={identifying}>

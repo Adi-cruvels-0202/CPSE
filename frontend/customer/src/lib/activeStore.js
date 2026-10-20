@@ -10,6 +10,8 @@
  * rather than returning null, and a tab that cannot be tapped is worse than one
  * that occasionally forgets.
  */
+import { refreshCartCount } from './cartSignal.js';
+
 const KEY = 'cpse.activeStore';
 
 let fallback = null;
@@ -17,6 +19,7 @@ let fallback = null;
 export function rememberStore(store) {
   if (!store?.id) return;
 
+  const changed = readActiveStore()?.id !== store.id;
   const value = JSON.stringify({ id: store.id, slug: store.slug ?? null, name: store.name ?? null });
   fallback = value;
 
@@ -25,6 +28,8 @@ export function rememberStore(store) {
   } catch {
     // Kept for this tab only.
   }
+  // The Cart tab counts this shop's cart, so a new shop means a new count.
+  if (changed) refreshCartCount();
 }
 
 export function readActiveStore() {

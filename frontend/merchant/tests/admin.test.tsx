@@ -17,7 +17,13 @@ const CONV = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const META = { page: 1, limit: 20, total: 1, totalPages: 1, hasNextPage: false };
 
 const app = () => <Routes><Route path="/admin/*" element={<AdminApp />} /></Routes>;
-const ME = ['GET', /^\/admin\/me$/, () => ({ data: { admin: { id: 'r1', email: 'reviewer@cpse.test', fullName: null } } })] as const;
+const ALL_PERMISSIONS = ['viewOverview', 'viewStores', 'viewAccounts', 'viewLog', 'reviewStores', 'moderateStores', 'handleSupport', 'suspendAccounts', 'manageAdmins'];
+const adminMe = (role = 'superadmin', permissions: string[] = ALL_PERMISSIONS) => ({ id: 'r1', email: 'reviewer@cpse.test', fullName: null, role, permissions });
+const ME = ['GET', /^\/admin\/me$/, () => ({ data: { admin: adminMe() } })] as const;
+const OVERVIEW = ['GET', /^\/admin\/overview$/, () => ({ data: { overview: {
+  you: adminMe(), stores: { total: 3, published: 1, waitingForReview: 1, sentBack: 0, waitingToPublish: 1 },
+  accounts: { total: 10, merchants: 3, customers: 6, suspended: 0 }, support: { escalated: 0 }, recentActions: [],
+} } })] as const;
 
 const row = { storeId: STORE, name: 'Sharma Kirana', slug: 'sharma-kirana', city: 'Pune', legalName: 'Sharma Stores', status: 'pending', statusLabel: 'Under review', isPublished: false, submittedAt: '2026-10-10T10:00:00Z' };
 const review = (over: Record<string, unknown> = {}) => ({
@@ -36,9 +42,9 @@ afterEach(cleanup);
 describe('reviewer sign-in', () => {
   it('signs in with its own session, leaving any shop session alone', async () => {
     const sent = fakeServer([
-      ['POST', /^\/admin\/auth\/login$/, () => ({ data: { admin: { id: 'r1', email: 'reviewer@cpse.test', fullName: null }, session: { accessToken: 'admin-token', refreshToken: 'admin-refresh' }, roles: ['admin'] } })],
+      ['POST', /^\/admin\/auth\/login$/, () => ({ data: { admin: adminMe(), session: { accessToken: 'admin-token', refreshToken: 'admin-refresh' }, roles: ['admin'] } })],
       [...ME],
-      ['GET', /^\/admin\/verifications$/, () => ({ data: { stores: [] }, meta: { ...META, total: 0 } })],
+      [...OVERVIEW],
     ]);
     await render(app(), { path: '/admin' });
     window.localStorage.removeItem('cpse.admin.session');
@@ -46,7 +52,7 @@ describe('reviewer sign-in', () => {
     await type(byLabel('Email'), 'reviewer@cpse.test');
     await type(byLabel('Password'), 'not-a-real-password');
     await submit(document.querySelector('form')!);
-    await waitFor(() => text().includes('Nothing to review'));
+    await waitFor(() => text().includes('Stores waiting for review'));
     expect(readAdminSession()?.accessToken).toBe('admin-token');
     expect(readSession()?.accessToken).toBe('token-1');
     expect(sent.find((r) => r.url === '/admin/me')!.headers.Authorization).toBe('Bearer admin-token');
@@ -69,7 +75,7 @@ describe('reviewer sign-in', () => {
       ['POST', /^\/auth\/refresh$/, () => ({ status: 401, error: { code: 'UNAUTHORIZED', message: 'Refresh token expired.' } })],
     ]);
     await render(app(), { path: '/admin/verifications' });
-    await waitFor(() => text().includes('Platform review'));
+    await waitFor(() => text().includes('CPSE admin'));
     expect(readAdminSession()).toBeNull();
   });
 });

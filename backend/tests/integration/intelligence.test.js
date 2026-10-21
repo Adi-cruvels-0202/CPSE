@@ -91,7 +91,10 @@ describe('catalogue suggestions (Phase D)', () => {
     expect(suggestion.duplicates.map((d) => d.name)).toEqual(['Basmati Rice']);
 
     const fresh = expectStatus(await call('post', `${base(shop)}/intelligence/product-suggestions`, shop.merchant, { name: 'Moong Dal' }), 200).suggestion;
-    expect(fresh.suggestions.category).toMatchObject({ id: null, name: 'Dals & Pulses' });
+    // A grocery store starts with the template's categories, so the
+    // template's "Dals & Pulses" is the store's own category.
+    const { categories } = expectStatus(await call('get', `${base(shop)}/categories`, shop.merchant), 200);
+    expect(fresh.suggestions.category).toMatchObject({ id: categories.find((c) => c.name === 'Dals & Pulses').id, name: 'Dals & Pulses' });
     expect(fresh.suggestions.variants.length).toBeGreaterThan(0);
     expect(fresh.duplicates).toEqual([]);
   });

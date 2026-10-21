@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:seed": "node scripts/seed.js",
-    "db:maintenance": "node scripts/maintenance.js"
+    "db:maintenance": "node scripts/maintenance.js",
+    "admin": "node scripts/admin.js"
   },
   "dependencies": {
     "@google/genai": "^2.29.1",

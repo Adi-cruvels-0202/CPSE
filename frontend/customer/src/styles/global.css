@@ -226,6 +226,20 @@ ul, ol {
   border-color: var(--brand);
 }
 
+/* Dropdowns: one chevron, inset from the edge, the same in every browser —
+   instead of each browser's own arrow pressed against the border. */
+select.field__input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%235B6660' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.75' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem 1rem;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
 .field__input::placeholder {
   color: var(--text-placeholder);
 }

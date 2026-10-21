@@ -81,9 +81,9 @@ export function uploadDocument(shop, docType, buffer, filename = 'doc.png') {
 }
 
 /** A platform reviewer (migration 0039). */
-export async function newAdmin() {
-  const id = await createUser({ fullName: 'Platform Reviewer' });
-  await sql('insert into platform_admins (id, email, full_name) select id, email, full_name from customers where id = $1', [id]);
+export async function newAdmin({ role = 'superadmin', fullName = 'Platform Reviewer' } = {}) {
+  const id = await createUser({ fullName });
+  await sql('insert into platform_admins (id, email, full_name, role) select id, email, full_name, $2 from customers where id = $1', [id, role]);
   return { id, auth: authHeader(id) };
 }
 

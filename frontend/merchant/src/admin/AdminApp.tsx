@@ -1,27 +1,58 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { createContext, useContext, useEffect, useState, type FormEvent, } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { adminApi, readAdminSession, writeAdminSession, type ReviewRow } from './adminApi';
+import {
+  adminApi, readAdminSession, writeAdminSession,
+  type AdminAccount, type AdminAction, type AdminMe, type AdminRole, type AdminStoreRow, type Permission, type ReviewRow,
+} from './adminApi';
 import { ApiError, errorMessage } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import Logo from '../components/brand/Logo';
 import { EmptyState, ErrorState, Modal, PageHeader, Pagination, Spinner, SubTabs, formatDateTime } from '../components/common/ui';
-import { IconCheck, IconClipboard, IconLogOut } from '../components/icons/Icons';
+import { IconCheck, IconClipboard, IconLogOut, IconSearch, IconStore, IconUser } from '../components/icons/Icons';
 import '../features/auth/Auth.css';
 import '../features/tools/Tools.css';
+import './Admin.css';
 
 /**
- * The platform reviewers' console, at /merchant/admin: store verification
- * decisions (roadmap §4 P1) and escalated customer support (§5 P5). Every
- * call goes to /admin, which refuses anyone without a platform_admins row.
+ * The CPSE admin portal, at /merchant/admin (migrations 0039, 0045): an
+ * overview, store verification, every store and account, escalated support,
+ * the admins themselves and the log of what they did. Every call goes to
+ * /admin, which checks the admin's role on each request; the console only
+ * shows what that role allows, so nothing here is the real gate.
  */
+
+const ROLE_LABELS: Record<AdminRole, string> = { superadmin: 'Superadmin', reviewer: 'Reviewer', support: 'Support' };
+const ROLE_SUMMARY: Record<AdminRole, string> = {
+  superadmin: 'Everything: store verification and moderation, support, suspending accounts and managing admins.',
+  reviewer: 'Store verification (approve, send back, revoke) and taking stores off CPSE. Reads accounts.',
+  support: 'Escalated customer support. Reads stores and accounts.',
+};
+
+const AdminContext = createContext<AdminMe | null>(null);
+const useAdmin = () => useContext(AdminContext)!;
+const useCan = () => {
+  const me = useAdmin();
+  return (permission: Permission) => me.permissions.includes(permission);
+};
+
+const NAV: { to: string; label: string; permission: Permission }[] = [
+  { to: '/admin/overview', label: 'Overview', permission: 'viewOverview' },
+  { to: '/admin/verifications', label: 'Store verification', permission: 'reviewStores' },
+  { to: '/admin/stores', label: 'Stores', permission: 'viewStores' },
+  { to: '/admin/accounts', label: 'Accounts', permission: 'viewAccounts' },
+  { to: '/admin/support', label: 'Escalated support', permission: 'handleSupport' },
+  { to: '/admin/admins', label: 'Admins', permission: 'manageAdmins' },
+  { to: '/admin/log', label: 'Activity log', permission: 'viewLog' },
+];
+
 export default function AdminApp() {
   const [signedIn, setSignedIn] = useState(() => readAdminSession() !== null);
   const queryClient = useQueryClient();
   const me = useQuery({ queryKey: ['admin-me'], queryFn: () => adminApi.me(), enabled: signedIn, retry: false });
 
   useEffect(() => {
-    // A token that is no longer a reviewer's (or expired past refresh) signs out here only.
+    // A token that is no longer an admin's (or expired past refresh) signs out here only.
     if (me.error instanceof ApiError && (me.error.status === 401 || me.error.status === 403)) {
       writeAdminSession(null);
       setSignedIn(false);
@@ -37,33 +68,45 @@ export default function AdminApp() {
 
   if (!signedIn) return <AdminLogin onSignedIn={() => setSignedIn(true)} />;
   if (me.isLoading) return <Spinner large />;
-  if (me.error) return <ErrorState error={me.error} onRetry={() => me.refetch()} />;
+  if (me.error || !me.data) return <ErrorState error={me.error} onRetry={() => me.refetch()} />;
+  const admin = me.data.admin;
+  const nav = NAV.filter((item) => admin.permissions.includes(item.permission));
+  const can = (permission: Permission) => admin.permissions.includes(permission);
 
   return (
-    <div className="shell">
-      <header className="shell__header">
-        <div className="shell__bar">
-          <span className="shell__brand"><Logo size="md" /> <strong style={{ marginLeft: 8 }}>Review</strong></span>
-          <div className="shell__actions">
-            <span className="tiny">{me.data?.admin.email}</span>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={signOut}><IconLogOut size={16} /> Sign out</button>
+    <AdminContext.Provider value={admin}>
+      <div className="shell">
+        <header className="shell__header">
+          <div className="shell__bar">
+            <span className="shell__brand"><Logo size="md" /> <strong style={{ marginLeft: 8 }}>Admin</strong></span>
+            <div className="shell__actions">
+              <span className="tiny">{admin.email}</span>
+              <span className="badge badge-neutral" title={ROLE_SUMMARY[admin.role]}>{ROLE_LABELS[admin.role]}</span>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={signOut}><IconLogOut size={16} /> Sign out</button>
+            </div>
           </div>
-        </div>
-      </header>
-      <main className="shell__main" id="main">
-        <div className="shell__content">
-          <nav className="tabs" aria-label="Review" style={{ marginBottom: 'var(--space-4)' }}>
-            <NavLink to="/admin/verifications" className={({ isActive }) => `tab${isActive ? ' tab-active' : ''}`}>Store verification</NavLink>
-            <NavLink to="/admin/support" className={({ isActive }) => `tab${isActive ? ' tab-active' : ''}`}>Escalated support</NavLink>
-          </nav>
-          <Routes>
-            <Route path="verifications" element={<VerificationQueue />} />
-            <Route path="support" element={<SupportQueue />} />
-            <Route path="*" element={<Navigate to="/admin/verifications" replace />} />
-          </Routes>
-        </div>
-      </main>
-    </div>
+        </header>
+        <main className="shell__main" id="main">
+          <div className="shell__content">
+            <nav className="tabs admin-nav" aria-label="Admin">
+              {nav.map((item) => (
+                <NavLink key={item.to} to={item.to} className={({ isActive }) => `tab${isActive ? ' tab-active' : ''}`}>{item.label}</NavLink>
+              ))}
+            </nav>
+            <Routes>
+              <Route path="overview" element={<OverviewPage />} />
+              {can('reviewStores') && <Route path="verifications" element={<VerificationQueue />} />}
+              <Route path="stores" element={<StoresPage />} />
+              <Route path="accounts" element={<AccountsPage />} />
+              {can('handleSupport') && <Route path="support" element={<SupportQueue />} />}
+              {can('manageAdmins') && <Route path="admins" element={<AdminsPage />} />}
+              <Route path="log" element={<LogPage />} />
+              <Route path="*" element={<Navigate to="/admin/overview" replace />} />
+            </Routes>
+          </div>
+        </main>
+      </div>
+    </AdminContext.Provider>
   );
 }
 
@@ -81,7 +124,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
       const { session } = await adminApi.login(email.trim(), password);
       writeAdminSession(session);
       onSignedIn();
-      navigate('/admin/verifications', { replace: true });
+      navigate('/admin/overview', { replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -94,8 +137,8 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
         <div className="auth-form-container">
           <div className="auth-mobile-logo" style={{ display: 'block' }}><Logo size="lg" /></div>
           <div className="auth-form-header">
-            <h2 className="auth-form-title">Platform review</h2>
-            <p className="auth-form-subtitle">For CPSE reviewers only. Shop owners sign in at <a className="auth-link" href="/merchant/login">/merchant</a>.</p>
+            <h2 className="auth-form-title">CPSE admin</h2>
+            <p className="auth-form-subtitle">For CPSE platform admins only. Shop owners sign in at <a className="auth-link" href="/merchant/login">/merchant</a>.</p>
           </div>
           <form className="auth-form" onSubmit={submit}>
             {error && <div className="auth-error" role="alert">{error}</div>}
@@ -115,66 +158,167 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   );
 }
 
-// ── Verification ────────────────────────────────────────────────────────────
+// ── Shared ──────────────────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<string, string> = { pending: 'badge-warning', verified: 'badge-success', rejected: 'badge-danger', not_submitted: 'badge-neutral' };
+const ACCOUNT_TYPE: Record<AdminAccount['type'], string> = { customer: 'Customer', merchant: 'Shop owner', admin: 'Admin' };
+const ACTION_LABELS: Record<string, string> = {
+  store_approved: 'Approved store', store_rejected: 'Sent store back', store_verification_revoked: 'Revoked verification',
+  store_unpublished: 'Took store off CPSE', account_suspended: 'Suspended account', account_reinstated: 'Reinstated account',
+  admin_added: 'Added admin', admin_role_changed: 'Changed admin role', admin_removed: 'Removed admin',
+};
+
+function actionDetail(a: AdminAction) {
+  if (a.action === 'admin_role_changed') return `${String(a.details.from)} → ${String(a.details.to)}`;
+  if (a.action === 'admin_added') return `as ${String(a.details.role)}`;
+  if (a.action === 'store_approved' && a.details.published) return 'and published it';
+  return '';
+}
+
+function ActionList({ actions, empty = 'Nothing yet.' }: { actions: AdminAction[]; empty?: string }) {
+  if (actions.length === 0) return <p className="muted">{empty}</p>;
+  return (
+    <ul className="admin-log">
+      {actions.map((a) => (
+        <li key={a.id}>
+          <div><strong>{ACTION_LABELS[a.action] ?? a.action}</strong>{a.target.label ? ` · ${a.target.label}` : ''} {actionDetail(a) && <span className="muted">{actionDetail(a)}</span>}</div>
+          {a.reason && <div className="admin-log__reason">“{a.reason}”</div>}
+          <div className="tiny">{a.admin.email} · {formatDateTime(a.at)}</div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A reason box and a confirm button, inside the dialog — no browser prompts. */
+function ReasonForm({ id, label, placeholder, submitLabel, danger = true, busy, onSubmit }: {
+  id: string; label: string; placeholder?: string; submitLabel: string; danger?: boolean; busy: boolean; onSubmit: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState('');
+  return (
+    <form className="admin-reason" onSubmit={(e) => { e.preventDefault(); if (reason.trim().length >= 3) onSubmit(reason.trim()); }}>
+      <label className="input-label" htmlFor={id}>{label}</label>
+      <textarea id={id} className="input-field" rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} placeholder={placeholder} />
+      <div><button type="submit" className={`btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm`} disabled={busy || reason.trim().length < 3}>{busy ? 'Working…' : submitLabel}</button></div>
+    </form>
+  );
+}
+
+// ── Overview ────────────────────────────────────────────────────────────────
+
+function OverviewPage() {
+  const me = useAdmin();
+  const can = useCan();
+  const query = useQuery({ queryKey: ['admin-overview'], queryFn: () => adminApi.overview(), refetchInterval: 60_000 });
+  const o = query.data?.overview;
+  const Tile = ({ label, value, to, tone }: { label: string; value: number; to?: string; tone?: 'warn' }) => {
+    const inner = <><div className="metric__label">{label}</div><div className={`metric__value${tone && value > 0 ? ' admin-warn' : ''}`}>{value}</div></>;
+    return to ? <NavLink to={to} className="metric-tile admin-tile-link">{inner}</NavLink> : <div className="metric-tile">{inner}</div>;
+  };
+  return (
+    <div>
+      <PageHeader title="Overview" subtitle={`Signed in as ${ROLE_LABELS[me.role].toLowerCase()}. ${ROLE_SUMMARY[me.role]}`} />
+      {query.isLoading ? <Spinner large /> : query.error || !o ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
+        <div className="stack">
+          <section>
+            <h2 className="admin-section-title">Needs attention</h2>
+            <div className="metric-grid">
+              <Tile label="Stores waiting for review" value={o.stores.waitingForReview} to={can('reviewStores') ? '/admin/verifications' : undefined} tone="warn" />
+              <Tile label="Owners who pressed Publish" value={o.stores.waitingToPublish} to={can('reviewStores') ? '/admin/verifications' : undefined} />
+              <Tile label="Escalated conversations" value={o.support.escalated} to={can('handleSupport') ? '/admin/support' : undefined} tone="warn" />
+            </div>
+          </section>
+          <section>
+            <h2 className="admin-section-title">Platform</h2>
+            <div className="metric-grid">
+              <Tile label="Stores" value={o.stores.total} to="/admin/stores" />
+              <Tile label="Live stores" value={o.stores.published} to="/admin/stores" />
+              <Tile label="Shop owners" value={o.accounts.merchants} to="/admin/accounts" />
+              <Tile label="Customers" value={o.accounts.customers} to="/admin/accounts" />
+              <Tile label="Suspended accounts" value={o.accounts.suspended} to="/admin/accounts" />
+            </div>
+          </section>
+          <section>
+            <h2 className="admin-section-title">Recent admin actions</h2>
+            <ActionList actions={o.recentActions} empty="No admin actions yet." />
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Verification ────────────────────────────────────────────────────────────
 
 function VerificationQueue() {
   const [status, setStatus] = useState('pending');
   const [page, setPage] = useState(1);
-  const [open, setOpen] = useState<ReviewRow | null>(null);
+  const [open, setOpen] = useState<{ storeId: string; name: string } | null>(null);
   const query = useQuery({ queryKey: ['admin-queue', status, page], queryFn: () => adminApi.queue({ status, page }) });
   const rows = query.data?.data.stores ?? [];
   return (
     <div>
-      <PageHeader title="Store verification" subtitle="Check each shop's details and documents. A shop can publish only once verified." />
+      <PageHeader title="Store verification" subtitle="Check each shop's details and documents. A shop goes live only once verified — and goes live at once on approval if its owner already pressed Publish." />
       <SubTabs value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[
         { value: 'pending', label: 'Waiting for review' }, { value: 'rejected', label: 'Sent back' }, { value: 'verified', label: 'Verified' }, { value: 'not_submitted', label: 'Not submitted' },
       ]} />
       {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
-        <EmptyState icon={<IconCheck size={32} />} title="Nothing to review" description="Shops appear here when they submit their details." />
+        <EmptyState icon={<IconCheck size={32} />} title="Nothing here" description={status === 'pending' ? 'Shops appear here when their owner sends them for verification.' : 'No shops in this state.'} />
       ) : (
         <div className="table-container">
           <table className="table">
             <thead><tr><th>Shop</th><th>Legal name</th><th>City</th><th>Submitted</th><th>Status</th><th /></tr></thead>
-            <tbody>{rows.map((r) => (
+            <tbody>{rows.map((r: ReviewRow) => (
               <tr key={r.storeId}>
                 <td>{r.name}<div className="tiny mono">{r.slug}</div></td>
                 <td>{r.legalName ?? '—'}</td>
                 <td>{r.city ?? '—'}</td>
                 <td className="tiny">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
                 <td><span className={`badge ${STATUS_BADGE[r.status]}`}>{r.statusLabel}</span></td>
-                <td><button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(r)}>Review</button></td>
+                <td><button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen({ storeId: r.storeId, name: r.name })}>Review</button></td>
               </tr>
             ))}</tbody>
           </table>
         </div>
       )}
       <Pagination meta={query.data?.meta} onPage={setPage} />
-      {open && <ReviewModal row={open} onClose={() => setOpen(null)} />}
+      {open && <ReviewModal storeId={open.storeId} name={open.name} onClose={() => setOpen(null)} />}
     </div>
   );
 }
 
-function ReviewModal({ row, onClose }: { row: ReviewRow; onClose: () => void }) {
+function ReviewModal({ storeId, name, onClose }: { storeId: string; name: string; onClose: () => void }) {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: ['admin-review', row.storeId], queryFn: () => adminApi.review(row.storeId) });
+  const query = useQuery({ queryKey: ['admin-review', storeId], queryFn: () => adminApi.review(storeId) });
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
+  const refresh = () => {
+    for (const key of ['admin-queue', 'admin-stores', 'admin-store', 'admin-overview']) queryClient.invalidateQueries({ queryKey: [key] });
+  };
   const decide = useMutation({
-    mutationFn: (decision: 'approve' | 'reject') => (decision === 'approve' ? adminApi.approve(row.storeId, note.trim() || undefined) : adminApi.reject(row.storeId, reason.trim(), note.trim() || undefined)),
+    mutationFn: (decision: 'approve' | 'reject') => (decision === 'approve' ? adminApi.approve(storeId, note.trim() || undefined) : adminApi.reject(storeId, reason.trim(), note.trim() || undefined)),
     onSuccess: (data) => {
-      queryClient.setQueryData(['admin-review', row.storeId], data);
-      queryClient.invalidateQueries({ queryKey: ['admin-queue'] });
-      showToast(data.verification.status === 'verified' ? `${row.name} is verified. The owner has been told.` : `${row.name} was sent back with your reason.`, 'success');
+      queryClient.setQueryData(['admin-review', storeId], data);
+      refresh();
+      showToast(
+        data.verification.status === 'verified'
+          ? data.published ? `${name} is verified and now live. The owner has been told.` : `${name} is verified. The owner has been told.`
+          : `${name} was sent back with your reason.`,
+        'success',
+      );
       onClose();
     },
     onError: (err) => showToast(errorMessage(err), 'error'),
   });
+  const revoke = useMutation({
+    mutationFn: (why: string) => adminApi.reject(storeId, why),
+    onSuccess: (data) => { queryClient.setQueryData(['admin-review', storeId], data); refresh(); showToast(`${name} is no longer verified and was taken off CPSE.`, 'success'); },
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
   const openDocument = async (documentId: string) => {
     try {
-      const { url } = await adminApi.documentUrl(row.storeId, documentId);
+      const { url } = await adminApi.documentUrl(storeId, documentId);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       showToast(errorMessage(err), 'error');
@@ -183,16 +327,21 @@ function ReviewModal({ row, onClose }: { row: ReviewRow; onClose: () => void }) 
   const v = query.data?.verification;
   const canDecide = v?.status === 'pending';
   return (
-    <Modal title={`Review ${row.name}`} size="lg" onClose={onClose} busy={decide.isPending}
+    <Modal title={`Review ${name}`} size="lg" onClose={onClose} busy={decide.isPending || revoke.isPending}
       footer={canDecide ? (
         <>
           <button type="button" className="btn btn-secondary" onClick={onClose}>Close</button>
           <button type="button" className="btn btn-danger" disabled={decide.isPending || reason.trim().length < 3} onClick={() => decide.mutate('reject')}>Send back</button>
-          <button type="button" className="btn btn-primary" disabled={decide.isPending || (v?.missing.length ?? 0) > 0} onClick={() => decide.mutate('approve')}>Approve</button>
+          <button type="button" className="btn btn-primary" disabled={decide.isPending || (v?.missing.length ?? 0) > 0} onClick={() => decide.mutate('approve')}>
+            {query.data?.store.publishRequestedAt ? 'Approve and publish' : 'Approve'}
+          </button>
         </>
       ) : undefined}>
       {query.isLoading ? <Spinner /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : v && query.data && (
         <div className="stack">
+          {canDecide && query.data.store.publishRequestedAt && (
+            <div className="alert-strip alert-strip-info">The owner already pressed Publish ({formatDateTime(query.data.store.publishRequestedAt)}). Approving puts the store live straight away.</div>
+          )}
           <dl className="kv">
             <dt>Status</dt><dd><span className={`badge ${STATUS_BADGE[v.status]}`}>{v.statusLabel}</span></dd>
             <dt>Shop</dt><dd>{query.data.store.name} · {query.data.store.address || 'no address'}</dd>
@@ -204,7 +353,7 @@ function ReviewModal({ row, onClose }: { row: ReviewRow; onClose: () => void }) 
           </dl>
           {v.missing.length > 0 && <div className="alert-strip alert-strip-warning">Incomplete: {v.missing.join(', ')}. It cannot be approved yet.</div>}
           <section>
-            <h3 style={{ fontSize: 'var(--text-sm)' }}>Documents</h3>
+            <h3 className="admin-section-title">Documents</h3>
             {v.documents.length === 0 ? <p className="muted">None uploaded.</p> : (
               <ul className="stack" style={{ listStyle: 'none', padding: 0 }}>
                 {v.documents.map((d) => (
@@ -225,15 +374,356 @@ function ReviewModal({ row, onClose }: { row: ReviewRow; onClose: () => void }) 
                 <input id="rv-note" className="input-field" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} /></div>
             </div>
           )}
+          {v.status === 'verified' && (
+            <ReasonForm id="rv-revoke" label="Revoke verification — the store is taken off CPSE until it is verified again (the owner sees this)" placeholder="e.g. The licence shown has expired."
+              submitLabel="Revoke verification" busy={revoke.isPending} onSubmit={(why) => revoke.mutate(why)} />
+          )}
           {v.events.length > 0 && (
             <section>
-              <h3 style={{ fontSize: 'var(--text-sm)' }}>History</h3>
+              <h3 className="admin-section-title">History</h3>
               <ol className="tiny">{v.events.map((e, i) => <li key={i}>{formatDateTime(e.at)} — {e.label} ({e.actor}){e.reason ? `: ${e.reason}` : ''}</li>)}</ol>
             </section>
           )}
         </div>
       )}
     </Modal>
+  );
+}
+
+// ── Stores ──────────────────────────────────────────────────────────────────
+
+function SearchBox({ id, label, value, onChange }: { id: string; label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="input-wrapper" style={{ flex: 1, minWidth: 220 }}>
+      <label className="input-label" htmlFor={id}>{label}</label>
+      <div className="input-with-icon"><IconSearch size={16} /><input id={id} className="input-field" value={value} onChange={(e) => onChange(e.target.value)} /></div>
+    </div>
+  );
+}
+
+function StoresPage() {
+  const [search, setSearch] = useState('');
+  const [verification, setVerification] = useState('');
+  const [published, setPublished] = useState('');
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: ['admin-stores', search.trim(), verification, published, page],
+    queryFn: () => adminApi.stores({ search: search.trim() || undefined, verification: verification || undefined, published: published || undefined, page }),
+  });
+  const rows = query.data?.data.stores ?? [];
+  return (
+    <div>
+      <PageHeader title="Stores" subtitle="Every store on CPSE, live or not." />
+      <div className="filters-bar">
+        <SearchBox id="st-search" label="Name, link or city" value={search} onChange={(v) => { setSearch(v); setPage(1); }} />
+        <div className="input-wrapper">
+          <label className="input-label" htmlFor="st-ver">Verification</label>
+          <select id="st-ver" className="input-field" value={verification} onChange={(e) => { setVerification(e.target.value); setPage(1); }}>
+            <option value="">Any</option><option value="pending">Waiting for review</option><option value="verified">Verified</option><option value="rejected">Sent back</option><option value="not_submitted">Not submitted</option>
+          </select>
+        </div>
+        <div className="input-wrapper">
+          <label className="input-label" htmlFor="st-pub">Live</label>
+          <select id="st-pub" className="input-field" value={published} onChange={(e) => { setPublished(e.target.value); setPage(1); }}>
+            <option value="">Any</option><option value="yes">Live</option><option value="no">Not live</option>
+          </select>
+        </div>
+      </div>
+      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
+        <EmptyState icon={<IconStore size={32} />} title="No stores match" />
+      ) : (
+        <div className="table-container table-scroll">
+          <table className="table">
+            <thead><tr><th>Store</th><th>Owner</th><th>City</th><th>Verification</th><th>Live</th><th /></tr></thead>
+            <tbody>{rows.map((r: AdminStoreRow) => (
+              <tr key={r.id}>
+                <td>{r.name}<div className="tiny mono">{r.slug}</div></td>
+                <td>{r.owner?.email ?? '—'}{r.owner?.isSuspended && <div><span className="badge badge-danger">Suspended</span></div>}</td>
+                <td>{r.city ?? '—'}</td>
+                <td><span className={`badge ${STATUS_BADGE[r.verificationStatus]}`}>{r.verificationLabel}</span>{r.publishRequestedAt && !r.isPublished && <div className="tiny">Goes live on approval</div>}</td>
+                <td>{r.isPublished ? <span className="badge badge-success">Live</span> : <span className="badge badge-neutral">Not live</span>}</td>
+                <td><button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(r.id)}>Open</button></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+      <Pagination meta={query.data?.meta} onPage={setPage} />
+      {open && <StoreModal storeId={open} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+const MISSING_LABELS: Record<string, string> = { address: 'address', phone: 'phone', openingHours: 'opening hours', fulfilment: 'pickup or delivery', verification: 'verification' };
+
+function StoreModal({ storeId, onClose }: { storeId: string; onClose: () => void }) {
+  const can = useCan();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [reviewing, setReviewing] = useState(false);
+  const [account, setAccount] = useState<string | null>(null);
+  const query = useQuery({ queryKey: ['admin-store', storeId], queryFn: () => adminApi.store(storeId) });
+  const unpublish = useMutation({
+    mutationFn: (reason: string) => adminApi.unpublishStore(storeId, reason),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['admin-store', storeId], data);
+      for (const key of ['admin-stores', 'admin-overview', 'admin-log']) queryClient.invalidateQueries({ queryKey: [key] });
+      showToast(`${data.store.name} was taken off CPSE. The owner has been told why.`, 'success');
+    },
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
+  const d = query.data;
+  return (
+    <Modal title={d ? d.store.name : 'Store'} size="lg" onClose={onClose} busy={unpublish.isPending}>
+      {query.isLoading ? <Spinner /> : query.error || !d ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
+        <div className="stack">
+          <dl className="kv">
+            <dt>Link</dt><dd className="mono">/store/{d.store.slug}</dd>
+            <dt>Live</dt><dd>{d.store.isPublished ? <span className="badge badge-success">Live</span> : <span className="badge badge-neutral">Not live</span>}</dd>
+            <dt>Verification</dt><dd><span className={`badge ${STATUS_BADGE[d.store.verificationStatus]}`}>{d.store.verificationLabel}</span></dd>
+            <dt>Owner</dt><dd>{d.store.owner ? <button type="button" className="btn-link" onClick={() => setAccount(d.store.owner!.id)}>{d.store.owner.email}</button> : '—'}{d.store.owner?.isSuspended && <> <span className="badge badge-danger">Suspended</span></>}</dd>
+            <dt>Contact</dt><dd>{[d.store.phone, d.store.email].filter(Boolean).join(' · ') || '—'}</dd>
+            <dt>Address</dt><dd>{d.store.address || '—'}</dd>
+            <dt>Products</dt><dd>{d.counts.products}</dd>
+            <dt>Orders</dt><dd>{d.counts.orders} ({d.counts.ordersLast30Days} in the last 30 days)</dd>
+            {!d.store.isPublished && <><dt>Before it can go live</dt><dd>{d.store.missingForPublish.length ? d.store.missingForPublish.map((m) => MISSING_LABELS[m] ?? m).join(', ') : 'Nothing — the owner can publish'}</dd></>}
+          </dl>
+          {can('reviewStores') && <div><button type="button" className="btn btn-secondary btn-sm" onClick={() => setReviewing(true)}>Open verification</button></div>}
+          {can('moderateStores') && d.store.isPublished && (
+            <ReasonForm id="st-down" label="Take this store off CPSE — customers stop seeing it; open orders carry on; the owner sees your reason" placeholder="e.g. Selling items that are not allowed."
+              submitLabel="Take off CPSE" busy={unpublish.isPending} onSubmit={(reason) => unpublish.mutate(reason)} />
+          )}
+          <section>
+            <h3 className="admin-section-title">Admin actions on this store</h3>
+            <ActionList actions={d.actions} />
+          </section>
+        </div>
+      )}
+      {reviewing && d && <ReviewModal storeId={storeId} name={d.store.name} onClose={() => { setReviewing(false); query.refetch(); }} />}
+      {account && <AccountModal accountId={account} onClose={() => setAccount(null)} />}
+    </Modal>
+  );
+}
+
+// ── Accounts ────────────────────────────────────────────────────────────────
+
+function AccountsPage() {
+  const [kind, setKind] = useState<'all' | 'customer' | 'merchant'>('all');
+  const [status, setStatus] = useState('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: ['admin-accounts', kind, status, search.trim(), page],
+    queryFn: () => adminApi.accounts({ kind, status, search: search.trim() || undefined, page }),
+  });
+  const rows = query.data?.data.accounts ?? [];
+  return (
+    <div>
+      <PageHeader title="Accounts" subtitle="Customers and shop owners. Suspending an account stops it signing in anywhere." />
+      <SubTabs value={kind} onChange={(v) => { setKind(v); setPage(1); }} options={[{ value: 'all', label: 'Everyone' }, { value: 'customer', label: 'Customers' }, { value: 'merchant', label: 'Shop owners' }]} />
+      <div className="filters-bar">
+        <SearchBox id="ac-search" label="Email, name or phone" value={search} onChange={(v) => { setSearch(v); setPage(1); }} />
+        <div className="input-wrapper">
+          <label className="input-label" htmlFor="ac-status">Status</label>
+          <select id="ac-status" className="input-field" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+            <option value="all">Any</option><option value="active">Active</option><option value="suspended">Suspended</option>
+          </select>
+        </div>
+      </div>
+      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
+        <EmptyState icon={<IconUser size={32} />} title="No accounts match" />
+      ) : (
+        <div className="table-container table-scroll">
+          <table className="table">
+            <thead><tr><th>Account</th><th>Type</th><th>Stores</th><th>Orders</th><th>Joined</th><th>Status</th><th /></tr></thead>
+            <tbody>{rows.map((a) => (
+              <tr key={a.id}>
+                <td>{a.name ?? '—'}<div className="tiny">{a.email}{a.phone ? ` · ${a.phone}` : ''}</div></td>
+                <td>{ACCOUNT_TYPE[a.type]}</td>
+                <td>{a.storeCount}</td>
+                <td>{a.orderCount}</td>
+                <td className="tiny">{formatDateTime(a.createdAt)}</td>
+                <td>{a.isSuspended ? <span className="badge badge-danger">Suspended</span> : <span className="badge badge-success">Active</span>}</td>
+                <td><button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(a.id)}>Open</button></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+      <Pagination meta={query.data?.meta} onPage={setPage} />
+      {open && <AccountModal accountId={open} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+function AccountModal({ accountId, onClose }: { accountId: string; onClose: () => void }) {
+  const can = useCan();
+  const me = useAdmin();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: ['admin-account', accountId], queryFn: () => adminApi.account(accountId) });
+  const change = useMutation({
+    mutationFn: ({ suspend, reason }: { suspend: boolean; reason: string }) => (suspend ? adminApi.suspend(accountId, reason) : adminApi.reinstate(accountId, reason)),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['admin-account', accountId], data);
+      for (const key of ['admin-accounts', 'admin-overview', 'admin-log', 'admin-stores']) queryClient.invalidateQueries({ queryKey: [key] });
+      showToast(data.account.isSuspended ? `${data.account.email} is suspended and signed out everywhere.` : `${data.account.email} can sign in again.`, 'success');
+    },
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
+  const d = query.data;
+  return (
+    <Modal title={d ? d.account.name ?? d.account.email : 'Account'} size="lg" onClose={onClose} busy={change.isPending}>
+      {query.isLoading ? <Spinner /> : query.error || !d ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
+        <div className="stack">
+          {d.account.isSuspended && <div className="alert-strip alert-strip-warning">Suspended {d.account.suspendedAt ? formatDateTime(d.account.suspendedAt) : ''}: {d.account.suspendedReason}</div>}
+          <dl className="kv">
+            <dt>Email</dt><dd>{d.account.email}</dd>
+            <dt>Phone</dt><dd>{d.account.phone ?? '—'}</dd>
+            <dt>Type</dt><dd>{ACCOUNT_TYPE[d.account.type]}{d.adminRole ? ` (${ROLE_LABELS[d.adminRole]})` : ''}</dd>
+            <dt>Joined</dt><dd>{formatDateTime(d.account.createdAt)}</dd>
+            <dt>Orders placed</dt><dd>{d.account.orderCount}</dd>
+          </dl>
+          {d.stores.length > 0 && (
+            <section>
+              <h3 className="admin-section-title">Stores</h3>
+              <ul className="admin-plain-list">{d.stores.map((s) => (
+                <li key={s.id}>{s.name} <span className={`badge ${STATUS_BADGE[s.verificationStatus]}`}>{s.verificationLabel}</span> {s.isPublished ? <span className="badge badge-success">Live</span> : null}</li>
+              ))}</ul>
+            </section>
+          )}
+          {can('suspendAccounts') && d.account.type !== 'admin' && d.account.id !== me.id && (
+            d.account.isSuspended
+              ? <ReasonForm id="ac-reinstate" label="Reinstate — why is this account allowed back?" submitLabel="Reinstate account" danger={false} busy={change.isPending} onSubmit={(reason) => change.mutate({ suspend: false, reason })} />
+              : <ReasonForm id="ac-suspend" label={`Suspend — the account is signed out and cannot sign in${d.account.type === 'merchant' ? '; its stores stay as they are (take them off separately if needed)' : ''}. The person sees your reason.`}
+                  placeholder="e.g. Repeated fake orders." submitLabel="Suspend account" busy={change.isPending} onSubmit={(reason) => change.mutate({ suspend: true, reason })} />
+          )}
+          {d.account.type === 'admin' && can('suspendAccounts') && <p className="tiny">Admin accounts cannot be suspended. Remove the admin first (Admins).</p>}
+          <section>
+            <h3 className="admin-section-title">Admin actions on this account</h3>
+            <ActionList actions={d.actions} />
+          </section>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ── Admins ──────────────────────────────────────────────────────────────────
+
+const PERMISSION_LABELS: Record<Permission, string> = {
+  viewOverview: 'See the overview', viewStores: 'See stores', viewAccounts: 'See accounts', viewLog: 'See the activity log',
+  reviewStores: 'Verify stores', moderateStores: 'Take stores off CPSE', handleSupport: 'Handle escalated support',
+  suspendAccounts: 'Suspend and reinstate accounts', manageAdmins: 'Manage admins',
+};
+
+function AdminsPage() {
+  const me = useAdmin();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<AdminRole>('reviewer');
+  const [removing, setRemoving] = useState<{ id: string; email: string } | null>(null);
+  const query = useQuery({ queryKey: ['admin-admins'], queryFn: () => adminApi.admins() });
+  const refresh = () => { queryClient.invalidateQueries({ queryKey: ['admin-admins'] }); queryClient.invalidateQueries({ queryKey: ['admin-log'] }); };
+  const add = useMutation({
+    mutationFn: () => adminApi.addAdmin(email.trim(), role),
+    onSuccess: ({ admin }) => { setEmail(''); refresh(); showToast(`${admin.email} is now a ${ROLE_LABELS[admin.role].toLowerCase()}. They sign in at /merchant/admin.`, 'success'); },
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
+  const change = useMutation({
+    mutationFn: ({ id, to }: { id: string; to: AdminRole }) => adminApi.changeRole(id, to),
+    onSuccess: ({ admin }) => { refresh(); showToast(`${admin.email} is now a ${ROLE_LABELS[admin.role].toLowerCase()}.`, 'success'); },
+    onError: (err) => { refresh(); showToast(errorMessage(err), 'error'); },
+  });
+  const remove = useMutation({
+    mutationFn: (reason: string) => adminApi.removeAdmin(removing!.id, reason),
+    onSuccess: () => { showToast(`${removing!.email} is no longer an admin.`, 'success'); setRemoving(null); refresh(); },
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
+  return (
+    <div>
+      <PageHeader title="Admins" subtitle="Who can use this portal, and what each role may do." />
+      {query.isLoading ? <Spinner large /> : query.error || !query.data ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
+        <div className="stack">
+          <div className="table-container table-scroll">
+            <table className="table">
+              <thead><tr><th>Admin</th><th>Role</th><th>Added</th><th /></tr></thead>
+              <tbody>{query.data.admins.map((a) => (
+                <tr key={a.id}>
+                  <td>{a.name ?? '—'}<div className="tiny">{a.email}{a.id === me.id ? ' · you' : ''}</div></td>
+                  <td>
+                    {a.id === me.id ? ROLE_LABELS[a.role] : (
+                      <select className="input-field" aria-label={`Role of ${a.email}`} value={a.role} disabled={change.isPending} onChange={(e) => change.mutate({ id: a.id, to: e.target.value as AdminRole })}>
+                        {(['superadmin', 'reviewer', 'support'] as AdminRole[]).map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                      </select>
+                    )}
+                  </td>
+                  <td className="tiny">{formatDateTime(a.addedAt)}</td>
+                  <td>{a.id !== me.id && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRemoving({ id: a.id, email: a.email })}>Remove</button>}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+
+          <form className="card admin-add" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
+            <h2 className="admin-section-title">Add an admin</h2>
+            <p className="tiny">The person signs up in the customer app first, with an email that is not a shop account. Then add that email here.</p>
+            <div className="filters-bar" style={{ marginBottom: 0 }}>
+              <div className="input-wrapper" style={{ flex: 1, minWidth: 220 }}>
+                <label className="input-label" htmlFor="ad-email">Email</label>
+                <input id="ad-email" type="email" className="input-field" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="input-wrapper">
+                <label className="input-label" htmlFor="ad-role">Role</label>
+                <select id="ad-role" className="input-field" value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
+                  {(['reviewer', 'support', 'superadmin'] as AdminRole[]).map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                </select>
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={add.isPending || !email.trim()}>{add.isPending ? 'Adding…' : 'Add admin'}</button>
+            </div>
+          </form>
+
+          <section>
+            <h2 className="admin-section-title">What each role can do</h2>
+            <div className="table-container table-scroll">
+              <table className="table">
+                <thead><tr><th>Permission</th>{query.data.roles.map((r) => <th key={r.role}>{ROLE_LABELS[r.role]}</th>)}</tr></thead>
+                <tbody>{(Object.keys(PERMISSION_LABELS) as Permission[]).map((p) => (
+                  <tr key={p}><td>{PERMISSION_LABELS[p]}</td>{query.data!.roles.map((r) => <td key={r.role}>{r.permissions.includes(p) ? '✓' : '—'}</td>)}</tr>
+                ))}</tbody>
+              </table>
+            </div>
+            <p className="tiny">Nobody can change or remove their own role, an admin account cannot be suspended, and there is always at least one superadmin.</p>
+          </section>
+        </div>
+      )}
+      {removing && (
+        <Modal title={`Remove ${removing.email}?`} onClose={() => setRemoving(null)} busy={remove.isPending}>
+          <ReasonForm id="ad-remove" label="Why? (kept in the activity log)" submitLabel="Remove admin" busy={remove.isPending} onSubmit={(reason) => remove.mutate(reason)} />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ── Activity log ────────────────────────────────────────────────────────────
+
+function LogPage() {
+  const [targetType, setTargetType] = useState<'' | 'store' | 'account' | 'admin'>('');
+  const [page, setPage] = useState(1);
+  const query = useQuery({ queryKey: ['admin-log', targetType, page], queryFn: () => adminApi.log({ targetType: targetType || undefined, page }) });
+  return (
+    <div>
+      <PageHeader title="Activity log" subtitle="Every admin decision, who made it and why. Entries cannot be edited or deleted." />
+      <SubTabs value={targetType} onChange={(v) => { setTargetType(v); setPage(1); }} options={[{ value: '', label: 'Everything' }, { value: 'store', label: 'Stores' }, { value: 'account', label: 'Accounts' }, { value: 'admin', label: 'Admins' }]} />
+      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
+        <ActionList actions={query.data?.data.actions ?? []} empty="No admin actions yet." />
+      )}
+      <Pagination meta={query.data?.meta} onPage={setPage} />
+    </div>
   );
 }
 

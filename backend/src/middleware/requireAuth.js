@@ -1,5 +1,5 @@
 import { asyncHandler } from '../lib/asyncHandler.js';
-import { unauthorized, shopAccount } from '../lib/errors.js';
+import { unauthorized, shopAccount, accountSuspended } from '../lib/errors.js';
 import { verifyAccessToken, loadCustomer, loadMerchant } from '../modules/auth/auth.service.js';
 
 /** Pulls the bearer token out of the Authorization header, if there is one. */
@@ -30,6 +30,8 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
 
   const customer = await loadCustomer(user.id);
   if (!customer) return next(unauthorized('Your session has expired. Sign in again.'));
+  // Suspended after signing in: the session still verifies, but it is refused.
+  if (customer.suspended_at) return next(accountSuspended(customer.suspended_reason));
 
   req.accessToken = token;
   req.authUser = user;
@@ -69,7 +71,7 @@ export const optionalAuth = asyncHandler(async (req, res, next) => {
 
   // A shop account browses the storefront as a visitor would.
   const [customer, merchant] = await Promise.all([loadCustomer(user.id), loadMerchant(user.id)]);
-  if (!customer || merchant) return next();
+  if (!customer || merchant || customer.suspended_at) return next();
 
   req.accessToken = token;
   req.authUser = user;

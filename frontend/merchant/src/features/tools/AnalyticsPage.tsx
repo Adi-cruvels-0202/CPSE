@@ -112,7 +112,7 @@ export default function AnalyticsPage() {
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="metric card-sm card">
+    <div className="metric-tile card-sm card">
       <div className="metric__label">{label}</div>
       <div className="metric__value">{value}</div>
       {hint && <div className="tiny">{hint}</div>}

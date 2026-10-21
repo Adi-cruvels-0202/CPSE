@@ -120,3 +120,11 @@ input[type="file"]::file-selector-button:hover {
     margin-top: var(--space-1);
   }
 }
+
+/* Publish: the button, and what stands between the store and going live. */
+.publish-box { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); max-width: 420px; }
+.publish-note { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); text-align: right; }
+.publish-steps { display: grid; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-warning-bg, #fdf6e7); color: var(--color-text); font-size: var(--text-sm); line-height: 1.5; }
+.publish-steps__title { font-size: var(--text-sm); }
+.publish-steps__list { margin: 0; padding-left: 1.2rem; display: grid; gap: var(--space-2); }
+.publish-steps__action { margin-top: var(--space-2); }

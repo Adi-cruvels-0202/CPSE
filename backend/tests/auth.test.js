@@ -525,3 +525,27 @@ describe('auth failure modes', () => {
     );
   });
 });
+
+describe('a suspended account (migration 0045)', () => {
+  const suspended = () => seedCustomer({ suspended_at: '2026-10-20T10:00:00Z', suspended_reason: 'Repeated fake orders' });
+
+  it.each([['/auth/login'], ['/merchant/auth/login'], ['/admin/auth/login']])('cannot sign in at %s, and the new session is ended', async (path) => {
+    const row = suspended();
+    supabaseAnon.auth.signInWithPassword.mockResolvedValue({ data: { user: { id: row.id }, session: sessionFixture() }, error: null });
+
+    const res = await api().post(url(path)).send({ email: 'test.customer@cpse.local', password: 'CpseTest!2026' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ACCOUNT_SUSPENDED');
+    expect(res.body.error.message).toMatch(/Repeated fake orders/);
+    expect(res.body.data?.session).toBeUndefined();
+    expect(supabaseAdmin.auth.admin.signOut).toHaveBeenCalledWith(sessionFixture().access_token, 'local');
+  });
+
+  it('is refused on a session it already had', async () => {
+    signedIn(suspended());
+    const res = await api().get(url('/me')).set('Authorization', 'Bearer still-valid-token');
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ACCOUNT_SUSPENDED');
+  });
+});

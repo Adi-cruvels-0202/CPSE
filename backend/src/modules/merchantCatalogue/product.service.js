@@ -6,6 +6,7 @@ import { logger } from '../../lib/logger.js';
 import { findStoreCategory } from './category.service.js';
 import { MAX_PRODUCT_IMAGES } from './catalogue.schemas.js';
 import { storeImage, removeStoredImage } from '../../lib/imageUpload.js';
+import { sortVariants } from '../../lib/variantOrder.js';
 
 /**
  * A store's products and variants — MERCHANT_API.md, Products and variants;
@@ -59,7 +60,7 @@ function toMerchantVariant(product, row) {
 }
 
 export function toMerchantProduct(row, { variants = [], images = [], categoryName = null } = {}) {
-  const sorted = [...variants].sort((a, b) => a.sort_order - b.sort_order);
+  const sorted = sortVariants(variants);
   const active = sorted.filter((variant) => variant.is_available);
   const sum = (key) => active.reduce((total, variant) => total + variant[key], 0);
 

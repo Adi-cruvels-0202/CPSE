@@ -41,6 +41,9 @@ export const merchantRequired = () =>
   new AppError(403, 'MERCHANT_REQUIRED', 'This account is not a shop account.');
 export const shopAccount = () =>
   new AppError(403, 'SHOP_ACCOUNT', 'This email is a shop account. To shop, create a customer account with a different email.');
+/** Migration 0045: an admin suspended this account; every sign-in and request is refused. */
+export const accountSuspended = (reason) =>
+  new AppError(403, 'ACCOUNT_SUSPENDED', `This account has been suspended by CPSE${reason ? `: ${reason}` : ''}. Contact CPSE support if you think this is a mistake.`);
 export const customerAccount = () =>
   new AppError(403, 'CUSTOMER_ACCOUNT', 'This email is a customer account. To open a shop, create a shop account with a different email.');
 /** Category names are unique per store, ignoring case (MERCHANT_RULES C-2). */

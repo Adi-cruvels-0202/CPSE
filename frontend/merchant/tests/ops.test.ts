@@ -173,6 +173,19 @@ describe('reviewer console client ↔ backend docs/API.md', () => {
     ['admin.escalated', () => adminApi.escalated()],
     ['admin.conversation', () => adminApi.conversation(ID)],
     ['admin.reply', () => adminApi.reply(ID, 'On it')],
+    ['admin.overview', () => adminApi.overview()],
+    ['admin.stores', () => adminApi.stores({ search: 'kirana' })],
+    ['admin.store', () => adminApi.store(S)],
+    ['admin.unpublishStore', () => adminApi.unpublishStore(S, 'Banned items')],
+    ['admin.accounts', () => adminApi.accounts({ kind: 'customer' })],
+    ['admin.account', () => adminApi.account(ID)],
+    ['admin.suspend', () => adminApi.suspend(ID, 'Fake orders')],
+    ['admin.reinstate', () => adminApi.reinstate(ID, 'Appeal accepted')],
+    ['admin.admins', () => adminApi.admins()],
+    ['admin.addAdmin', () => adminApi.addAdmin('new@cpse.test', 'reviewer')],
+    ['admin.changeRole', () => adminApi.changeRole(ID, 'support')],
+    ['admin.removeAdmin', () => adminApi.removeAdmin(ID, 'Left the team')],
+    ['admin.log', () => adminApi.log({ targetType: 'store' })],
   ];
 
   it.each(ADMIN_CALLS)('%s calls a documented route with the reviewer token', async (_name, call) => {

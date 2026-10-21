@@ -719,6 +719,12 @@ describe('phone-width layout', () => {
     expect(global).toMatch(/\.inline-form \.btn \{ flex-shrink: 0; \}/);
   });
 
+  it('dropdowns draw one inset chevron instead of the browser arrow against the edge', async () => {
+    const { readFileSync } = await import('node:fs');
+    const global = readFileSync(`${process.cwd()}/src/styles/global.css`, 'utf8').replace(/\s+/g, ' ');
+    expect(global).toMatch(/select\.field__input \{[^}]*appearance: none;[^}]*padding-right: 2\.5rem;[^}]*background-position: right 0\.75rem center;/);
+  });
+
   it('the assistant, coupon, list and reply rows use it (not the password-toggle layout)', async () => {
     renderAt('/store/sharma-kirana', {
       '/stores/sharma-kirana': ok({ store: storeFixture() }),

@@ -23,11 +23,11 @@ beforeEach(async () => {
 const base = (shop) => `/merchant/stores/${shop.store.id}`;
 
 describe('industry templates and workflow defaults', () => {
-  it('lists all seven industries', async () => {
+  it('lists all eight industries', async () => {
     const shop = await flow.openShop();
     const { templates } = expectStatus(await call('get', '/merchant/templates', shop.merchant), 200);
     expect(templates.map((t) => t.industry).sort()).toEqual(
-      ['bakery', 'clothing', 'electronics', 'general', 'grocery', 'pharmacy', 'stationery'],
+      ['bakery', 'clothing', 'electronics', 'general', 'grocery', 'pharmacy', 'restaurant', 'stationery'],
     );
   });
 
@@ -84,7 +84,7 @@ describe('industry templates and workflow defaults', () => {
 
 describe('categories', () => {
   it('reorders atomically and refuses a partial list', async () => {
-    const shop = await flow.openShop();
+    const shop = await flow.openShop({ shopCategory: 'other' });  // no starter categories
     const ids = [];
     for (const name of ['A', 'B', 'C']) {
       ids.push(expectStatus(await call('post', `${base(shop)}/categories`, shop.merchant, { name }), 201).category.id);

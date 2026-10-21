@@ -5,6 +5,9 @@ import { storeImage, removeStoredImage } from '../../lib/imageUpload.js';
 import { slugify as slugifyBase, firstFreeSlug } from '../../lib/slug.js';
 import { holidaysFor, holidaysByStore } from '../stores/store.service.js';
 import { DAYS } from './merchantStore.schemas.js';
+import { templateForShopCategory } from '../../lib/industryTemplates.js';
+import { createCategory } from '../merchantCatalogue/category.service.js';
+import { logger } from '../../lib/logger.js';
 
 /**
  * A merchant's stores — MERCHANT_API.md, Stores; MERCHANT_RULES §2.
@@ -56,6 +59,8 @@ export function toMerchantStore(row, { now = new Date(), holidays = [] } = {}) {
     paymentMethods: { cash: row.accepts_cash, online: row.accepts_online },
     isPublished: row.is_published,
     verificationStatus: row.verification_status ?? 'not_submitted',
+    // The owner pressed Publish before verification: approval publishes it.
+    publishRequestedAt: row.publish_requested_at ?? null,
     khata: {
       enabled: Boolean(row.khata_enabled),
       dueDays: row.khata_due_days ?? 30,
@@ -145,11 +150,34 @@ export async function createStore(merchant, input) {
       .select('*')
       .single();
 
-    if (!error) return toMerchantStore(data);  // a new store has no holidays yet
+    if (!error) {
+      await addStarterCategories(data);
+      return toMerchantStore(data);  // a new store has no holidays yet
+    }
     if (error.code !== UNIQUE_VIOLATION) throw internal('Could not create the store.');
     if (requested) throw slugTaken(requested);
   }
   throw internal('Could not create the store.');
+}
+
+/**
+ * A new store starts with the categories its kind of shop usually has — a
+ * bakery with Cakes, Breads, Cookies…; a kirana with Rice & Grains, Dals &
+ * Pulses, Fruits & Vegetables… (lib/industryTemplates.js) — so the owner goes
+ * straight to adding products. Only categories, never products or prices; each
+ * can be renamed, reordered or deleted. A failure here never fails the store:
+ * the Categories page offers the same set again.
+ */
+async function addStarterCategories(storeRow) {
+  const template = templateForShopCategory(storeRow.shop_category);
+  if (!template) return;
+  for (const name of template.categories) {
+    try {
+      await createCategory({ id: storeRow.id }, { name, description: null });
+    } catch (error) {
+      logger.warn('could not add a starter category', { storeId: storeRow.id, reason: String(error?.message ?? error).slice(0, 120) });
+    }
+  }
 }
 
 async function writeStore(store, patch, message = 'Could not update the store.') {
@@ -205,20 +233,32 @@ export async function publishStore(store) {
 
   const missing = missingForPublish(store);
   if (missing.length > 0) {
+    // Verification is CPSE's step, not the owner's: remember that they want
+    // to go live, so approving the store publishes it (verification.decide).
+    const waitsOnVerification = missing.includes('verification');
+    if (waitsOnVerification && !store.publish_requested_at) {
+      const { error } = await supabaseAdmin.from('stores').update({ publish_requested_at: new Date().toISOString() }).eq('id', store.id);
+      if (error) throw internal('Could not save the publish request.');
+    }
+    const onlyVerification = missing.length === 1 && waitsOnVerification;
     throw unprocessable(
       'STORE_INCOMPLETE',
-      'Add the missing details before publishing the store.',
-      { missing },
+      onlyVerification
+        ? store.verification_status === 'pending'
+          ? 'CPSE is checking your store. It will go live as soon as it is approved.'
+          : 'Send your store for verification. It will go live as soon as CPSE approves it.'
+        : 'Add the missing details before publishing the store.',
+      { missing, verificationStatus: store.verification_status ?? 'not_submitted', publishWhenVerified: waitsOnVerification },
     );
   }
 
-  return writeStore(store, { is_published: true }, 'Could not publish the store.');
+  return writeStore(store, { is_published: true, publish_requested_at: null }, 'Could not publish the store.');
 }
 
 /** `POST …/unpublish` — customers get a 404 again; existing orders carry on. */
 export async function unpublishStore(store) {
   if (!store.is_published) throw conflict('This store is not published.');
-  return writeStore(store, { is_published: false }, 'Could not unpublish the store.');
+  return writeStore(store, { is_published: false, publish_requested_at: null }, 'Could not unpublish the store.');
 }
 
 /**

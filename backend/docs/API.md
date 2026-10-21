@@ -112,6 +112,7 @@ anonymous and a boolean when signed in.
 | 403 | `MERCHANT_REQUIRED` | Signed in with a customer account on a `/merchant` route. A role check, not ownership |
 | 403 | `SHOP_ACCOUNT` | A shop account signing in to the customer app, or on any signed-in customer route. Shop and customer accounts are separate logins — to shop, sign up with another email |
 | 403 | `CUSTOMER_ACCOUNT` | A customer account signing in to the shop app. To open a shop, sign up with another email |
+| 403 | `ACCOUNT_SUSPENDED` | A platform admin suspended this account. Every sign-in (customer, shop, admin) and every signed-in request is refused; the message carries the reason. Public pages still work, as a visitor |
 | 404 | `NOT_FOUND` | The resource does not exist **or belongs to someone else** |
 | 404 | `ROUTE_NOT_FOUND` | No such endpoint |
 | 409 | `CONFLICT` | An illegal state change — cancelling a delivered order, settling a settled payment, publishing a published store |
@@ -410,7 +411,7 @@ own store — anyone else's, or one that does not exist, is the same **404**.
 | `GET /merchant/stores/:storeId` | Bearer, merchant. `{ store }` |
 | `PATCH /merchant/stores/:storeId` | Bearer, merchant. Any subset of the create fields → `{ store }`. `address: null` clears it. `slug` can change only while unpublished — once published it is in shared links and QR codes, so a change is **409**. |
 | `DELETE /merchant/stores/:storeId` | Bearer, merchant. `{ confirmName }` — the store's name, typed to confirm → **204**. Permanent: the catalogue, stock history, orders, counter sales, khata and photos go with it. A name that does not match is **422**; an order still in progress is **409** (complete or cancel it first). |
-| `POST /merchant/stores/:storeId/publish` | Bearer, merchant. No body → `{ store }`. Missing details are **422 `STORE_INCOMPLETE`**, listed in `details.missing`; already published is **409**. |
+| `POST /merchant/stores/:storeId/publish` | Bearer, merchant. No body → `{ store }`. Missing details are **422 `STORE_INCOMPLETE`**, listed in `details.missing`, with `details.verificationStatus` and `details.publishWhenVerified`; already published is **409**. When verification is among the missing, the request is remembered (`store.publishRequestedAt`) and approving the store publishes it — the owner does not have to come back. Unpublishing clears it. |
 | `POST /merchant/stores/:storeId/unpublish` | Bearer, merchant. No body → `{ store }`. Customers get **404** on it again; orders already placed carry on. Not published is **409**. |
 | `PUT /merchant/stores/:storeId/hours` | Bearer, merchant. `{ timezone?, openingHours }` → `{ store }`. Replaces the whole week. |
 | `PUT /merchant/stores/:storeId/delivery` | Bearer, merchant. `{ pickupEnabled, deliveryEnabled, deliveryFeePaise, minOrderPaise, freeDeliveryThresholdPaise?, deliveryRadiusKm? }` → `{ store }`. At least one of pickup and delivery (**422**). |
@@ -820,22 +821,52 @@ when `gstApplicable` (**422 `VERIFICATION_INCOMPLETE`** with
 | `GET /merchant/stores/:storeId/verification/documents/:documentId/url` | Bearer, merchant. `{ document, url, expiresInSeconds }`. |
 | `POST /merchant/stores/:storeId/verification/submit` | Bearer, merchant. No body → `pending`. |
 
-### Platform review (admin)
+### Platform admin portal
 
-Reviewers are platform admins — an auth user with a `platform_admins` row that
-only an operator creates. Every decision is recorded in the store's
-verification events with the reviewer, the reason and a snapshot of what was
-reviewed. Anyone else gets **403 `FORBIDDEN`**.
+Platform admins are auth users with a `platform_admins` row (migrations 0039,
+0045). The first one is made from the command line — `npm run admin -- grant
+<email> [role]` — and superadmins add the rest in the portal. Each admin has
+one **role**; a route its role does not allow answers **403 `FORBIDDEN`**
+naming the role, as does any route for a customer or shop account.
+
+| Permission | superadmin | reviewer | support |
+|---|---|---|---|
+| overview, stores, accounts, action log (read) | ✓ | ✓ | ✓ |
+| store verification: approve, send back, revoke | ✓ | ✓ | — |
+| take a store off CPSE (unpublish) | ✓ | ✓ | — |
+| escalated support | ✓ | — | ✓ |
+| suspend and reinstate accounts | ✓ | — | — |
+| add, change and remove admins | ✓ | — | — |
+
+Rules no role can get round: an admin account cannot be suspended (remove it
+as an admin first); nobody changes or removes their own role; the last
+superadmin cannot be demoted or removed; an admin must be a separate account
+from any shop. Every decision is written to the append-only action log
+(`admin_actions`) with the admin, the reason and the target; store decisions
+are also in the store's verification events.
 
 | | |
 |---|---|
-| `POST /admin/auth/login` | **public.** `{ email, password }` → `{ admin, session, roles: ["admin"] }`. Not a reviewer: **403**, and the session is ended. |
-| `GET /admin/me` | Bearer, admin. `{ admin }`. |
-| `GET /admin/verifications` | Bearer, admin. `?status=pending&page=&limit=` → `{ stores }`, oldest first. |
-| `GET /admin/verifications/:storeId` | Bearer, admin. `{ store, verification }`. |
-| `GET /admin/verifications/:storeId/documents/:documentId/url` | Bearer, admin. A 5-minute link to one document. |
-| `POST /admin/verifications/:storeId/approve` | Bearer, admin. `{ note? }`. `pending` → `verified`. |
-| `POST /admin/verifications/:storeId/reject` | Bearer, admin. `{ reason, note? }` (reason 3–500 characters). `pending` or `verified` → `rejected`. |
+| `POST /admin/auth/login` | **public.** `{ email, password }` → `{ admin: { id, email, fullName, role, permissions }, session, roles: ["admin"] }`. Not an admin: **403**, and the session is ended. Suspended: **403 `ACCOUNT_SUSPENDED`**. |
+| `GET /admin/me` | Bearer, admin. `{ admin }` with `role` and `permissions`. |
+| `GET /admin/overview` | Any role. `{ overview: { you, stores: { total, published, waitingForReview, sentBack, waitingToPublish }, accounts: { total, merchants, customers, suspended }, support: { escalated }, recentActions } }`. |
+| `GET /admin/verifications` | reviewStores. `?status=pending&page=&limit=` → `{ stores }`, oldest first. |
+| `GET /admin/verifications/:storeId` | reviewStores. `{ store: { …, publishRequestedAt }, verification }` — `publishRequestedAt` set means approving also publishes the store. |
+| `GET /admin/verifications/:storeId/documents/:documentId/url` | reviewStores. A 5-minute link to one document. |
+| `POST /admin/verifications/:storeId/approve` | reviewStores. `{ note? }`. `pending` → `verified`. If the owner already pressed Publish and nothing else is missing, the store is published in the same step (`published: true` in the reply) and the owner is told it is live. |
+| `POST /admin/verifications/:storeId/reject` | reviewStores. `{ reason, note? }` (reason 3–500 characters). `pending` → `rejected` (sent back), or `verified` → `rejected` (verification revoked — the store is unpublished). |
+| `GET /admin/stores` | Any role. `?search=&verification=pending\|verified\|rejected\|not_submitted&published=yes\|no&page=&limit=` → `{ stores: [{ id, name, slug, city, shopCategory, isPublished, verificationStatus, verificationLabel, publishRequestedAt, owner: { id, email, name, phone, isSuspended } }] }`, newest first. |
+| `GET /admin/stores/:storeId` | Any role. `{ store: { …, phone, email, address, missingForPublish }, counts: { products, orders, ordersLast30Days }, actions }`. |
+| `POST /admin/stores/:storeId/unpublish` | moderateStores. `{ reason }` → the store detail. Customers stop seeing the store; open orders carry on; the owner is told why and may publish again once fixed (revoke verification to stop that). **409** if not published. |
+| `GET /admin/accounts` | Any role. `?kind=all\|customer\|merchant&status=all\|active\|suspended&search=&page=&limit=` → `{ accounts: [{ id, email, name, phone, type: customer\|merchant\|admin, isSuspended, suspendedAt, suspendedReason, storeCount, orderCount, createdAt }] }`. `search` matches email, name or phone. |
+| `GET /admin/accounts/:accountId` | Any role. `{ account, adminRole, stores, actions }`. |
+| `POST /admin/accounts/:accountId/suspend` | suspendAccounts. `{ reason }`. The account can no longer sign in anywhere and its open sessions are refused (Supabase Auth ban as well). **403** for your own account or an admin account; **409** if already suspended. |
+| `POST /admin/accounts/:accountId/reinstate` | suspendAccounts. `{ reason }`. **409** if not suspended. |
+| `GET /admin/admins` | manageAdmins. `{ admins: [{ id, email, name, role, addedAt, permissions }], roles: [{ role, permissions }] }`. |
+| `POST /admin/admins` | manageAdmins. `{ email, role }` → **201** `{ admin }`. The account must exist (**422 `ACCOUNT_NOT_FOUND`**), not be a shop account (**422 `SHOP_ACCOUNT`**) and not be suspended (**422 `ACCOUNT_SUSPENDED`**); **409** if already an admin. |
+| `PATCH /admin/admins/:adminId` | manageAdmins. `{ role }` → `{ admin }`. **403** on yourself; **409** when it would leave no superadmin. |
+| `POST /admin/admins/:adminId/remove` | manageAdmins. `{ reason }` → `{ removed }`. **403** on yourself; **409** for the last superadmin. |
+| `GET /admin/log` | Any role. `?targetType=store\|account\|admin&action=&page=&limit=` → `{ actions: [{ id, at, admin: { id, email }, action, target: { type, id, label }, reason, details }] }`, newest first. |
 
 ### Merchant catalogue operations
 
@@ -1031,9 +1062,9 @@ conversation.
 | `GET /merchant/stores/:storeId/conversations` | Bearer, merchant. `?status=&kind=` → `{ conversations }`. |
 | `GET /merchant/stores/:storeId/conversations/:conversationId` | Bearer, merchant. `{ conversation }` with `messages`; marks it read. |
 | `POST /merchant/stores/:storeId/conversations/:conversationId/messages` | Bearer, merchant. `{ body, resolve? }` → **201**. |
-| `GET /admin/support` | Bearer, admin. Escalated conversations, oldest escalation first. |
-| `GET /admin/support/:conversationId` | Bearer, admin. Only an escalated conversation (**404** otherwise). |
-| `POST /admin/support/:conversationId/messages` | Bearer, admin. `{ body, resolve? }` → **201**; the customer is notified. |
+| `GET /admin/support` | handleSupport. Escalated conversations, oldest escalation first. |
+| `GET /admin/support/:conversationId` | handleSupport. Only an escalated conversation (**404** otherwise). |
+| `POST /admin/support/:conversationId/messages` | handleSupport. `{ body, resolve? }` → **201**; the customer is notified. |
 
 **Substitutions.** Only with the customer's agreement: an order's
 `substitutionPreference` is `contact_me` (every proposal waits for the

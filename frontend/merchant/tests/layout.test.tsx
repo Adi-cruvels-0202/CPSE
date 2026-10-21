@@ -70,3 +70,25 @@ describe('screens use them', () => {
     expect(document.querySelector('.sale-search-bar')!.classList.contains('has-camera')).toBe(true);
   });
 });
+
+describe('spacing and dropdowns', () => {
+  it('summary tiles do not inherit the big-number letter-spacing that squeezed their labels', () => {
+    const tools = css('src/features/tools/Tools.css');
+    expect(tools).toMatch(/\.metric-tile \{/);
+    expect(tools).toMatch(/\.metric__label \{[^}]*letter-spacing: 0\.01em;/);
+    expect(tools).not.toMatch(/(^|\s)\.metric \{/);
+    // No screen uses the global .metric class for a tile any more.
+    for (const page of ['KhataPage', 'BatchesPage', 'AnalyticsPage']) {
+      expect(readFileSync(path.resolve(__dirname, '..', `src/features/tools/${page}.tsx`), 'utf8')).not.toMatch(/className="metric[ "]/);
+    }
+  });
+
+  it('every dropdown gets the same inset chevron, not the browser arrow', () => {
+    const components = css('src/styles/components.css');
+    expect(components).toMatch(/\.select-field, select\.input-field \{[^}]*appearance: none;[^}]*background-position: right 12px center;[^}]*padding-right: 40px;/);
+  });
+
+  it('fields in a filter bar line up on their bottom edge', () => {
+    expect(css('src/styles/components.css')).toMatch(/\.filters-bar \{[^}]*align-items: flex-end;/);
+  });
+});

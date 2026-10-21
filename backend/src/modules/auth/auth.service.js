@@ -1,5 +1,6 @@
 import { supabaseAdmin, supabaseAnon, createUserClient } from '../../lib/supabase.js';
 import {
+  accountSuspended,
   conflict,
   internal,
   unauthorized,
@@ -127,7 +128,7 @@ export function signUpFailure(error) {
 export async function loadCustomer(id) {
   const { data, error } = await supabaseAdmin
     .from('customers')
-    .select('id, email, full_name, phone, avatar_url, created_at, updated_at')
+    .select('id, email, full_name, phone, avatar_url, created_at, updated_at, suspended_at, suspended_reason')
     .eq('id', id)
     .maybeSingle();
 
@@ -203,6 +204,14 @@ export async function signInWithPassword({ email, password }) {
   }
 
   if (error || !data?.session) throw unauthorized(INVALID_CREDENTIALS);
+
+  // A suspended account (migration 0045) cannot sign in to any of the apps.
+  // The password was right, so saying why is not an account-existence leak.
+  const account = await loadCustomer(data.user.id);
+  if (account?.suspended_at) {
+    await endSession(data.session.access_token);
+    throw accountSuspended(account.suspended_reason);
+  }
   return data;
 }
 

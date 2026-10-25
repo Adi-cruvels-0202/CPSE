@@ -109,17 +109,16 @@ export function StoreFacts({ store }) {
         ))}
       </div>
 
-      {openSheet === 'hours' ? (
-        <Sheet title="Opening hours" onClose={close}>
-          <HoursBody hours={hours} week={week} />
-        </Sheet>
-      ) : null}
-
-      {openSheet === 'ordering' ? (
-        <Sheet title="Ordering" onClose={close}>
-          <OrderingBody fulfilment={fulfilment} modeLabel={modeLabel} />
-        </Sheet>
-      ) : null}
+      <Sheet
+        open={openSheet !== null}
+        title={openSheet === 'hours' ? 'Opening hours' : 'Ordering'}
+        returnFocusTarget={triggerRefs.current[openedBy]}
+        onClose={close}
+      >
+        {openSheet === 'hours'
+          ? <HoursBody hours={hours} week={week} />
+          : <OrderingBody fulfilment={fulfilment} modeLabel={modeLabel} />}
+      </Sheet>
     </>
   );
 }

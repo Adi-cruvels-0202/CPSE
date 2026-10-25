@@ -3,6 +3,18 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (/\/node_modules\/(motion|framer-motion|motion-dom|motion-utils)\//.test(id)) {
+            return 'motion';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     // Only used when Vite is run standalone (`npm run dev` in frontend/customer/). The
     // normal path is the backend running Vite in middleware mode on its own

@@ -24,6 +24,48 @@
   gap: var(--space-3);
 }
 
+.checkout__optional {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.checkout__disclosure {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.checkout__disclosure summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.checkout__disclosure summary::marker {
+  color: var(--text-brand);
+}
+
+.checkout__disclosure summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: var(--radius-md);
+}
+
+.checkout__disclosure[open] > :not(summary) {
+  margin: 0 var(--space-4) var(--space-4);
+}
+
+.checkout__subheading {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
 .checkout__step-title {
   display: flex;
   align-items: center;
@@ -64,8 +106,10 @@
   transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
-.choice:hover {
-  border-color: var(--green-300);
+@media (hover: hover) and (pointer: fine) {
+  .choice:hover {
+    border-color: var(--green-300);
+  }
 }
 
 .choice--selected {

@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { RemoteImage } from '../../components/RemoteImage.jsx';
+import { usePointerSpotlight } from '../../hooks/usePointerSpotlight.js';
 import { discountPercent, formatPaiseShort } from '../../lib/money.js';
 import './ProductCard.css';
 
@@ -16,6 +18,7 @@ import './ProductCard.css';
  * and must never read as "none left".
  */
 export function ProductCard({ product, storeSlug }) {
+  const spotlight = usePointerSpotlight();
   const saving = discountPercent(product.pricePaise, product.mrpPaise);
   const soldOut = !product.isPurchasable;
 
@@ -23,7 +26,14 @@ export function ProductCard({ product, storeSlug }) {
     <Link
       to={`/store/${storeSlug}/product/${product.id}`}
       className={`product-card${soldOut ? ' product-card--sold-out' : ''}`}
+      onPointerMove={spotlight.onPointerMove}
+      onPointerLeave={spotlight.onPointerLeave}
     >
+      <motion.span
+        className="product-card__spotlight"
+        style={{ transform: spotlight.transform }}
+        aria-hidden="true"
+      />
       <div className="product-card__media">
         <RemoteImage
           src={product.imageUrl}

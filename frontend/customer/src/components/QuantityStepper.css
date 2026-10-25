@@ -18,11 +18,16 @@
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   line-height: 1;
+  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
-.stepper__button:hover:not(:disabled) {
-  background: var(--bg-brand-subtle);
+@media (hover: hover) and (pointer: fine) {
+  .stepper__button:hover:not(:disabled) {
+    background: var(--bg-brand-subtle);
+  }
 }
+
+.stepper__button:active:not(:disabled) { transform: scale(0.9); }
 
 .stepper__button:disabled {
   color: var(--text-disabled);

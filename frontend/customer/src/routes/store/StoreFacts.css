@@ -32,6 +32,7 @@
   font-size: var(--text-sm);
   white-space: nowrap;
   cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .store-facts__chip svg {
@@ -39,11 +40,16 @@
   flex-shrink: 0;
 }
 
-.store-facts__chip:hover {
-  border-color: var(--green-300);
-  background: var(--bg-brand-subtle);
-  color: var(--text-brand);
+@media (hover: hover) and (pointer: fine) {
+  .store-facts__chip:hover {
+    border-color: var(--green-300);
+    background: var(--bg-brand-subtle);
+    color: var(--text-brand);
+    transform: translateY(-1px);
+  }
 }
+
+.store-facts__chip:active { transform: scale(0.98); }
 
 /* ── Inside the sheets ──────────────────────────────────────────────────── */
 

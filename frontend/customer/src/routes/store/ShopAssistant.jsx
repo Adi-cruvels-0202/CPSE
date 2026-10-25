@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { endpoints } from '../../lib/endpoints.js';
 import { useApiQuery } from '../../hooks/useApiQuery.js';
 import { useSubmit } from '../../hooks/useSubmit.js';
 import { FormError } from '../../components/FormError.jsx';
+import { Sheet } from '../../components/Sheet.jsx';
 import { ProductRow } from '../engage/ProductRow.jsx';
 import '../engage/Engage.css';
 
@@ -42,37 +43,74 @@ export function SpeakButton({ onText }) {
 export function ShopAssistant({ store, isSignedIn }) {
   const [message, setMessage] = useState('');
   const [reply, setReply] = useState(null);
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
   const input = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
   const ask = useSubmit(async () => {
     const { data } = await endpoints.intelligence.assistant(store.slug, message.trim());
     setReply(data.reply);
   });
 
   return (
-    <section className="card stack" aria-labelledby="assistant-heading" style={{ gap: 'var(--space-2)' }}>
-      <h2 id="assistant-heading" className="engage__title">Ask {store.name}</h2>
-      <form
-        className="inline-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (message.trim()) ask.submit();
-        }}
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="store-assistant-trigger"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
       >
-        <input
-          ref={input}
-          className="field__input"
-          aria-label="Ask the shop assistant"
-          placeholder="Are you open? · 2 kg rice under 300 · rice, dal and 6 eggs"
-          maxLength={500}
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-        />
-        <SpeakButton onText={(text) => { setMessage(text); input.current?.focus(); }} />
-        <button type="submit" className="btn btn--sm" disabled={ask.pending || !message.trim()}>{ask.pending ? '…' : 'Ask'}</button>
-      </form>
-      <FormError error={ask.error} />
-      {reply ? <Reply reply={reply} store={store} isSignedIn={isSignedIn} /> : null}
-    </section>
+        <span className="store-assistant-trigger__icon" aria-hidden="true"><ChatIcon /></span>
+        <span className="store-assistant-trigger__copy">
+          <strong>Ask {store.name}</strong>
+          <span>Products, prices or store hours</span>
+        </span>
+        <span className="store-assistant-trigger__arrow" aria-hidden="true">›</span>
+      </button>
+
+      <Sheet
+        open={open}
+        title={`Ask ${store.name}`}
+        onClose={close}
+        returnFocusTarget={triggerRef.current}
+      >
+        <div className="stack store-assistant" style={{ gap: 'var(--space-3)' }}>
+          <p className="muted store-assistant__intro">Ask about products, prices, availability or opening hours.</p>
+          <form
+            className="inline-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (message.trim()) ask.submit();
+            }}
+          >
+            <input
+              ref={input}
+              className="field__input"
+              aria-label="Ask the shop assistant"
+              placeholder="e.g. Do you have basmati rice?"
+              maxLength={500}
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+            />
+            <SpeakButton onText={(text) => { setMessage(text); input.current?.focus(); }} />
+            <button type="submit" className="btn btn--sm" disabled={ask.pending || !message.trim()}>{ask.pending ? '…' : 'Ask'}</button>
+          </form>
+          <FormError error={ask.error} />
+          {reply ? <Reply reply={reply} store={store} isSignedIn={isSignedIn} /> : null}
+        </div>
+      </Sheet>
+    </>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" focusable="false">
+      <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6.5A7.5 7.5 0 1 1 20 11.5Z" />
+      <path d="M8 11h.01M12 11h.01M16 11h.01" />
+    </svg>
   );
 }
 
@@ -165,6 +203,8 @@ export function ProductSuggestions({ slug, productId, purchasable }) {
   const bought = together.data?.recommendations?.items ?? [];
   const alike = similar.data?.alternatives?.items ?? [];
   if (bought.length === 0 && alike.length === 0) return null;
+  const boughtIds = new Set(bought.map((item) => item.product.id));
+  const combined = [...bought, ...alike.filter((item) => !boughtIds.has(item.product.id))];
   const Section = ({ title, items, id }) => (
     <section className="stack" aria-labelledby={id} style={{ gap: 'var(--space-2)' }}>
       <h2 id={id} className="engage__title">{title}</h2>
@@ -178,8 +218,7 @@ export function ProductSuggestions({ slug, productId, purchasable }) {
   return (
     <>
       {!purchasable && alike.length ? <Section id="similar-heading" title="Instead, try" items={alike} /> : null}
-      {bought.length ? <Section id="together-heading" title="Often bought with this" items={bought} /> : null}
-      {purchasable && alike.length ? <Section id="similar-heading" title="Similar here" items={alike} /> : null}
+      {purchasable && combined.length ? <Section id="suggestions-heading" title="You may also like" items={combined} /> : null}
     </>
   );
 }

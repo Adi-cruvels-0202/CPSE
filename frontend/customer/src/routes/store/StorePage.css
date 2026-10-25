@@ -56,12 +56,18 @@
   background: var(--bg-surface);
   color: var(--text-strong);
   box-shadow: var(--shadow-sm);
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.store__back:hover {
-  background: var(--bg-brand-subtle);
-  color: var(--text-brand);
+@media (hover: hover) and (pointer: fine) {
+  .store__back:hover {
+    background: var(--bg-brand-subtle);
+    color: var(--text-brand);
+    box-shadow: var(--shadow-md);
+  }
 }
+
+.store__back:active { transform: scale(0.94); }
 
 .store__save {
   right: var(--space-3);
@@ -161,13 +167,94 @@
   background: var(--bg-surface);
   color: var(--text-muted);
   font-size: var(--text-sm);
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.store__search:hover {
-  text-decoration: none;
-  border-color: var(--green-300);
+@media (hover: hover) and (pointer: fine) {
+  .store__search:hover {
+    text-decoration: none;
+    border-color: var(--green-300);
+    background: var(--bg-brand-subtle);
+    color: var(--text-brand);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.store__search:active { transform: scale(0.99); }
+
+/* A quiet, compact entry keeps the shop helper available without making it
+   compete with the catalogue for the customer's attention. */
+.store-assistant-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 3.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+.store-assistant-trigger__icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
   background: var(--bg-brand-subtle);
   color: var(--text-brand);
+}
+
+.store-assistant-trigger__copy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.store-assistant-trigger__copy strong {
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.store-assistant-trigger__copy span {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.store-assistant-trigger__arrow {
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .store-assistant-trigger:hover {
+    border-color: var(--green-300);
+    background: var(--bg-brand-subtle);
+    box-shadow: var(--shadow-sm);
+    transform: translateY(-1px);
+  }
+}
+
+.store-assistant-trigger:active { transform: scale(0.99); }
+
+.store-assistant-trigger:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.store-assistant__intro { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .store-assistant-trigger { transition: none; }
 }
 
 /* No cover: a short strip in the brand's lightest green, capped so it stays a

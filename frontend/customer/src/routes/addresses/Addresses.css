@@ -63,8 +63,10 @@
   text-decoration: underline;
 }
 
-.address__delete:hover:not(:disabled) {
-  color: var(--danger-text);
+@media (hover: hover) and (pointer: fine) {
+  .address__delete:hover:not(:disabled) {
+    color: var(--danger-text);
+  }
 }
 
 .address__delete:disabled {
@@ -87,8 +89,10 @@
   transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
-.address--selectable:hover {
-  border-color: var(--green-300);
+@media (hover: hover) and (pointer: fine) {
+  .address--selectable:hover {
+    border-color: var(--green-300);
+  }
 }
 
 .address--selected {

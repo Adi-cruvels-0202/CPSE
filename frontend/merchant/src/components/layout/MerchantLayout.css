@@ -132,6 +132,17 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.99);
+  transform-origin: top right;
+  transition: opacity var(--transition-fast), transform var(--transition-fast), visibility 0s linear 120ms;
+}
+.shell__menu--open {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition-delay: 0s;
 }
 .shell__menu-head {
   display: flex;
@@ -181,6 +192,7 @@
 .shell__tabs-inner { display: grid; grid-template-columns: repeat(7, 1fr); height: 100%; }
 
 .shell__tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -195,6 +207,20 @@
 }
 .shell__tab:hover { color: var(--green-700); text-decoration: none; }
 .shell__tab--active { color: var(--green-600); font-weight: var(--font-semibold); }
+.shell__tab::after {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1.25rem;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--green-600);
+  content: '';
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  transition: transform var(--transition-fast);
+}
+.shell__tab--active::after { transform: translateX(-50%) scaleX(1); }
 .shell__tab-label { line-height: 1; }
 .shell__tab-icon { position: relative; display: inline-flex; }
 
@@ -236,6 +262,15 @@
     border-radius: var(--radius-full);
     font-size: var(--text-sm);
   }
+  .shell__tab::after {
+    top: auto;
+    right: var(--space-3);
+    bottom: 0;
+    left: var(--space-3);
+    width: auto;
+    transform: scaleX(0);
+  }
+  .shell__tab--active::after { transform: scaleX(1); }
   .shell__tab:hover, .shell__tab--active { background: var(--green-50); }
   .shell__tab-icon:has(.shell__badge) { margin-right: var(--space-2); }
 }
@@ -244,4 +279,8 @@
   .shell__store { max-width: 10rem; }
   .shell__menu--stores { position: fixed; left: var(--shell-gutter); right: var(--shell-gutter); top: calc(var(--header-height) - var(--space-1)); max-width: none; }
   .shell__brand .brand > span:last-child { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell__menu { transition: none; }
 }

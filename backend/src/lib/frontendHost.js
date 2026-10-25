@@ -146,7 +146,7 @@ export async function mountFrontend(app, httpServer) {
   router.use(apiRequestsPassThrough);
 
   for (const frontend of APPS) {
-    if (env.isProduction) mountBuiltApp(router, frontend);
+    if (env.isProduction || env.SERVE_STATIC_FRONTEND) mountBuiltApp(router, frontend);
     else await mountDevServer(router, httpServer, frontend);
   }
 }

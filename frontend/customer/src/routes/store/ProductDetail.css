@@ -14,8 +14,10 @@
   font-weight: var(--weight-medium);
 }
 
-.product__back:hover {
-  text-decoration: none;
+@media (hover: hover) and (pointer: fine) {
+  .product__back:hover {
+    text-decoration: none;
+  }
 }
 
 /* ── Gallery ────────────────────────────────────────────────────────────── */
@@ -139,8 +141,10 @@
   transition: border-color var(--transition-fast), background var(--transition-fast);
 }
 
-.product__variant:hover {
-  border-color: var(--green-300);
+@media (hover: hover) and (pointer: fine) {
+  .product__variant:hover {
+    border-color: var(--green-300);
+  }
 }
 
 /* :has lets the whole row show the selection, not just the dot. */

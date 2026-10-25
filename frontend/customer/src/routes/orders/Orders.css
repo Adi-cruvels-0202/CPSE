@@ -74,10 +74,12 @@
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.order-row:hover {
-  text-decoration: none;
-  border-color: var(--green-300);
-  box-shadow: var(--shadow-sm);
+@media (hover: hover) and (pointer: fine) {
+  .order-row:hover {
+    text-decoration: none;
+    border-color: var(--green-300);
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 .order-row__mark {

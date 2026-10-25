@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react';
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'motion/react';
 import './Sheet.css';
 
 /**
@@ -12,9 +13,31 @@ import './Sheet.css';
  * and there is now more than one of these on the store page — so the behaviour
  * lives here once rather than being re-derived each time.
  */
-export function Sheet({ title, onClose, children }) {
+export function Sheet({ open, title, onClose, returnFocusTarget, children }) {
+  const reduceMotion = useReducedMotion() ?? false;
+
+  return (
+    <AnimatePresence initial={false}>
+      {open ? (
+        <SheetContent
+          key="sheet"
+          title={title}
+          onClose={onClose}
+          returnFocusTarget={returnFocusTarget}
+          reduceMotion={reduceMotion}
+        >
+          {children}
+        </SheetContent>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function SheetContent({ title, onClose, returnFocusTarget, reduceMotion, children }) {
   const panelRef = useRef(null);
   const headingId = useId();
+  const isPresent = useIsPresent();
+  const openerRef = useRef(null);
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -22,6 +45,7 @@ export function Sheet({ title, onClose, children }) {
     // but landing it on a button both draws a focus ring onto something nobody
     // chose and puts a finger on whatever the first action happens to be.
     // Focusing the labelled dialog announces its heading instead.
+    if (!openerRef.current) openerRef.current = returnFocusTarget ?? document.activeElement;
     panel?.focus();
 
     const onKeyDown = (event) => {
@@ -61,18 +85,42 @@ export function Sheet({ title, onClose, children }) {
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [onClose]);
+  }, [onClose, returnFocusTarget]);
+
+  useEffect(() => {
+    if (isPresent) return;
+    const opener = openerRef.current;
+    if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+  }, [isPresent]);
+
+  const transition = reduceMotion
+    ? { duration: 0.08, ease: 'easeOut' }
+    : { duration: 0.22, ease: [0.23, 1, 0.32, 1] };
+  const panelHidden = reduceMotion ? { transform: 'translateY(0)' } : { transform: 'translateY(100%)' };
 
   return (
-    <div className="sheet__scrim" onClick={onClose}>
+    <motion.div
+      className="sheet__scrim"
+      initial={{ opacity: reduceMotion ? 1 : 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={transition}
+      aria-hidden={!isPresent}
+      inert={!isPresent}
+      onClick={onClose}
+    >
       {/* The sheet swallows the click that would close it. */}
-      <div
+      <motion.div
         className="sheet"
         role="dialog"
         aria-modal="true"
         aria-labelledby={headingId}
         ref={panelRef}
         tabIndex={-1}
+        initial={panelHidden}
+        animate={reduceMotion ? { opacity: 1 } : { opacity: 1, transform: 'translateY(0)' }}
+        exit={panelHidden}
+        transition={transition}
         onClick={(event) => event.stopPropagation()}
       >
         {/* The grab handle every bottom sheet has: it says "this pulls down"
@@ -90,8 +138,8 @@ export function Sheet({ title, onClose, children }) {
         </div>
 
         {children}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

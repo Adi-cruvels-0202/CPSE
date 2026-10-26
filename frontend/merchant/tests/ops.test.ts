@@ -81,6 +81,7 @@ const CALLS: [string, () => Promise<unknown>][] = [
   ['catalogue.deleteCategory', () => catalogueOpsApi.deleteCategory(S, ID, { uncategorise: true })],
   ['catalogue.duplicate', () => catalogueOpsApi.duplicate(S, ID)],
   ['catalogue.lookup', () => catalogueOpsApi.lookup(S, { barcode: '890' })],
+  ['catalogue.barcodeLibrary', () => catalogueOpsApi.barcodeLibrary(S, '8904043901015')],
   ['catalogue.exportCsv', () => catalogueOpsApi.exportCsv(S)],
   ['catalogue.previewImport', () => catalogueOpsApi.previewImport(S, 'product_name,price\nRice,10\n')],
   ['catalogue.commitImport', () => catalogueOpsApi.commitImport(S, 'product_name,price\nRice,10\n')],

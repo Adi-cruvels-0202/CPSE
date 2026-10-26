@@ -59,6 +59,8 @@ export default function NewSalePage() {
   const [identifying, setIdentifying] = useState(false);
   // A scanned code no product has yet: offered as a new product, right here.
   const [unknownCode, setUnknownCode] = useState<string | null>(null);
+  // What the CPSE product library knows about that code, if anything.
+  const [knownAs, setKnownAs] = useState<string | null>(null);
   const [addingCode, setAddingCode] = useState<string | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   // One key per bill: a retried "Charge" after a timeout returns the same sale.
@@ -169,7 +171,13 @@ export default function NewSalePage() {
       // A barcode nobody has yet: a new pack on the shelf. Offer to add it.
       if (err instanceof ApiError && err.status === 404 && /^[0-9A-Za-z-]{4,}$/.test(code)) {
         setUnknownCode(code);
+        setKnownAs(null);
         setSearch('');
+        catalogueOpsApi.barcodeLibrary(activeStoreId, code)
+          .then(({ library }) => {
+            if (library.found && library.suggestion) setKnownAs(`${library.suggestion.name}${library.suggestion.optionName ? ` (${library.suggestion.optionName})` : ''}`);
+          })
+          .catch(() => undefined);
       } else showToast(errorMessage(err, `Nothing matches ${code}.`), 'error');
     }
   };
@@ -295,9 +303,11 @@ export default function NewSalePage() {
           </div>
           {unknownCode && (
             <div className="alert-strip alert-strip-warning sale-unknown" role="alert">
-              <span><strong className="mono">{unknownCode}</strong> isn't on any of your products yet.</span>
+              {knownAs
+                ? <span><strong>{knownAs}</strong> isn't in your products yet — CPSE already knows it, so only your price and stock are left to enter.</span>
+                : <span><strong className="mono">{unknownCode}</strong> isn't on any of your products yet.</span>}
               <span className="sale-unknown__actions">
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => setAddingCode(unknownCode)}>Add as new product</button>
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => setAddingCode(unknownCode)}>{knownAs ? 'Add to my products' : 'Add as new product'}</button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUnknownCode(null)}>Dismiss</button>
               </span>
             </div>

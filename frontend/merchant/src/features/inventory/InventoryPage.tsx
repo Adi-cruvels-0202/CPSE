@@ -170,7 +170,7 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [code, setCode] = useState('');
-  const [scanNote, setScanNote] = useState<{ tone: 'ok' | 'warn'; text: string; addCode?: string } | null>(null);
+  const [scanNote, setScanNote] = useState<{ tone: 'ok' | 'warn'; text: string; addCode?: string; known?: boolean } | null>(null);
   const quantityInput = useRef<HTMLInputElement>(null);
   const selected = rows.find((row) => row.id === variantId);
 
@@ -195,7 +195,17 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
       const { product } = await catalogueOpsApi.lookup(storeId, { barcode: scanned });
       setScanNote({ tone: 'warn', text: product.trackInventory ? `${product.name} was just added — reopen this form to receive it.` : `${product.name} is not stock-counted, so stock cannot be received for it. Turn on "Track stock" for it first.` });
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setScanNote({ tone: 'warn', text: `No product has barcode ${scanned}.`, addCode: scanned });
+      if (err instanceof ApiError && err.status === 404) {
+        setScanNote({ tone: 'warn', text: `No product has barcode ${scanned}.`, addCode: scanned });
+        // Another shop may already sell it: then only price and stock are left to enter.
+        catalogueOpsApi.barcodeLibrary(storeId, scanned)
+          .then(({ library }) => {
+            if (!library.found || !library.suggestion) return;
+            const known = `${library.suggestion.name}${library.suggestion.optionName ? ` (${library.suggestion.optionName})` : ''}`;
+            setScanNote({ tone: 'warn', text: `${known} isn't in your products yet — CPSE already knows it. Add it, then receive the stock.`, addCode: scanned, known: true });
+          })
+          .catch(() => undefined);
+      }
       else setScanNote({ tone: 'warn', text: errorMessage(err) });
     }
   };
@@ -237,7 +247,7 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
               {scanNote && (
                 <div className={`alert-strip ${scanNote.tone === 'ok' ? 'alert-strip-success' : 'alert-strip-warning'}`} role="status">
                   <span>{scanNote.text}</span>
-                  {scanNote.addCode && <Link className="btn btn-primary btn-sm" to={`/products?new=1&barcode=${encodeURIComponent(scanNote.addCode)}`}>Add as new product</Link>}
+                  {scanNote.addCode && <Link className="btn btn-primary btn-sm" to={`/products?new=1&barcode=${encodeURIComponent(scanNote.addCode)}`}>{scanNote.known ? 'Add to my products' : 'Add as new product'}</Link>}
                 </div>
               )}
               <span className="input-helper">Or choose it from the list below.</span>

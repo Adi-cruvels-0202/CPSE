@@ -1,8 +1,8 @@
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { productApi, categoryApi } from '../../api/endpoints';
-import { catalogueOpsApi, intelligenceApi, type ProductRecognition, type ProductSuggestion } from '../../api/ops';
+import { catalogueOpsApi, intelligenceApi, type BarcodeLibrary, type ProductRecognition, type ProductSuggestion } from '../../api/ops';
 import { errorMessage } from '../../api/client';
 import type { Category, Product, Variant } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
@@ -242,6 +242,37 @@ export function CreateProductModal({ storeId, categories, onClose, onCreated, in
   const [hasOptions, setHasOptions] = useState(false);
   const [variants, setVariants] = useState<VariantRow[]>([emptyVariant('Default', initialBarcode)]);
   const barcodes = useBarcodeCheck(storeId);
+
+  // The CPSE product library: a pack another shop already sells arrives
+  // filled in — name, size, unit, GST, MRP, category — leaving only this
+  // shop's price and stock to type. Applied only while the form is still empty.
+  const [fromLibrary, setFromLibrary] = useState<BarcodeLibrary | null>(null);
+  const fillFromLibrary = async (code: string) => {
+    if (form.name.trim()) return;
+    try {
+      const { library } = await catalogueOpsApi.barcodeLibrary(storeId, code);
+      const s = library.suggestion;
+      if (!library.found || !s) return;
+      setForm((current) => (current.name.trim() ? current : {
+        ...current,
+        name: s.name.slice(0, 200),
+        categoryId: s.category?.id && categories.some((c) => c.id === s.category!.id) ? s.category.id : current.categoryId,
+        unit: s.unit && (UNITS as readonly string[]).includes(s.unit) ? s.unit : current.unit,
+        taxPercent: s.taxPercent !== null && ['0', '5', '12', '18', '28'].includes(String(s.taxPercent)) ? String(s.taxPercent) : current.taxPercent,
+      }));
+      const option = { name: s.optionName ?? 'Default', mrp: s.mrpPaise !== null ? paiseToRupees(s.mrpPaise) : '' };
+      setHasOptions(Boolean(s.optionName));
+      setVariants((current) => current.map((row, i) => (i === 0 ? { ...row, name: option.name, mrp: row.mrp || option.mrp, barcode: code } : row)));
+      setFromLibrary(library);
+    } catch {
+      // The library is a convenience: without it the form is simply empty.
+    }
+  };
+  useEffect(() => {
+    if (initialBarcode) void fillFromLibrary(initialBarcode);
+    // Only for the barcode the form was opened with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [isSaving, setIsSaving] = useState(false);
   const [suggestion, setSuggestion] = useState<ProductSuggestion | null>(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -368,6 +399,12 @@ export function CreateProductModal({ storeId, categories, onClose, onCreated, in
                 </select>
               </div>
             </div>
+            {fromLibrary?.suggestion && (
+              <div className="alert-strip alert-strip-info" style={{ display: 'block' }} data-testid="library-fill" role="status">
+                <strong>Filled in from the CPSE product library</strong>{fromLibrary.shops && fromLibrary.shops > 1 ? ` — ${fromLibrary.agreeing} of ${fromLibrary.shops} shops agree` : ''}. Check it, then add your price{form.trackInventory ? ' and stock' : ''}.
+                {fromLibrary.suggestion.category && !fromLibrary.suggestion.category.id && <div className="tiny">Other shops file it under “{fromLibrary.suggestion.category.name}”, which you don't have — pick a category or leave it empty.</div>}
+              </div>
+            )}
             {recognition && (
               <div className="alert-strip alert-strip-info" style={{ display: 'block' }} data-testid="product-recognition">
                 {!recognition.identified ? (
@@ -436,8 +473,8 @@ export function CreateProductModal({ storeId, categories, onClose, onCreated, in
             </label>
 
             <div className="form-section-title">{hasOptions ? 'Options' : 'Price'}</div>
-            <div className="table-container">
-              <table className="table">
+            <div className="table-container variant-table-wrap">
+              <table className="table variant-table">
                 <thead>
                   <tr>
                     {hasOptions && <th>Option *</th>}
@@ -455,7 +492,7 @@ export function CreateProductModal({ storeId, categories, onClose, onCreated, in
                       <td><input aria-label={cellLabel('Cost ₹', index)} className="input-field" inputMode="decimal" value={row.cost} onChange={(e) => setVariant(index, 'cost', e.target.value)} title="What you paid — never shown to customers" /></td>
                       <td>
                         <BarcodeInput id={`new-barcode-${index}`} label={cellLabel('Barcode', index)} compact placeholder="Scan or type" value={row.barcode}
-                          onChange={(value) => setVariant(index, 'barcode', value)} onScan={(code) => void barcodes.check(code)} />
+                          onChange={(value) => setVariant(index, 'barcode', value)} onScan={(code) => { void barcodes.check(code); if (index === 0) void fillFromLibrary(code); }} />
                         {barcodes.taken[row.barcode.trim()] && <span className="input-error-text" role="alert">Already on {barcodes.taken[row.barcode.trim()]}</span>}
                       </td>
                       <td><input aria-label={cellLabel('SKU', index)} className="input-field mono" maxLength={50} value={row.sku} onChange={(e) => setVariant(index, 'sku', e.target.value)} placeholder="auto" /></td>

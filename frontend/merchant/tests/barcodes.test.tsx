@@ -166,3 +166,77 @@ describe('product forms', () => {
     expect((document.getElementById('new-barcode-0') as HTMLInputElement).value).toBe('8904043901015');
   });
 });
+
+describe('the CPSE product library', () => {
+  const SALT = '8904043901015';
+  const CAT = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+  const library = (found = true) => ({ data: { library: found ? {
+    barcode: SALT, found: true, shops: 3, agreeing: 2, note: 'x',
+    suggestion: { name: 'Tata Salt', optionName: '1 kg', unit: 'kg', taxPercent: 5, mrpPaise: 2800, weightGrams: 1000, category: { name: 'Salt & Sugar', id: CAT } },
+  } : { barcode: SALT, found: false, suggestion: null } } });
+
+  it('at the counter: a pack another shop sells arrives filled in, leaving only price and stock', async () => {
+    const sent = fakeServer([
+      ['GET', base('/categories'), () => ({ data: { categories: [{ id: CAT, name: 'Salt & Sugar', description: null, productCount: 0, isActive: true, sortOrder: 0 }] } })],
+      ['GET', base('/products'), () => ({ data: { products: [rice()] }, meta: META(1) })],
+      ['GET', base('/product-lookup'), () => ({ status: 404, error: { code: 'NOT_FOUND', message: 'x' } })],
+      ['GET', base('/barcode-library'), () => library()],
+      ['POST', base('/products'), (req) => ({ status: 201, data: { product: { ...rice(), id: N, name: req.body.name, variants: [{ ...rice().variants[0], id: NV, name: '1 kg', barcode: SALT, quantityOnHand: 10, availableQuantity: 10 }] } } })],
+    ]);
+    await render(<NewSalePage />);
+    await waitFor(() => text().includes('Basmati Rice'));
+    await enter(document.getElementById('pos-search') as HTMLInputElement, SALT);
+    await waitFor(() => text().includes('Tata Salt (1 kg) isn\'t in your products yet — CPSE already knows it'));
+    await click(byText('button', 'Add to my products'));
+    await waitFor(() => text().includes('Filled in from the CPSE product library'));
+    expect(text()).toContain('2 of 3 shops agree');
+    expect((document.getElementById('product-name') as HTMLInputElement).value).toBe('Tata Salt');
+    expect((document.getElementById('product-sold-by') as HTMLSelectElement).value).toBe('kg');
+    expect((document.getElementById('product-gst') as HTMLSelectElement).value).toBe('5');
+    expect((document.getElementById('product-category') as HTMLSelectElement).value).toBe(CAT);
+    expect((document.querySelector('input[aria-label="Option 1 name"]') as HTMLInputElement).value).toBe('1 kg');
+    expect((document.querySelector('input[aria-label="MRP ₹, option 1"]') as HTMLInputElement).value).toBe('28.00');
+    // Only this shop's own numbers are left.
+    await type(document.querySelector('input[aria-label="Price ₹, option 1"]') as HTMLInputElement, '26');
+    await type(document.querySelector('input[aria-label="Opening stock, option 1"]') as HTMLInputElement, '10');
+    await click(byText('button', 'Create product'));
+    await waitFor(() => text().includes('Tata Salt saved and added to the bill.'));
+    const body = sent.find((r) => r.method === 'POST' && /\/products$/.test(r.url))!.body;
+    expect(body).toMatchObject({ name: 'Tata Salt', unit: 'kg', taxPercent: 5, categoryId: CAT });
+    expect(body.variants[0]).toMatchObject({ name: '1 kg', barcode: SALT, pricePaise: 2600, mrpPaise: 2800, openingQuantity: 10 });
+  });
+
+  it('in Receive stock: says CPSE knows the pack and offers to add it', async () => {
+    fakeServer([
+      ['GET', base('/products'), () => ({ data: { products: [rice()] }, meta: META(1) })],
+      ['GET', base('/product-lookup'), () => ({ status: 404, error: { code: 'NOT_FOUND', message: 'x' } })],
+      ['GET', base('/barcode-library'), () => library()],
+    ]);
+    await render(<InventoryPage />);
+    await click(await waitFor(() => byText('button', 'Receive stock')));
+    await enter(document.getElementById('stock-scan') as HTMLInputElement, SALT);
+    await waitFor(() => text().includes('Tata Salt (1 kg) isn\'t in your products yet — CPSE already knows it.'));
+    expect(byText('a', 'Add to my products').getAttribute('href')).toBe(`/products?new=1&barcode=${SALT}`);
+  });
+
+  it('never overwrites a name the owner already typed, and says nothing when no shop has the code', async () => {
+    const sent = fakeServer([
+      ['GET', base('/categories'), () => ({ data: { categories: [] } })],
+      ['GET', base('/products'), () => ({ data: { products: [] }, meta: META(0) })],
+      ['GET', base('/product-lookup'), () => ({ status: 404, error: { code: 'NOT_FOUND', message: 'x' } })],
+      ['GET', base('/barcode-library'), (req) => library(req.params?.barcode === SALT)],
+    ]);
+    await render(<ProductsPage />);
+    await click(await waitFor(() => byText('button', 'Add product')));
+    await type(document.getElementById('product-name') as HTMLInputElement, 'My own salt');
+    await enter(document.getElementById('new-barcode-0') as HTMLInputElement, SALT);
+    await act(async () => undefined);
+    expect((document.getElementById('product-name') as HTMLInputElement).value).toBe('My own salt');
+    expect(sent.some((r) => r.url.endsWith('/barcode-library'))).toBe(false);
+    await type(document.getElementById('product-name') as HTMLInputElement, '');
+    await enter(document.getElementById('new-barcode-0') as HTMLInputElement, '5000000000001');
+    await waitFor(() => sent.some((r) => r.url.endsWith('/barcode-library')));
+    expect(text()).not.toContain('Filled in from the CPSE product library');
+    expect((document.getElementById('product-name') as HTMLInputElement).value).toBe('');
+  });
+});

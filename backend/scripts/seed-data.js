@@ -32,6 +32,19 @@ export const demoMerchant = {
   phone: '+919812300000',
 };
 
+/**
+ * The platform admin (migration 0045), a superadmin, for the admin portal at
+ * /admin. Its own account — not the customer's or the shop's — so all three
+ * apps can be signed in at once and every admin action can be watched landing
+ * in the other two (suspend the customer, take the shop off CPSE, …).
+ */
+export const demoAdmin = {
+  email: 'demo.admin@cpse.local',
+  password: 'CpseAdmin!2026',
+  full_name: 'Demo Admin',
+  phone: '+919800000001',
+};
+
 export const stores = [
   {
     id: '11111111-1111-4111-8111-000000000001',

@@ -15,7 +15,7 @@ import '../features/tools/Tools.css';
 import './Admin.css';
 
 /**
- * The CPSE admin portal, at /merchant/admin (migrations 0039, 0045): an
+ * The CPSE admin portal, its own app at /admin (migrations 0039, 0045): an
  * overview, store verification, every store and account, escalated support,
  * the admins themselves and the log of what they did. Every call goes to
  * /admin, which checks the admin's role on each request; the console only
@@ -78,7 +78,7 @@ export default function AdminApp() {
       <div className="shell">
         <header className="shell__header">
           <div className="shell__bar">
-            <span className="shell__brand"><Logo size="md" /> <strong style={{ marginLeft: 8 }}>Admin</strong></span>
+            <span className="shell__brand"><Logo size="md" tagline="admin" /></span>
             <div className="shell__actions">
               <span className="tiny">{admin.email}</span>
               <span className="badge badge-neutral" title={ROLE_SUMMARY[admin.role]}>{ROLE_LABELS[admin.role]}</span>
@@ -135,10 +135,10 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
     <div className="auth-page">
       <div className="auth-form-panel" style={{ margin: '0 auto' }}>
         <div className="auth-form-container">
-          <div className="auth-mobile-logo" style={{ display: 'block' }}><Logo size="lg" /></div>
+          <div className="auth-mobile-logo" style={{ display: 'block' }}><Logo size="lg" tagline="admin" /></div>
           <div className="auth-form-header">
             <h2 className="auth-form-title">CPSE admin</h2>
-            <p className="auth-form-subtitle">For CPSE platform admins only. Shop owners sign in at <a className="auth-link" href="/merchant/login">/merchant</a>.</p>
+            <p className="auth-form-subtitle">For CPSE platform admins only. Shop owners sign in at <a className="auth-link" href="/merchant/login">/merchant</a>, customers at <a className="auth-link" href="/login">the customer app</a>.</p>
           </div>
           <form className="auth-form" onSubmit={submit}>
             {error && <div className="auth-error" role="alert">{error}</div>}
@@ -630,7 +630,7 @@ function AdminsPage() {
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['admin-admins'] }); queryClient.invalidateQueries({ queryKey: ['admin-log'] }); };
   const add = useMutation({
     mutationFn: () => adminApi.addAdmin(email.trim(), role),
-    onSuccess: ({ admin }) => { setEmail(''); refresh(); showToast(`${admin.email} is now a ${ROLE_LABELS[admin.role].toLowerCase()}. They sign in at /merchant/admin.`, 'success'); },
+    onSuccess: ({ admin }) => { setEmail(''); refresh(); showToast(`${admin.email} is now a ${ROLE_LABELS[admin.role].toLowerCase()}. They sign in at /admin.`, 'success'); },
     onError: (err) => showToast(errorMessage(err), 'error'),
   });
   const change = useMutation({

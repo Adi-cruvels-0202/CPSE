@@ -1,7 +1,7 @@
 /**
  * Platform admins from the command line — how the first admin is made, and
  * the way back in if every superadmin is locked out. After that, superadmins
- * manage admins in the portal (/merchant/admin → Admins).
+ * manage admins in the portal (/admin → Admins).
  *
  *   npm run admin -- list
  *   npm run admin -- grant  <email> [superadmin|reviewer|support]   (default superadmin)
@@ -61,7 +61,7 @@ if (command === 'list') {
   const { error } = await supabaseAdmin.from('platform_admins').insert({ id: user.id, email: user.email, full_name: user.full_name ?? null, role });
   if (error) stop(`Could not add the admin: ${error.message}`);
   await recordAdminAction(OPERATOR, { action: 'admin_added', targetType: 'admin', targetId: user.id, targetLabel: user.email, details: { role } });
-  console.log(`${email} is now a ${role}. Sign in at /merchant/admin.`);
+  console.log(`${email} is now a ${role}. Sign in at /admin.`);
 } else if (command === 'role') {
   if (!email || !ADMIN_ROLES.includes(roleArg)) stop(`Usage: npm run admin -- role <email> <${ADMIN_ROLES.join('|')}>`);
   const user = await account(email);

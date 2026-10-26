@@ -38,8 +38,12 @@ const AutomationPage = lazy(() => import('./features/tools/AutomationPage'));
 const SharePage = lazy(() => import('./features/tools/SharePage'));
 const VerificationPage = lazy(() => import('./features/tools/VerificationPage'));
 const InsightsPage = lazy(() => import('./features/tools/InsightsPage'));
-// Platform reviewers: a separate sign-in and session (src/admin/adminApi.ts).
-const AdminApp = lazy(() => import('./admin/AdminApp'));
+// The admin portal is its own app at /admin (src/admin/main.tsx); an old
+// /merchant/admin link is sent there.
+function AdminMoved() {
+  window.location.replace('/admin');
+  return null;
+}
 
 /**
  * The merchant app, served by the backend at /merchant (the customer app is
@@ -117,7 +121,7 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<SignedOutRoute><LoginPage /></SignedOutRoute>} />
                 <Route path="/register" element={<SignedOutRoute><RegisterPage /></SignedOutRoute>} />
-                <Route path="/admin/*" element={<Lazy><AdminApp /></Lazy>} />
+                <Route path="/admin/*" element={<AdminMoved />} />
 
                 <Route path="/" element={<MerchantRoute><MerchantLayout /></MerchantRoute>}>
                   <Route index element={<Navigate to="/dashboard" replace />} />

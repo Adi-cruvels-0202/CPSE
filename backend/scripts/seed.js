@@ -192,13 +192,18 @@ async function seedKhata(customerId) {
     { id: khataSeed.accountId, customer_id: customerId, store_id: khataSeed.storeId },
   ]);
 
-  // Clear first: the balance is maintained by a trigger, and deleting the old
-  // rows unwinds their effect, so re-seeding cannot double the balance.
-  const { error: clearError } = await supabaseAdmin
+  // Khata entries are permanent (migration 0037: a mistake is reversed, never
+  // deleted), so the demo entries are written once. A re-run leaves whatever
+  // the account holds now — including anything recorded while testing.
+  const { count, error: countError } = await supabaseAdmin
     .from('khata_transactions')
-    .delete()
+    .select('id', { count: 'exact', head: true })
     .eq('account_id', khataSeed.accountId);
-  if (clearError) throw new Error(`khata_transactions: ${clearError.message}`);
+  if (countError) throw new Error(`khata_transactions: ${countError.message}`);
+  if (count > 0) {
+    console.log(`  khata_transactions kept ${count} existing rows`);
+    return;
+  }
 
   const { error } = await supabaseAdmin
     .from('khata_transactions')
@@ -229,8 +234,8 @@ async function seed() {
   await upsert('product_variants', await adoptExistingDefaultVariants(variantRows));
 
   const customerId = await ensureTestCustomer();
-  await seedKhata(customerId);
   await ensureDemoAdmin();
+  await seedKhata(customerId);
 
   const { data: account } = await supabaseAdmin
     .from('khata_accounts')

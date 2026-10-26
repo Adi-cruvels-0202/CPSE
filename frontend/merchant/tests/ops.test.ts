@@ -181,10 +181,6 @@ describe('reviewer console client ↔ backend docs/API.md', () => {
     ['admin.account', () => adminApi.account(ID)],
     ['admin.suspend', () => adminApi.suspend(ID, 'Fake orders')],
     ['admin.reinstate', () => adminApi.reinstate(ID, 'Appeal accepted')],
-    ['admin.admins', () => adminApi.admins()],
-    ['admin.addAdmin', () => adminApi.addAdmin('new@cpse.test', 'reviewer')],
-    ['admin.changeRole', () => adminApi.changeRole(ID, 'support')],
-    ['admin.removeAdmin', () => adminApi.removeAdmin(ID, 'Left the team')],
     ['admin.log', () => adminApi.log({ targetType: 'store' })],
   ];
 

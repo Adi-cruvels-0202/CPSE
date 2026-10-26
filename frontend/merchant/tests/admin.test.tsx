@@ -17,11 +17,10 @@ const CONV = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const META = { page: 1, limit: 20, total: 1, totalPages: 1, hasNextPage: false };
 
 const app = () => <Routes><Route path="/admin/*" element={<AdminApp />} /></Routes>;
-const ALL_PERMISSIONS = ['viewOverview', 'viewStores', 'viewAccounts', 'viewLog', 'reviewStores', 'moderateStores', 'handleSupport', 'suspendAccounts', 'manageAdmins'];
-const adminMe = (role = 'superadmin', permissions: string[] = ALL_PERMISSIONS) => ({ id: 'r1', email: 'reviewer@cpse.test', fullName: null, role, permissions });
+const adminMe = () => ({ id: 'r1', email: 'reviewer@cpse.test', fullName: null });
 const ME = ['GET', /^\/admin\/me$/, () => ({ data: { admin: adminMe() } })] as const;
 const OVERVIEW = ['GET', /^\/admin\/overview$/, () => ({ data: { overview: {
-  you: adminMe(), stores: { total: 3, published: 1, waitingForReview: 1, sentBack: 0, waitingToPublish: 1 },
+  you: { id: 'r1', email: 'reviewer@cpse.test' }, stores: { total: 3, published: 1, waitingForReview: 1, sentBack: 0, waitingToPublish: 1 },
   accounts: { total: 10, merchants: 3, customers: 6, suspended: 0 }, support: { escalated: 0 }, recentActions: [],
 } } })] as const;
 

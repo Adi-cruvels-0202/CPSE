@@ -33,7 +33,7 @@ export const demoMerchant = {
 };
 
 /**
- * The platform admin (migration 0045), a superadmin, for the admin portal at
+ * The platform admin (migration 0045), for the admin portal at
  * /admin. Its own account — not the customer's or the shop's — so all three
  * apps can be signed in at once and every admin action can be watched landing
  * in the other two (suspend the customer, take the shop off CPSE, …).

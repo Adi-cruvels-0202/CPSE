@@ -823,50 +823,34 @@ when `gstApplicable` (**422 `VERIFICATION_INCOMPLETE`** with
 
 ### Platform admin portal
 
-Platform admins are auth users with a `platform_admins` row (migrations 0039,
-0045). The first one is made from the command line — `npm run admin -- grant
-<email> [role]` — and superadmins add the rest in the portal. Each admin has
-one **role**; a route its role does not allow answers **403 `FORBIDDEN`**
-naming the role, as does any route for a customer or shop account.
-
-| Permission | superadmin | reviewer | support |
-|---|---|---|---|
-| overview, stores, accounts, action log (read) | ✓ | ✓ | ✓ |
-| store verification: approve, send back, revoke | ✓ | ✓ | — |
-| take a store off CPSE (unpublish) | ✓ | ✓ | — |
-| escalated support | ✓ | — | ✓ |
-| suspend and reinstate accounts | ✓ | — | — |
-| add, change and remove admins | ✓ | — | — |
-
-Rules no role can get round: an admin account cannot be suspended (remove it
-as an admin first); nobody changes or removes their own role; the last
-superadmin cannot be demoted or removed; an admin must be a separate account
-from any shop. Every decision is written to the append-only action log
-(`admin_actions`) with the admin, the reason and the target; store decisions
-are also in the store's verification events.
+The admin portal (`/admin`) is run by one kind of admin, who can do
+everything: an auth user with a `platform_admins` row (migrations 0039, 0045,
+0046). The operator makes one with `npm run admin -- grant <email>` (the seed
+also makes `demo.admin@cpse.local`); there is no way to add admins from the
+API. Any customer or shop account gets **403 `FORBIDDEN`** on every route
+here. An admin account — your own included — cannot be suspended. Every
+decision is written to the append-only action log (`admin_actions`) with the
+admin, the reason and the target; store decisions are also in the store's
+verification events.
 
 | | |
 |---|---|
-| `POST /admin/auth/login` | **public.** `{ email, password }` → `{ admin: { id, email, fullName, role, permissions }, session, roles: ["admin"] }`. Not an admin: **403**, and the session is ended. Suspended: **403 `ACCOUNT_SUSPENDED`**. |
-| `GET /admin/me` | Bearer, admin. `{ admin }` with `role` and `permissions`. |
-| `GET /admin/overview` | Any role. `{ overview: { you, stores: { total, published, waitingForReview, sentBack, waitingToPublish }, accounts: { total, merchants, customers, suspended }, support: { escalated }, recentActions } }`. |
-| `GET /admin/verifications` | reviewStores. `?status=pending&page=&limit=` → `{ stores }`, oldest first. |
-| `GET /admin/verifications/:storeId` | reviewStores. `{ store: { …, publishRequestedAt }, verification }` — `publishRequestedAt` set means approving also publishes the store. |
-| `GET /admin/verifications/:storeId/documents/:documentId/url` | reviewStores. A 5-minute link to one document. |
-| `POST /admin/verifications/:storeId/approve` | reviewStores. `{ note? }`. `pending` → `verified`. If the owner already pressed Publish and nothing else is missing, the store is published in the same step (`published: true` in the reply) and the owner is told it is live. |
-| `POST /admin/verifications/:storeId/reject` | reviewStores. `{ reason, note? }` (reason 3–500 characters). `pending` → `rejected` (sent back), or `verified` → `rejected` (verification revoked — the store is unpublished). |
-| `GET /admin/stores` | Any role. `?search=&verification=pending\|verified\|rejected\|not_submitted&published=yes\|no&page=&limit=` → `{ stores: [{ id, name, slug, city, shopCategory, isPublished, verificationStatus, verificationLabel, publishRequestedAt, owner: { id, email, name, phone, isSuspended } }] }`, newest first. |
-| `GET /admin/stores/:storeId` | Any role. `{ store: { …, phone, email, address, missingForPublish }, counts: { products, orders, ordersLast30Days }, actions }`. |
-| `POST /admin/stores/:storeId/unpublish` | moderateStores. `{ reason }` → the store detail. Customers stop seeing the store; open orders carry on; the owner is told why and may publish again once fixed (revoke verification to stop that). **409** if not published. |
-| `GET /admin/accounts` | Any role. `?kind=all\|customer\|merchant&status=all\|active\|suspended&search=&page=&limit=` → `{ accounts: [{ id, email, name, phone, type: customer\|merchant\|admin, isSuspended, suspendedAt, suspendedReason, storeCount, orderCount, createdAt }] }`. `search` matches email, name or phone. |
-| `GET /admin/accounts/:accountId` | Any role. `{ account, adminRole, stores, actions }`. |
-| `POST /admin/accounts/:accountId/suspend` | suspendAccounts. `{ reason }`. The account can no longer sign in anywhere and its open sessions are refused (Supabase Auth ban as well). **403** for your own account or an admin account; **409** if already suspended. |
-| `POST /admin/accounts/:accountId/reinstate` | suspendAccounts. `{ reason }`. **409** if not suspended. |
-| `GET /admin/admins` | manageAdmins. `{ admins: [{ id, email, name, role, addedAt, permissions }], roles: [{ role, permissions }] }`. |
-| `POST /admin/admins` | manageAdmins. `{ email, role }` → **201** `{ admin }`. The account must exist (**422 `ACCOUNT_NOT_FOUND`**), not be a shop account (**422 `SHOP_ACCOUNT`**) and not be suspended (**422 `ACCOUNT_SUSPENDED`**); **409** if already an admin. |
-| `PATCH /admin/admins/:adminId` | manageAdmins. `{ role }` → `{ admin }`. **403** on yourself; **409** when it would leave no superadmin. |
-| `POST /admin/admins/:adminId/remove` | manageAdmins. `{ reason }` → `{ removed }`. **403** on yourself; **409** for the last superadmin. |
-| `GET /admin/log` | Any role. `?targetType=store\|account\|admin&action=&page=&limit=` → `{ actions: [{ id, at, admin: { id, email }, action, target: { type, id, label }, reason, details }] }`, newest first. |
+| `POST /admin/auth/login` | **public.** `{ email, password }` → `{ admin: { id, email, fullName }, session, roles: ["admin"] }`. Not an admin: **403**, and the session is ended. Suspended: **403 `ACCOUNT_SUSPENDED`**. |
+| `GET /admin/me` | Bearer, admin. `{ admin: { id, email, fullName } }`. |
+| `GET /admin/overview` | Admin. `{ overview: { you: { id, email }, stores: { total, published, waitingForReview, sentBack, waitingToPublish }, accounts: { total, merchants, customers, suspended }, support: { escalated }, recentActions } }`. |
+| `GET /admin/verifications` | Admin. `?status=pending&page=&limit=` → `{ stores }`, oldest first. |
+| `GET /admin/verifications/:storeId` | Admin. `{ store: { …, publishRequestedAt }, verification }` — `publishRequestedAt` set means approving also publishes the store. |
+| `GET /admin/verifications/:storeId/documents/:documentId/url` | Admin. A 5-minute link to one document. |
+| `POST /admin/verifications/:storeId/approve` | Admin. `{ note? }`. `pending` → `verified`. If the owner already pressed Publish and nothing else is missing, the store is published in the same step (`published: true` in the reply) and the owner is told it is live. |
+| `POST /admin/verifications/:storeId/reject` | Admin. `{ reason, note? }` (reason 3–500 characters). `pending` → `rejected` (sent back), or `verified` → `rejected` (verification revoked — the store is unpublished). |
+| `GET /admin/stores` | Admin. `?search=&verification=pending\|verified\|rejected\|not_submitted&published=yes\|no&page=&limit=` → `{ stores: [{ id, name, slug, city, shopCategory, isPublished, verificationStatus, verificationLabel, publishRequestedAt, owner: { id, email, name, phone, isSuspended } }] }`, newest first. |
+| `GET /admin/stores/:storeId` | Admin. `{ store: { …, phone, email, address, missingForPublish }, counts: { products, orders, ordersLast30Days }, actions }`. |
+| `POST /admin/stores/:storeId/unpublish` | Admin. `{ reason }` → the store detail. Customers stop seeing the store; open orders carry on; the owner is told why and may publish again once fixed (revoke verification to stop that). **409** if not published. |
+| `GET /admin/accounts` | Admin. `?kind=all\|customer\|merchant&status=all\|active\|suspended&search=&page=&limit=` → `{ accounts: [{ id, email, name, phone, type: customer\|merchant\|admin, isSuspended, suspendedAt, suspendedReason, storeCount, orderCount, createdAt }] }`. `search` matches email, name or phone. |
+| `GET /admin/accounts/:accountId` | Admin. `{ account, stores, actions }`. |
+| `POST /admin/accounts/:accountId/suspend` | Admin. `{ reason }`. The account can no longer sign in anywhere and its open sessions are refused (Supabase Auth ban as well). **403** for any admin account, your own included; **409** if already suspended. |
+| `POST /admin/accounts/:accountId/reinstate` | Admin. `{ reason }`. **409** if not suspended. |
+| `GET /admin/log` | Admin. `?targetType=store\|account\|admin&action=&page=&limit=` → `{ actions: [{ id, at, admin: { id, email }, action, target: { type, id, label }, reason, details }] }`, newest first. |
 
 ### Merchant catalogue operations
 
@@ -1062,9 +1046,9 @@ conversation.
 | `GET /merchant/stores/:storeId/conversations` | Bearer, merchant. `?status=&kind=` → `{ conversations }`. |
 | `GET /merchant/stores/:storeId/conversations/:conversationId` | Bearer, merchant. `{ conversation }` with `messages`; marks it read. |
 | `POST /merchant/stores/:storeId/conversations/:conversationId/messages` | Bearer, merchant. `{ body, resolve? }` → **201**. |
-| `GET /admin/support` | handleSupport. Escalated conversations, oldest escalation first. |
-| `GET /admin/support/:conversationId` | handleSupport. Only an escalated conversation (**404** otherwise). |
-| `POST /admin/support/:conversationId/messages` | handleSupport. `{ body, resolve? }` → **201**; the customer is notified. |
+| `GET /admin/support` | Admin. Escalated conversations, oldest escalation first. |
+| `GET /admin/support/:conversationId` | Admin. Only an escalated conversation (**404** otherwise). |
+| `POST /admin/support/:conversationId/messages` | Admin. `{ body, resolve? }` → **201**; the customer is notified. |
 
 **Substitutions.** Only with the customer's agreement: an order's
 `substitutionPreference` is `contact_me` (every proposal waits for the

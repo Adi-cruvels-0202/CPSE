@@ -1,15 +1,15 @@
-import { createContext, useContext, useEffect, useState, type FormEvent, } from 'react';
+import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   adminApi, readAdminSession, writeAdminSession,
-  type AdminAccount, type AdminAction, type AdminMe, type AdminRole, type AdminStoreRow, type Permission, type ReviewRow,
+  type AdminAccount, type AdminAction, type AdminMe, type AdminStoreRow, type ReviewRow,
 } from './adminApi';
 import { ApiError, errorMessage } from '../api/client';
 import { useToast } from '../hooks/useToast';
 import Logo from '../components/brand/Logo';
 import { EmptyState, ErrorState, Modal, PageHeader, Pagination, Spinner, SubTabs, formatDateTime } from '../components/common/ui';
-import { IconCheck, IconClipboard, IconLogOut, IconSearch, IconStore, IconUser } from '../components/icons/Icons';
+import { IconCheck, IconClipboard, IconDashboard, IconHistory, IconLogOut, IconSearch, IconStore, IconUser } from '../components/icons/Icons';
 import '../features/auth/Auth.css';
 import '../features/tools/Tools.css';
 import './Admin.css';
@@ -22,28 +22,16 @@ import './Admin.css';
  * shows what that role allows, so nothing here is the real gate.
  */
 
-const ROLE_LABELS: Record<AdminRole, string> = { superadmin: 'Superadmin', reviewer: 'Reviewer', support: 'Support' };
-const ROLE_SUMMARY: Record<AdminRole, string> = {
-  superadmin: 'Everything: store verification and moderation, support, suspending accounts and managing admins.',
-  reviewer: 'Store verification (approve, send back, revoke) and taking stores off CPSE. Reads accounts.',
-  support: 'Escalated customer support. Reads stores and accounts.',
-};
-
 const AdminContext = createContext<AdminMe | null>(null);
 const useAdmin = () => useContext(AdminContext)!;
-const useCan = () => {
-  const me = useAdmin();
-  return (permission: Permission) => me.permissions.includes(permission);
-};
 
-const NAV: { to: string; label: string; permission: Permission }[] = [
-  { to: '/admin/overview', label: 'Overview', permission: 'viewOverview' },
-  { to: '/admin/verifications', label: 'Store verification', permission: 'reviewStores' },
-  { to: '/admin/stores', label: 'Stores', permission: 'viewStores' },
-  { to: '/admin/accounts', label: 'Accounts', permission: 'viewAccounts' },
-  { to: '/admin/support', label: 'Escalated support', permission: 'handleSupport' },
-  { to: '/admin/admins', label: 'Admins', permission: 'manageAdmins' },
-  { to: '/admin/log', label: 'Activity log', permission: 'viewLog' },
+const NAV: { to: string; label: string; icon: ReactNode }[] = [
+  { to: '/admin/overview', label: 'Overview', icon: <IconDashboard size={18} /> },
+  { to: '/admin/verifications', label: 'Store verification', icon: <IconCheck size={18} /> },
+  { to: '/admin/stores', label: 'Stores', icon: <IconStore size={18} /> },
+  { to: '/admin/accounts', label: 'Accounts', icon: <IconUser size={18} /> },
+  { to: '/admin/support', label: 'Escalated support', icon: <IconClipboard size={18} /> },
+  { to: '/admin/log', label: 'Activity log', icon: <IconHistory size={18} /> },
 ];
 
 export default function AdminApp() {
@@ -67,39 +55,35 @@ export default function AdminApp() {
   };
 
   if (!signedIn) return <AdminLogin onSignedIn={() => setSignedIn(true)} />;
-  if (me.isLoading) return <Spinner large />;
-  if (me.error || !me.data) return <ErrorState error={me.error} onRetry={() => me.refetch()} />;
+  if (me.isLoading) return <div className="admin-loading"><Spinner large /></div>;
+  if (me.error || !me.data) return <div className="admin-loading"><ErrorState error={me.error} onRetry={() => me.refetch()} /></div>;
   const admin = me.data.admin;
-  const nav = NAV.filter((item) => admin.permissions.includes(item.permission));
-  const can = (permission: Permission) => admin.permissions.includes(permission);
 
   return (
     <AdminContext.Provider value={admin}>
-      <div className="shell">
-        <header className="shell__header">
-          <div className="shell__bar">
-            <span className="shell__brand"><Logo size="md" tagline="admin" /></span>
-            <div className="shell__actions">
-              <span className="tiny">{admin.email}</span>
-              <span className="badge badge-neutral" title={ROLE_SUMMARY[admin.role]}>{ROLE_LABELS[admin.role]}</span>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={signOut}><IconLogOut size={16} /> Sign out</button>
-            </div>
+      <div className="admin">
+        <aside className="admin__side">
+          <div className="admin__brand"><Logo size="md" tagline="admin" /></div>
+          <nav className="admin__nav" aria-label="Admin">
+            {NAV.map((item) => (
+              <NavLink key={item.to} to={item.to} className={({ isActive }) => `admin__link${isActive ? ' is-active' : ''}`}>
+                {item.icon}<span>{item.label}</span>
+              </NavLink>
+            ))}
+          </nav>
+          <div className="admin__me">
+            <span className="admin__email" title={admin.email}>{admin.email}</span>
+            <button type="button" className="btn btn-ghost btn-sm admin__signout" onClick={signOut}><IconLogOut size={16} /> Sign out</button>
           </div>
-        </header>
-        <main className="shell__main" id="main">
-          <div className="shell__content">
-            <nav className="tabs admin-nav" aria-label="Admin">
-              {nav.map((item) => (
-                <NavLink key={item.to} to={item.to} className={({ isActive }) => `tab${isActive ? ' tab-active' : ''}`}>{item.label}</NavLink>
-              ))}
-            </nav>
+        </aside>
+        <main className="admin__main" id="main">
+          <div className="admin__content">
             <Routes>
               <Route path="overview" element={<OverviewPage />} />
-              {can('reviewStores') && <Route path="verifications" element={<VerificationQueue />} />}
+              <Route path="verifications" element={<VerificationQueue />} />
               <Route path="stores" element={<StoresPage />} />
               <Route path="accounts" element={<AccountsPage />} />
-              {can('handleSupport') && <Route path="support" element={<SupportQueue />} />}
-              {can('manageAdmins') && <Route path="admins" element={<AdminsPage />} />}
+              <Route path="support" element={<SupportQueue />} />
               <Route path="log" element={<LogPage />} />
               <Route path="*" element={<Navigate to="/admin/overview" replace />} />
             </Routes>
@@ -165,12 +149,10 @@ const ACCOUNT_TYPE: Record<AdminAccount['type'], string> = { customer: 'Customer
 const ACTION_LABELS: Record<string, string> = {
   store_approved: 'Approved store', store_rejected: 'Sent store back', store_verification_revoked: 'Revoked verification',
   store_unpublished: 'Took store off CPSE', account_suspended: 'Suspended account', account_reinstated: 'Reinstated account',
-  admin_added: 'Added admin', admin_role_changed: 'Changed admin role', admin_removed: 'Removed admin',
+  admin_added: 'Made admin', admin_removed: 'Removed admin',
 };
 
 function actionDetail(a: AdminAction) {
-  if (a.action === 'admin_role_changed') return `${String(a.details.from)} → ${String(a.details.to)}`;
-  if (a.action === 'admin_added') return `as ${String(a.details.role)}`;
   if (a.action === 'store_approved' && a.details.published) return 'and published it';
   return '';
 }
@@ -207,8 +189,6 @@ function ReasonForm({ id, label, placeholder, submitLabel, danger = true, busy, 
 // ── Overview ────────────────────────────────────────────────────────────────
 
 function OverviewPage() {
-  const me = useAdmin();
-  const can = useCan();
   const query = useQuery({ queryKey: ['admin-overview'], queryFn: () => adminApi.overview(), refetchInterval: 60_000 });
   const o = query.data?.overview;
   const Tile = ({ label, value, to, tone }: { label: string; value: number; to?: string; tone?: 'warn' }) => {
@@ -217,15 +197,15 @@ function OverviewPage() {
   };
   return (
     <div>
-      <PageHeader title="Overview" subtitle={`Signed in as ${ROLE_LABELS[me.role].toLowerCase()}. ${ROLE_SUMMARY[me.role]}`} />
+      <PageHeader title="Overview" subtitle="What needs your attention, and the platform at a glance." />
       {query.isLoading ? <Spinner large /> : query.error || !o ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
         <div className="stack">
           <section>
             <h2 className="admin-section-title">Needs attention</h2>
             <div className="metric-grid">
-              <Tile label="Stores waiting for review" value={o.stores.waitingForReview} to={can('reviewStores') ? '/admin/verifications' : undefined} tone="warn" />
-              <Tile label="Owners who pressed Publish" value={o.stores.waitingToPublish} to={can('reviewStores') ? '/admin/verifications' : undefined} />
-              <Tile label="Escalated conversations" value={o.support.escalated} to={can('handleSupport') ? '/admin/support' : undefined} tone="warn" />
+              <Tile label="Stores waiting for review" value={o.stores.waitingForReview} to="/admin/verifications" tone="warn" />
+              <Tile label="Owners who pressed Publish" value={o.stores.waitingToPublish} to="/admin/verifications" />
+              <Tile label="Escalated conversations" value={o.support.escalated} to="/admin/support" tone="warn" />
             </div>
           </section>
           <section>
@@ -458,7 +438,6 @@ function StoresPage() {
 const MISSING_LABELS: Record<string, string> = { address: 'address', phone: 'phone', openingHours: 'opening hours', fulfilment: 'pickup or delivery', verification: 'verification' };
 
 function StoreModal({ storeId, onClose }: { storeId: string; onClose: () => void }) {
-  const can = useCan();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [reviewing, setReviewing] = useState(false);
@@ -489,8 +468,8 @@ function StoreModal({ storeId, onClose }: { storeId: string; onClose: () => void
             <dt>Orders</dt><dd>{d.counts.orders} ({d.counts.ordersLast30Days} in the last 30 days)</dd>
             {!d.store.isPublished && <><dt>Before it can go live</dt><dd>{d.store.missingForPublish.length ? d.store.missingForPublish.map((m) => MISSING_LABELS[m] ?? m).join(', ') : 'Nothing — the owner can publish'}</dd></>}
           </dl>
-          {can('reviewStores') && <div><button type="button" className="btn btn-secondary btn-sm" onClick={() => setReviewing(true)}>Open verification</button></div>}
-          {can('moderateStores') && d.store.isPublished && (
+          <div><button type="button" className="btn btn-secondary btn-sm" onClick={() => setReviewing(true)}>Open verification</button></div>
+          {d.store.isPublished && (
             <ReasonForm id="st-down" label="Take this store off CPSE — customers stop seeing it; open orders carry on; the owner sees your reason" placeholder="e.g. Selling items that are not allowed."
               submitLabel="Take off CPSE" busy={unpublish.isPending} onSubmit={(reason) => unpublish.mutate(reason)} />
           )}
@@ -559,7 +538,6 @@ function AccountsPage() {
 }
 
 function AccountModal({ accountId, onClose }: { accountId: string; onClose: () => void }) {
-  const can = useCan();
   const me = useAdmin();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -582,7 +560,7 @@ function AccountModal({ accountId, onClose }: { accountId: string; onClose: () =
           <dl className="kv">
             <dt>Email</dt><dd>{d.account.email}</dd>
             <dt>Phone</dt><dd>{d.account.phone ?? '—'}</dd>
-            <dt>Type</dt><dd>{ACCOUNT_TYPE[d.account.type]}{d.adminRole ? ` (${ROLE_LABELS[d.adminRole]})` : ''}</dd>
+            <dt>Type</dt><dd>{ACCOUNT_TYPE[d.account.type]}</dd>
             <dt>Joined</dt><dd>{formatDateTime(d.account.createdAt)}</dd>
             <dt>Orders placed</dt><dd>{d.account.orderCount}</dd>
           </dl>
@@ -594,13 +572,13 @@ function AccountModal({ accountId, onClose }: { accountId: string; onClose: () =
               ))}</ul>
             </section>
           )}
-          {can('suspendAccounts') && d.account.type !== 'admin' && d.account.id !== me.id && (
+          {d.account.type !== 'admin' && d.account.id !== me.id && (
             d.account.isSuspended
               ? <ReasonForm id="ac-reinstate" label="Reinstate — why is this account allowed back?" submitLabel="Reinstate account" danger={false} busy={change.isPending} onSubmit={(reason) => change.mutate({ suspend: false, reason })} />
               : <ReasonForm id="ac-suspend" label={`Suspend — the account is signed out and cannot sign in${d.account.type === 'merchant' ? '; its stores stay as they are (take them off separately if needed)' : ''}. The person sees your reason.`}
                   placeholder="e.g. Repeated fake orders." submitLabel="Suspend account" busy={change.isPending} onSubmit={(reason) => change.mutate({ suspend: true, reason })} />
           )}
-          {d.account.type === 'admin' && can('suspendAccounts') && <p className="tiny">Admin accounts cannot be suspended. Remove the admin first (Admins).</p>}
+          {d.account.type === 'admin' && <p className="tiny">Admin accounts cannot be suspended.</p>}
           <section>
             <h3 className="admin-section-title">Admin actions on this account</h3>
             <ActionList actions={d.actions} />
@@ -608,104 +586,6 @@ function AccountModal({ accountId, onClose }: { accountId: string; onClose: () =
         </div>
       )}
     </Modal>
-  );
-}
-
-// ── Admins ──────────────────────────────────────────────────────────────────
-
-const PERMISSION_LABELS: Record<Permission, string> = {
-  viewOverview: 'See the overview', viewStores: 'See stores', viewAccounts: 'See accounts', viewLog: 'See the activity log',
-  reviewStores: 'Verify stores', moderateStores: 'Take stores off CPSE', handleSupport: 'Handle escalated support',
-  suspendAccounts: 'Suspend and reinstate accounts', manageAdmins: 'Manage admins',
-};
-
-function AdminsPage() {
-  const me = useAdmin();
-  const { showToast } = useToast();
-  const queryClient = useQueryClient();
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<AdminRole>('reviewer');
-  const [removing, setRemoving] = useState<{ id: string; email: string } | null>(null);
-  const query = useQuery({ queryKey: ['admin-admins'], queryFn: () => adminApi.admins() });
-  const refresh = () => { queryClient.invalidateQueries({ queryKey: ['admin-admins'] }); queryClient.invalidateQueries({ queryKey: ['admin-log'] }); };
-  const add = useMutation({
-    mutationFn: () => adminApi.addAdmin(email.trim(), role),
-    onSuccess: ({ admin }) => { setEmail(''); refresh(); showToast(`${admin.email} is now a ${ROLE_LABELS[admin.role].toLowerCase()}. They sign in at /admin.`, 'success'); },
-    onError: (err) => showToast(errorMessage(err), 'error'),
-  });
-  const change = useMutation({
-    mutationFn: ({ id, to }: { id: string; to: AdminRole }) => adminApi.changeRole(id, to),
-    onSuccess: ({ admin }) => { refresh(); showToast(`${admin.email} is now a ${ROLE_LABELS[admin.role].toLowerCase()}.`, 'success'); },
-    onError: (err) => { refresh(); showToast(errorMessage(err), 'error'); },
-  });
-  const remove = useMutation({
-    mutationFn: (reason: string) => adminApi.removeAdmin(removing!.id, reason),
-    onSuccess: () => { showToast(`${removing!.email} is no longer an admin.`, 'success'); setRemoving(null); refresh(); },
-    onError: (err) => showToast(errorMessage(err), 'error'),
-  });
-  return (
-    <div>
-      <PageHeader title="Admins" subtitle="Who can use this portal, and what each role may do." />
-      {query.isLoading ? <Spinner large /> : query.error || !query.data ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
-        <div className="stack">
-          <div className="table-container table-scroll">
-            <table className="table">
-              <thead><tr><th>Admin</th><th>Role</th><th>Added</th><th /></tr></thead>
-              <tbody>{query.data.admins.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.name ?? '—'}<div className="tiny">{a.email}{a.id === me.id ? ' · you' : ''}</div></td>
-                  <td>
-                    {a.id === me.id ? ROLE_LABELS[a.role] : (
-                      <select className="input-field" aria-label={`Role of ${a.email}`} value={a.role} disabled={change.isPending} onChange={(e) => change.mutate({ id: a.id, to: e.target.value as AdminRole })}>
-                        {(['superadmin', 'reviewer', 'support'] as AdminRole[]).map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                      </select>
-                    )}
-                  </td>
-                  <td className="tiny">{formatDateTime(a.addedAt)}</td>
-                  <td>{a.id !== me.id && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRemoving({ id: a.id, email: a.email })}>Remove</button>}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-
-          <form className="card admin-add" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
-            <h2 className="admin-section-title">Add an admin</h2>
-            <p className="tiny">The person signs up in the customer app first, with an email that is not a shop account. Then add that email here.</p>
-            <div className="filters-bar" style={{ marginBottom: 0 }}>
-              <div className="input-wrapper" style={{ flex: 1, minWidth: 220 }}>
-                <label className="input-label" htmlFor="ad-email">Email</label>
-                <input id="ad-email" type="email" className="input-field" required value={email} onChange={(e) => setEmail(e.target.value)} />
-              </div>
-              <div className="input-wrapper">
-                <label className="input-label" htmlFor="ad-role">Role</label>
-                <select id="ad-role" className="input-field" value={role} onChange={(e) => setRole(e.target.value as AdminRole)}>
-                  {(['reviewer', 'support', 'superadmin'] as AdminRole[]).map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                </select>
-              </div>
-              <button type="submit" className="btn btn-primary" disabled={add.isPending || !email.trim()}>{add.isPending ? 'Adding…' : 'Add admin'}</button>
-            </div>
-          </form>
-
-          <section>
-            <h2 className="admin-section-title">What each role can do</h2>
-            <div className="table-container table-scroll">
-              <table className="table">
-                <thead><tr><th>Permission</th>{query.data.roles.map((r) => <th key={r.role}>{ROLE_LABELS[r.role]}</th>)}</tr></thead>
-                <tbody>{(Object.keys(PERMISSION_LABELS) as Permission[]).map((p) => (
-                  <tr key={p}><td>{PERMISSION_LABELS[p]}</td>{query.data!.roles.map((r) => <td key={r.role}>{r.permissions.includes(p) ? '✓' : '—'}</td>)}</tr>
-                ))}</tbody>
-              </table>
-            </div>
-            <p className="tiny">Nobody can change or remove their own role, an admin account cannot be suspended, and there is always at least one superadmin.</p>
-          </section>
-        </div>
-      )}
-      {removing && (
-        <Modal title={`Remove ${removing.email}?`} onClose={() => setRemoving(null)} busy={remove.isPending}>
-          <ReasonForm id="ad-remove" label="Why? (kept in the activity log)" submitLabel="Remove admin" busy={remove.isPending} onSubmit={(reason) => remove.mutate(reason)} />
-        </Modal>
-      )}
-    </div>
   );
 }
 
@@ -718,7 +598,7 @@ function LogPage() {
   return (
     <div>
       <PageHeader title="Activity log" subtitle="Every admin decision, who made it and why. Entries cannot be edited or deleted." />
-      <SubTabs value={targetType} onChange={(v) => { setTargetType(v); setPage(1); }} options={[{ value: '', label: 'Everything' }, { value: 'store', label: 'Stores' }, { value: 'account', label: 'Accounts' }, { value: 'admin', label: 'Admins' }]} />
+      <SubTabs value={targetType} onChange={(v) => { setTargetType(v); setPage(1); }} options={[{ value: '', label: 'Everything' }, { value: 'store', label: 'Stores' }, { value: 'account', label: 'Accounts' }, { value: 'admin', label: 'Admin changes' }]} />
       {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
         <ActionList actions={query.data?.data.actions ?? []} empty="No admin actions yet." />
       )}

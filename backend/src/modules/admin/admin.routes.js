@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { validate } from '../../middleware/validate.js';
 import { authLimiter, writeLimiter } from '../../middleware/rateLimit.js';
 import { requireAuth } from '../../middleware/requireAuth.js';
-import { requireAdmin, requirePermission, loadAdmin, permissionsFor, ADMIN_ROLES } from '../../middleware/requireAdmin.js';
+import { requireAdmin, loadAdmin } from '../../middleware/requireAdmin.js';
 import { respond, respondPage, pageQuery, uuid } from '../../lib/merchantRoute.js';
 import { forbidden } from '../../lib/errors.js';
 import { loginSchema } from '../auth/auth.schemas.js';
@@ -15,13 +15,12 @@ import * as portal from './adminPortal.service.js';
 /**
  * /admin — the platform admin portal: store verification (roadmap §4 P1),
  * escalated support (§5 P5), and since migration 0045 every store, every
- * account, the admins and their action log. Every route but sign-in needs a
- * platform_admins row, and each needs its role to allow it
- * (middleware/requireAdmin.js has the table).
+ * account and the admin action log. Every route but sign-in needs a
+ * platform_admins row; an admin can do everything here.
  */
 export const adminRouter = Router();
 
-const toAdmin = (row) => ({ id: row.id, email: row.email, fullName: row.full_name ?? null, role: row.role, permissions: permissionsFor(row.role) });
+const toAdmin = (row) => ({ id: row.id, email: row.email, fullName: row.full_name ?? null });
 
 adminRouter.post(
   '/auth/login',
@@ -51,7 +50,7 @@ const storeParams = z.object({ storeId: uuid('store') }).strict();
 adminRouter.get(
   '/verifications',
   requireAuth,
-  ...requirePermission('reviewStores'),
+  requireAdmin,
   validate({ query: pageQuery({ status: statuses.optional() }, { maxLimit: 50 }) }),
   respondPage(async (req) => {
     const { stores, total } = await verification.listForReview(req.query);
@@ -63,7 +62,7 @@ adminRouter.get(
   '/verifications/:storeId',
   requireAuth,
   validate({ params: storeParams }),
-  ...requirePermission('reviewStores'),
+  requireAdmin,
   respond(async (req) => verification.reviewView(req.params.storeId)),
 );
 
@@ -71,7 +70,7 @@ adminRouter.get(
   '/verifications/:storeId/documents/:documentId/url',
   requireAuth,
   validate({ params: z.object({ storeId: uuid('store'), documentId: uuid('document') }).strict() }),
-  ...requirePermission('reviewStores'),
+  requireAdmin,
   respond(async (req) => verification.documentUrl(req.params.storeId, req.params.documentId)),
 );
 
@@ -80,7 +79,7 @@ adminRouter.post(
   writeLimiter,
   requireAuth,
   validate({ params: storeParams }),
-  ...requirePermission('reviewStores'),
+  requireAdmin,
   validate({ body: z.object({ note: z.string().trim().min(1).max(500).optional() }).strict() }),
   respond(async (req) => verification.decide(req.params.storeId, req.admin, { decision: 'approve', note: req.body.note ?? null })),
 );
@@ -90,7 +89,7 @@ adminRouter.post(
   writeLimiter,
   requireAuth,
   validate({ params: storeParams }),
-  ...requirePermission('reviewStores'),
+  requireAdmin,
   validate({
     body: z
       .object({
@@ -112,20 +111,18 @@ adminRouter.use('/support', adminSupportRouter);
 const reason = (what) => z.string().trim().min(3, `Say why ${what} (3 characters or more).`).max(500);
 const search = z.string().trim().min(1).max(100).optional();
 const accountParams = z.object({ accountId: uuid('account') }).strict();
-const adminParams = z.object({ adminId: uuid('admin') }).strict();
-const role = z.enum(ADMIN_ROLES);
 
 adminRouter.get(
   '/overview',
   requireAuth,
-  ...requirePermission('viewOverview'),
+  requireAdmin,
   respond(async (req) => ({ overview: await portal.overview(req.admin) })),
 );
 
 adminRouter.get(
   '/stores',
   requireAuth,
-  ...requirePermission('viewStores'),
+  requireAdmin,
   validate({
     query: pageQuery({
       search,
@@ -143,7 +140,7 @@ adminRouter.get(
   '/stores/:storeId',
   requireAuth,
   validate({ params: storeParams }),
-  ...requirePermission('viewStores'),
+  requireAdmin,
   respond(async (req) => portal.storeDetail(req.params.storeId)),
 );
 
@@ -152,7 +149,7 @@ adminRouter.post(
   writeLimiter,
   requireAuth,
   validate({ params: storeParams }),
-  ...requirePermission('moderateStores'),
+  requireAdmin,
   validate({ body: z.object({ reason: reason('the store is taken off') }).strict() }),
   respond(async (req) => portal.unpublishStore(req.admin, req.params.storeId, req.body)),
 );
@@ -160,7 +157,7 @@ adminRouter.post(
 adminRouter.get(
   '/accounts',
   requireAuth,
-  ...requirePermission('viewAccounts'),
+  requireAdmin,
   validate({
     query: pageQuery({
       search,
@@ -178,7 +175,7 @@ adminRouter.get(
   '/accounts/:accountId',
   requireAuth,
   validate({ params: accountParams }),
-  ...requirePermission('viewAccounts'),
+  requireAdmin,
   respond(async (req) => portal.accountDetail(req.params.accountId)),
 );
 
@@ -187,7 +184,7 @@ adminRouter.post(
   writeLimiter,
   requireAuth,
   validate({ params: accountParams }),
-  ...requirePermission('suspendAccounts'),
+  requireAdmin,
   validate({ body: z.object({ reason: reason('the account is suspended') }).strict() }),
   respond(async (req) => portal.suspendAccount(req.admin, req.params.accountId, req.body)),
 );
@@ -197,51 +194,15 @@ adminRouter.post(
   writeLimiter,
   requireAuth,
   validate({ params: accountParams }),
-  ...requirePermission('suspendAccounts'),
+  requireAdmin,
   validate({ body: z.object({ reason: reason('the account is reinstated') }).strict() }),
   respond(async (req) => portal.reinstateAccount(req.admin, req.params.accountId, req.body)),
 );
 
 adminRouter.get(
-  '/admins',
-  requireAuth,
-  ...requirePermission('manageAdmins'),
-  respond(async () => portal.listAdmins()),
-);
-
-adminRouter.post(
-  '/admins',
-  writeLimiter,
-  requireAuth,
-  ...requirePermission('manageAdmins'),
-  validate({ body: z.object({ email: z.string().trim().email('Enter a valid email.').max(254), role }).strict() }),
-  respond(async (req) => ({ admin: await portal.addAdmin(req.admin, req.body) }), { created: true }),
-);
-
-adminRouter.patch(
-  '/admins/:adminId',
-  writeLimiter,
-  requireAuth,
-  validate({ params: adminParams }),
-  ...requirePermission('manageAdmins'),
-  validate({ body: z.object({ role }).strict() }),
-  respond(async (req) => ({ admin: await portal.changeAdminRole(req.admin, req.params.adminId, req.body) })),
-);
-
-adminRouter.post(
-  '/admins/:adminId/remove',
-  writeLimiter,
-  requireAuth,
-  validate({ params: adminParams }),
-  ...requirePermission('manageAdmins'),
-  validate({ body: z.object({ reason: reason('the admin is removed') }).strict() }),
-  respond(async (req) => portal.removeAdmin(req.admin, req.params.adminId, req.body)),
-);
-
-adminRouter.get(
   '/log',
   requireAuth,
-  ...requirePermission('viewLog'),
+  requireAdmin,
   validate({
     query: pageQuery({
       targetType: z.enum(['store', 'account', 'admin']).optional(),

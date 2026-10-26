@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../../middleware/validate.js';
 import { requireAuth, requireCustomer } from '../../middleware/requireAuth.js';
-import { requirePermission } from '../../middleware/requireAdmin.js';
+import { requireAdmin } from '../../middleware/requireAdmin.js';
 import { writeLimiter } from '../../middleware/rateLimit.js';
 import { ownStore, storeIdParams, uuid, respond } from '../../lib/merchantRoute.js';
 import { emptyBody } from '../../lib/schemas.js';
@@ -171,13 +171,13 @@ merchantMessagingRouter.post(
 
 // ── Platform support ────────────────────────────────────────────────────────
 
-adminSupportRouter.get('/', requireAuth, ...requirePermission('handleSupport'), respond(async () => ({ conversations: await messaging.listEscalated() })));
+adminSupportRouter.get('/', requireAuth, requireAdmin, respond(async () => ({ conversations: await messaging.listEscalated() })));
 
 adminSupportRouter.get(
   '/:conversationId',
   requireAuth,
   validate({ params: conversationParams }),
-  ...requirePermission('handleSupport'),
+  requireAdmin,
   respond(async (req) => ({ conversation: await messaging.getEscalated(req.params.conversationId) })),
 );
 
@@ -186,7 +186,7 @@ adminSupportRouter.post(
   writeLimiter,
   requireAuth,
   validate({ params: conversationParams }),
-  ...requirePermission('handleSupport'),
+  requireAdmin,
   validate({ body: z.object({ body, resolve: z.boolean().optional() }).strict() }),
   respond(async (req) => ({ conversation: await messaging.adminReply(req.admin, req.params.conversationId, req.body.body, { resolve: req.body.resolve }) }), {
     created: true,

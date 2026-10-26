@@ -176,14 +176,14 @@ async function ensureDemoMerchant() {
   return id;
 }
 
-/** The demo superadmin: an ordinary account plus its platform_admins row. */
+/** The demo admin: an ordinary account plus its platform_admins row. */
 async function ensureDemoAdmin() {
   const id = await ensureAuthUser(demoAdmin);
   const { error } = await supabaseAdmin
     .from('platform_admins')
-    .upsert({ id, email: demoAdmin.email, full_name: demoAdmin.full_name, role: 'superadmin' }, { onConflict: 'id' });
+    .upsert({ id, email: demoAdmin.email, full_name: demoAdmin.full_name }, { onConflict: 'id' });
   if (error) throw new Error(`platform_admins: ${error.message}`);
-  console.log('  platform_admins    1 row (superadmin)');
+  console.log('  platform_admins    1 row');
   return id;
 }
 
@@ -245,7 +245,7 @@ async function seed() {
 
   console.log(`\nDone. Test login: ${testCustomer.email} / ${testCustomer.password}`);
   console.log(`Merchant login: ${demoMerchant.email} / ${demoMerchant.password} (owns every seeded store)`);
-  console.log(`Admin login:    ${demoAdmin.email} / ${demoAdmin.password} (superadmin, at /admin)`);
+  console.log(`Admin login:    ${demoAdmin.email} / ${demoAdmin.password} (at /admin)`);
   console.log(`Khata balance: ${account?.balance_paise ?? '?'} paise owed.`);
 }
 

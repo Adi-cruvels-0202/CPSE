@@ -177,45 +177,31 @@ describe('khata', () => {
 
 // ── Admin portal ────────────────────────────────────────────────────────────
 
-const ALL = ['viewOverview', 'viewStores', 'viewAccounts', 'viewLog', 'reviewStores', 'moderateStores', 'handleSupport', 'suspendAccounts', 'manageAdmins'];
-const PERMS: Record<string, string[]> = {
-  superadmin: ALL,
-  reviewer: ['viewOverview', 'viewStores', 'viewAccounts', 'viewLog', 'reviewStores', 'moderateStores'],
-  support: ['viewOverview', 'viewStores', 'viewAccounts', 'viewLog', 'handleSupport'],
-};
-const me = (role = 'superadmin') => ({ id: 'me', email: 'boss@cpse.test', fullName: null, role, permissions: PERMS[role] });
-const overview = (role = 'superadmin') => ({
-  you: me(role), stores: { total: 2, published: 1, waitingForReview: 1, sentBack: 0, waitingToPublish: 1 },
+const me = () => ({ id: 'me', email: 'admin@cpse.test', fullName: null });
+const overview = () => ({
+  you: { id: 'me', email: 'admin@cpse.test' }, stores: { total: 2, published: 1, waitingForReview: 1, sentBack: 0, waitingToPublish: 1 },
   accounts: { total: 5, merchants: 2, customers: 3, suspended: 0 }, support: { escalated: 0 },
-  recentActions: [{ id: 'x1', at: '2026-10-21T09:00:00Z', admin: { id: 'me', email: 'boss@cpse.test' }, action: 'store_approved', target: { type: 'store', id: S, label: 'Kirana' }, reason: null, details: { published: true } }],
+  recentActions: [{ id: 'x1', at: '2026-10-21T09:00:00Z', admin: { id: 'me', email: 'admin@cpse.test' }, action: 'store_approved', target: { type: 'store', id: S, label: 'Kirana' }, reason: null, details: { published: true } }],
 });
 const adminApp = () => <Routes><Route path="/admin/*" element={<AdminApp />} /></Routes>;
-const portal = (role: string, extra: any[] = []) => fakeServer([
-  ['GET', /^\/admin\/me$/, () => ({ data: { admin: me(role) } })],
-  ['GET', /^\/admin\/overview$/, () => ({ data: { overview: overview(role) } })],
+const portal = (extra: any[] = []) => fakeServer([
+  ['GET', /^\/admin\/me$/, () => ({ data: { admin: me() } })],
+  ['GET', /^\/admin\/overview$/, () => ({ data: { overview: overview() } })],
   ...extra,
 ]);
 
 describe('admin portal', () => {
   beforeEach(() => writeAdminSession({ accessToken: 'admin-token', refreshToken: 'admin-refresh' }));
 
-  it('shows each role only its own pages', async () => {
-    portal('support');
+  it('shows every section in one sidebar, with no roles', async () => {
+    portal();
     await render(adminApp(), { path: '/admin' });
     await waitFor(() => text().includes('Needs attention'));
     const nav = document.querySelector('nav[aria-label="Admin"]')!.textContent!;
-    expect(nav).toContain('Escalated support');
-    expect(nav).not.toContain('Store verification');
+    for (const page of ['Overview', 'Store verification', 'Stores', 'Accounts', 'Escalated support', 'Activity log']) expect(nav).toContain(page);
     expect(nav).not.toContain('Admins');
+    expect(text()).not.toMatch(/superadmin|reviewer/i);
     expect(text()).toContain('Approved store · Kirana');
-    await cleanup();
-
-    portal('superadmin');
-    await render(adminApp(), { path: '/admin' });
-    await waitFor(() => text().includes('Needs attention'));
-    for (const page of ['Store verification', 'Stores', 'Accounts', 'Escalated support', 'Admins', 'Activity log']) {
-      expect(document.querySelector('nav[aria-label="Admin"]')!.textContent).toContain(page);
-    }
   });
 
   it('asks for a reason before suspending, and cannot suspend an admin', async () => {
@@ -223,7 +209,7 @@ describe('admin portal', () => {
       account: { id: A, email: 'asha@test', name: 'Asha', phone: null, createdAt: '2026-10-01T00:00:00Z', type: 'customer', isSuspended: false, suspendedAt: null, suspendedReason: null, storeCount: 0, orderCount: 4, ...over },
       adminRole: null, stores: [], actions: [],
     });
-    const sent = portal('superadmin', [
+    const sent = portal([
       ['GET', /^\/admin\/accounts$/, () => ({ data: { accounts: [detail().account, { ...detail().account, id: B, email: 'rev@cpse.test', name: 'Rev', type: 'admin' }] }, meta: META(2) })],
       ['GET', new RegExp(`^/admin/accounts/${A}$`), () => ({ data: detail() })],
       ['GET', new RegExp(`^/admin/accounts/${B}$`), () => ({ data: { ...detail({ id: B, type: 'admin', email: 'rev@cpse.test' }), adminRole: 'reviewer' } })],
@@ -249,7 +235,7 @@ describe('admin portal', () => {
   it('takes a store off CPSE with a reason', async () => {
     const storeRow = { id: S, name: 'Kirana', slug: 'kirana', city: 'Ludhiana', shopCategory: 'grocery', isPublished: true, verificationStatus: 'verified', verificationLabel: 'Verified', publishRequestedAt: null, createdAt: '2026-10-01T00:00:00Z', owner: { id: A, email: 'owner@shop.test', name: 'R', phone: null, isSuspended: false } };
     const detail = (isPublished: boolean) => ({ store: { ...storeRow, isPublished, phone: null, email: null, address: '12 Mall Road', missingForPublish: [] }, counts: { products: 4, orders: 9, ordersLast30Days: 2 }, actions: [] });
-    const sent = portal('reviewer', [
+    const sent = portal([
       ['GET', /^\/admin\/stores$/, () => ({ data: { stores: [storeRow] }, meta: META(1) })],
       ['GET', new RegExp(`^/admin/stores/${S}$`), () => ({ data: detail(true) })],
       ['POST', new RegExp(`^/admin/stores/${S}/unpublish$`), () => ({ data: detail(false) })],
@@ -268,7 +254,7 @@ describe('admin portal', () => {
       store: { id: S, name: 'Kirana', slug: 'kirana', phone: null, email: null, address: '', isPublished: false, publishRequestedAt: '2026-10-21T08:00:00Z' },
       verification: { status: 'pending', statusLabel: 'Waiting for review', isEditable: false, details: { legalName: 'K', businessType: 'proprietorship', gstApplicable: false, gstin: null, ownerName: 'R', ownerPhone: null, ownerEmail: null, businessAddress: null }, documents: [], requiredDocuments: [], missing: [], rejectionReason: null, reviewNote: null, events: [] },
     };
-    const sent = portal('reviewer', [
+    const sent = portal([
       ['GET', /^\/admin\/verifications$/, () => ({ data: { stores: [{ storeId: S, name: 'Kirana', slug: 'kirana', city: null, legalName: 'K', status: 'pending', statusLabel: 'Waiting for review', isPublished: false, submittedAt: null }] }, meta: META(1) })],
       ['GET', new RegExp(`^/admin/verifications/${S}$`), () => ({ data: review })],
       ['POST', new RegExp(`^/admin/verifications/${S}/approve$`), () => ({ data: { ...review, verification: { ...review.verification, status: 'verified' }, published: true } })],
@@ -279,28 +265,5 @@ describe('admin portal', () => {
     await click(byText('button', 'Approve and publish'));
     await waitFor(() => text().includes('is verified and now live'));
     expect(sent.some((r) => r.url.endsWith('/approve'))).toBe(true);
-  });
-
-  it('adds admins and changes roles, but never your own', async () => {
-    const admins = [
-      { id: 'me', email: 'boss@cpse.test', name: null, role: 'superadmin', addedAt: '2026-10-01T00:00:00Z', permissions: ALL },
-      { id: B, email: 'rev@cpse.test', name: null, role: 'reviewer', addedAt: '2026-10-02T00:00:00Z', permissions: PERMS.reviewer },
-    ];
-    const sent = portal('superadmin', [
-      ['GET', /^\/admin\/admins$/, () => ({ data: { admins, roles: Object.entries(PERMS).map(([role, permissions]) => ({ role, permissions })) } })],
-      ['POST', /^\/admin\/admins$/, (req) => ({ status: 201, data: { admin: { id: C, email: req.body.email, name: null, role: req.body.role, addedAt: '2026-10-21T00:00:00Z', permissions: PERMS[req.body.role] } } })],
-      ['PATCH', new RegExp(`^/admin/admins/${B}$`), (req) => ({ data: { admin: { ...admins[1], role: req.body.role } } })],
-    ]);
-    await render(adminApp(), { path: '/admin/admins' });
-    await waitFor(() => text().includes('rev@cpse.test'));
-    expect(document.querySelector('select[aria-label="Role of boss@cpse.test"]')).toBeNull();
-    await type(document.querySelector('select[aria-label="Role of rev@cpse.test"]') as HTMLSelectElement, 'support');
-    expect(sent.find((r) => r.method === 'PATCH')!.body).toEqual({ role: 'support' });
-    await type(byLabel('Email') as HTMLInputElement, 'new@cpse.test');
-    await type(byLabel('Role') as HTMLSelectElement, 'support');
-    await click(byText('button', 'Add admin'));
-    await waitFor(() => text().includes('new@cpse.test is now a support'));
-    expect(sent.find((r) => r.method === 'POST' && r.url === '/admin/admins')!.body).toEqual({ email: 'new@cpse.test', role: 'support' });
-    expect(text()).toContain('Suspend and reinstate accounts');
   });
 });

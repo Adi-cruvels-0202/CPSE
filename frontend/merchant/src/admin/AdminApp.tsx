@@ -138,7 +138,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
           <div className="auth-mobile-logo" style={{ display: 'block' }}><Logo size="lg" tagline="admin" /></div>
           <div className="auth-form-header">
             <h2 className="auth-form-title">CPSE admin</h2>
-            <p className="auth-form-subtitle">For CPSE platform admins only. Shop owners sign in at <a className="auth-link" href="/merchant/login">/merchant</a>, customers at <a className="auth-link" href="/login">the customer app</a>.</p>
+            <p className="auth-form-subtitle">Admin sign-in.</p>
           </div>
           <form className="auth-form" onSubmit={submit}>
             {error && <div className="auth-error" role="alert">{error}</div>}

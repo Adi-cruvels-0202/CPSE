@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi, saleApi, categoryApi } from '../../api/endpoints';
 import { catalogueOpsApi, intelligenceApi } from '../../api/ops';
 import { CameraScanner, canScanWithCamera } from './CameraScanner';
-import { errorMessage } from '../../api/client';
-import type { Sale } from '../../api/types';
+import { CreateProductModal } from '../products/ProductsPage';
+import { ApiError, errorMessage } from '../../api/client';
+import type { Product, Sale } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise, rupeesToPaise, taxFor } from '../../lib/money';
@@ -56,6 +57,9 @@ export default function NewSalePage() {
   const [done, setDone] = useState<Sale | null>(null);
   const [scanning, setScanning] = useState(false);
   const [identifying, setIdentifying] = useState(false);
+  // A scanned code no product has yet: offered as a new product, right here.
+  const [unknownCode, setUnknownCode] = useState<string | null>(null);
+  const [addingCode, setAddingCode] = useState<string | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   // One key per bill: a retried "Charge" after a timeout returns the same sale.
   const idempotencyKey = useRef(newKey());
@@ -128,13 +132,28 @@ export default function NewSalePage() {
    * A code not in the loaded list is looked up on the server, which also
    * catches products added since this page opened.
    */
+  const toSellable = (product: Product, variant: Product['variants'][number]): Sellable => ({
+    variantId: variant.id, productName: product.name, variantName: variant.name === 'Default' ? null : variant.name, sku: variant.sku,
+    barcode: variant.barcode ?? null, categoryId: product.categoryId, imageUrl: product.images[0]?.url ?? null, pricePaise: variant.pricePaise,
+    taxPercent: product.taxPercent, available: product.trackInventory ? variant.availableQuantity : null,
+  });
+  /** Into the bill — unless there is none left to sell. */
+  const addScanned = (item: Sellable) => {
+    if (item.available !== null && item.available <= 0) {
+      showToast(`${item.productName}${item.variantName ? ` (${item.variantName})` : ''} is out of stock.`, 'error');
+      return false;
+    }
+    add(item);
+    return true;
+  };
   const scan = async (scanned?: string) => {
     const code = (scanned ?? search).trim();
     if (!code) return;
+    setUnknownCode(null);
     const exact = sellables.find((item) => item.barcode === code || item.sku?.toLowerCase() === code.toLowerCase());
     const pick = exact ?? (shown.length === 1 ? shown[0] : null);
     if (pick) {
-      add(pick);
+      addScanned(pick);
       setSearch('');
       return;
     }
@@ -144,15 +163,27 @@ export default function NewSalePage() {
         showToast(`${product.name} is not available for sale.`, 'error');
         return;
       }
-      add({
-        variantId: variant.id, productName: product.name, variantName: variant.name === 'Default' ? null : variant.name, sku: variant.sku,
-        barcode: variant.barcode ?? null, categoryId: product.categoryId, imageUrl: product.images[0]?.url ?? null, pricePaise: variant.pricePaise,
-        taxPercent: product.taxPercent, available: product.trackInventory ? variant.availableQuantity : null,
-      });
+      addScanned(toSellable(product, variant));
       setSearch('');
     } catch (err) {
-      showToast(errorMessage(err, `Nothing matches ${code}.`), 'error');
+      // A barcode nobody has yet: a new pack on the shelf. Offer to add it.
+      if (err instanceof ApiError && err.status === 404 && /^[0-9A-Za-z-]{4,}$/.test(code)) {
+        setUnknownCode(code);
+        setSearch('');
+      } else showToast(errorMessage(err, `Nothing matches ${code}.`), 'error');
     }
+  };
+
+  /** The product just created from a scanned code: refresh the till, then sell it. */
+  const created = (product: Product) => {
+    const code = addingCode;
+    setAddingCode(null);
+    setUnknownCode(null);
+    queryClient.invalidateQueries({ queryKey: ['products', activeStoreId] });
+    const variant = product.variants.find((v) => v.barcode === code) ?? product.variants[0];
+    if (!variant) return;
+    if (addScanned(toSellable(product, variant))) showToast(`${product.name} saved and added to the bill.`, 'success');
+    else showToast(`${product.name} saved. It has no stock yet — receive stock (or add opening stock) to sell it.`, 'info');
   };
 
   /**
@@ -248,6 +279,10 @@ export default function NewSalePage() {
   return (
     <div className="sale-layout">
       <h1 className="sr-only">New counter sale</h1>
+      {addingCode && (
+        <CreateProductModal storeId={activeStoreId} categories={cats?.categories ?? []} initialBarcode={addingCode}
+          onClose={() => setAddingCode(null)} onCreated={created} />
+      )}
       {scanning && <CameraScanner onClose={() => setScanning(false)} onCode={(code) => { setScanning(false); scan(code); }} />}
       <div className="sale-products-zone">
         <div className="sale-products-header">
@@ -258,6 +293,15 @@ export default function NewSalePage() {
             {search && <button className="sale-search-clear" onClick={() => setSearch('')} aria-label="Clear search"><IconX size={14} /></button>}
             {canScanWithCamera() && <button type="button" className="btn btn-ghost btn-sm sale-search-camera" onClick={() => setScanning(true)} aria-label="Scan with camera" title="Scan a barcode with the camera"><IconScanBarcode size={20} /></button>}
           </div>
+          {unknownCode && (
+            <div className="alert-strip alert-strip-warning sale-unknown" role="alert">
+              <span><strong className="mono">{unknownCode}</strong> isn't on any of your products yet.</span>
+              <span className="sale-unknown__actions">
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => setAddingCode(unknownCode)}>Add as new product</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setUnknownCode(null)}>Dismiss</button>
+              </span>
+            </div>
+          )}
           <div className="sale-photo-row">
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => photoInput.current?.click()} disabled={identifying}>
               {identifying ? 'Reading the photo…' : 'No barcode? Identify from photo'}

@@ -444,3 +444,7 @@
   justify-content: flex-end;
   margin-top: var(--space-1);
 }
+
+/* A scanned code that is on no product yet. */
+.sale-unknown { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-2); }
+.sale-unknown__actions { display: flex; gap: var(--space-2); }

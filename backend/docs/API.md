@@ -890,7 +890,7 @@ variant's `weightGrams` lets customers see a price per kg.
 | | |
 |---|---|
 | `POST /merchant/stores/:storeId/products/:productId/duplicate` | Bearer, merchant. `{ name? }` → **201** `{ product }`: same details and variants, new SKUs, no barcodes, no stock, **inactive** until edited. |
-| `GET /merchant/stores/:storeId/product-lookup` | Bearer, merchant. `?barcode=` or `?sku=` → `{ product, variant }`, or **404**. Barcodes are unique per store (**409 `BARCODE_TAKEN`**). The product list's `search` also matches SKUs and barcodes. |
+| `GET /merchant/stores/:storeId/product-lookup` | Bearer, merchant. `?barcode=` or `?sku=` → `{ product, variant }`, or **404**. Barcodes are unique per store: a clash on create, new option or edit is **409 `BARCODE_TAKEN`** naming the product that has it ("Basmati Rice (1 kg) already has barcode 8901234567890.", `details: { barcode, productId, variantId, productName }`); the same code twice in one request is **422**. Send `barcode: null` to remove one. The product list's `search` also matches SKUs and barcodes. |
 
 **Suppliers and purchases.** A purchase is a draft until confirmed. Confirming
 puts every line on the shelf as a `purchase` stock movement that references

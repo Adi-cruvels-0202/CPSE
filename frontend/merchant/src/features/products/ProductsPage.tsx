@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { productApi, categoryApi } from '../../api/endpoints';
 import { catalogueOpsApi, intelligenceApi, type ProductRecognition, type ProductSuggestion } from '../../api/ops';
 import { errorMessage } from '../../api/client';
@@ -9,6 +9,7 @@ import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { formatPaise, paiseToRupees, rupeesToPaise } from '../../lib/money';
 import { EmptyState, NoStore, Pagination, Spinner } from '../../components/common/ui';
+import { BarcodeInput } from '../../components/common/BarcodeInput';
 import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash, IconTag, IconCopy } from '../../components/icons/Icons';
 import './Products.css';
 
@@ -29,7 +30,10 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [filter, setFilter] = useState<'' | 'active' | 'inactive' | 'low'>('');
-  const [creating, setCreating] = useState(false);
+  // /products?new=1&barcode=… (from Receive stock): open New product with the scanned code.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [creating, setCreating] = useState(searchParams.get('new') === '1');
+  const [newBarcode] = useState(searchParams.get('barcode') ?? '');
   const [openId, setOpenId] = useState<string | null>(null);
 
   const params = {
@@ -168,7 +172,8 @@ export default function ProductsPage() {
         <CreateProductModal
           storeId={activeStoreId}
           categories={categories}
-          onClose={() => setCreating(false)}
+          initialBarcode={newBarcode}
+          onClose={() => { setCreating(false); if (searchParams.get('new')) setSearchParams({}, { replace: true }); }}
           onCreated={(product) => { setCreating(false); reload(); setOpenId(product.id); }}
         />
       )}
@@ -182,13 +187,14 @@ export default function ProductsPage() {
 interface VariantRow {
   name: string;
   sku: string;
+  barcode: string;
   price: string;
   mrp: string;
   cost: string;
   opening: string;
 }
 
-const emptyVariant = (name = ''): VariantRow => ({ name, sku: '', price: '', mrp: '', cost: '', opening: '' });
+const emptyVariant = (name = '', barcode = ''): VariantRow => ({ name, sku: '', barcode, price: '', mrp: '', cost: '', opening: '' });
 
 /** A variant form row → the API's variant, or a message saying what is wrong. */
 function toVariantBody(row: VariantRow, { withOpening }: { withOpening: boolean }): Record<string, unknown> | string {
@@ -203,6 +209,7 @@ function toVariantBody(row: VariantRow, { withOpening }: { withOpening: boolean 
   return {
     name: row.name.trim(),
     ...(row.sku.trim() ? { sku: row.sku.trim() } : {}),
+    ...(row.barcode.trim() ? { barcode: row.barcode.trim() } : {}),
     pricePaise: price,
     mrpPaise: mrp,
     costPaise: cost,
@@ -210,11 +217,31 @@ function toVariantBody(row: VariantRow, { withOpening }: { withOpening: boolean 
   };
 }
 
-function CreateProductModal({ storeId, categories, onClose, onCreated }: { storeId: string; categories: Category[]; onClose: () => void; onCreated: (product: Product) => void }) {
+/**
+ * A scanned code that is already on one of this store's products: said at
+ * once, naming the product, instead of only when the form is saved.
+ */
+function useBarcodeCheck(storeId: string) {
+  const [taken, setTaken] = useState<Record<string, string>>({});
+  const check = async (code: string, exceptVariantId?: string) => {
+    try {
+      const { product, variant } = await catalogueOpsApi.lookup(storeId, { barcode: code });
+      if (variant.id === exceptVariantId) return;
+      setTaken((current) => ({ ...current, [code]: `${product.name}${variant.name !== 'Default' ? ` (${variant.name})` : ''}` }));
+    } catch {
+      // Not found (or the check failed): the server checks again on save.
+    }
+  };
+  return { taken, check };
+}
+
+/** Opens the New product form, optionally with a scanned barcode already in it (from the till or Receive stock). */
+export function CreateProductModal({ storeId, categories, onClose, onCreated, initialBarcode = '' }: { storeId: string; categories: Category[]; onClose: () => void; onCreated: (product: Product) => void; initialBarcode?: string }) {
   const { showToast } = useToast();
   const [form, setForm] = useState({ name: '', description: '', categoryId: '', unit: 'pcs', taxPercent: '0', trackInventory: true, lowStockThreshold: '5' });
   const [hasOptions, setHasOptions] = useState(false);
-  const [variants, setVariants] = useState<VariantRow[]>([emptyVariant('Default')]);
+  const [variants, setVariants] = useState<VariantRow[]>([emptyVariant('Default', initialBarcode)]);
+  const barcodes = useBarcodeCheck(storeId);
   const [isSaving, setIsSaving] = useState(false);
   const [suggestion, setSuggestion] = useState<ProductSuggestion | null>(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -256,7 +283,13 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
       unit: s.unit && (UNITS as readonly string[]).includes(s.unit.value) ? s.unit.value : form.unit,
       taxPercent: s.taxPercent && ['0', '5', '12', '18', '28'].includes(String(s.taxPercent.value)) ? String(s.taxPercent.value) : form.taxPercent,
     });
-    if (s.mrpPaise !== null) setVariants(variants.map((v, i) => (i === 0 ? { ...v, mrp: paiseToRupees(s.mrpPaise!) } : v)));
+    setVariants(variants.map((v, i) => (i === 0 ? {
+      ...v,
+      ...(s.mrpPaise !== null ? { mrp: paiseToRupees(s.mrpPaise) } : {}),
+      // The barcode printed on the pack, unless one was already scanned in.
+      ...(s.barcode && !v.barcode ? { barcode: s.barcode } : {}),
+    } : v)));
+    if (s.barcode && !variants[0]?.barcode) void barcodes.check(s.barcode);
     setRecognition(null);
   };
 
@@ -398,7 +431,7 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
               <span className="switch-slider" /><span style={{ fontSize: 'var(--text-sm)' }}>Count stock (turn off for things that never run out, like made-to-order food)</span>
             </label>
             <label className="switch" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-              <input type="checkbox" className="switch-input" checked={hasOptions} onChange={(e) => { setHasOptions(e.target.checked); setVariants(e.target.checked ? [emptyVariant(), emptyVariant()] : [emptyVariant('Default')]); }} />
+              <input type="checkbox" className="switch-input" checked={hasOptions} onChange={(e) => { setHasOptions(e.target.checked); setVariants(e.target.checked ? [emptyVariant('', variants[0]?.barcode ?? ''), emptyVariant()] : [emptyVariant('Default', variants[0]?.barcode ?? '')]); }} />
               <span className="switch-slider" /><span style={{ fontSize: 'var(--text-sm)' }}>Sold in sizes or options (1 kg / 5 kg, Small / Large)</span>
             </label>
 
@@ -408,7 +441,7 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
                 <thead>
                   <tr>
                     {hasOptions && <th>Option *</th>}
-                    <th>Price ₹ *</th><th>MRP ₹</th><th>Cost ₹</th><th>SKU</th>
+                    <th>Price ₹ *</th><th>MRP ₹</th><th>Cost ₹</th><th>Barcode</th><th>SKU</th>
                     {form.trackInventory && <th>Opening stock</th>}
                     {hasOptions && <th></th>}
                   </tr>
@@ -420,6 +453,11 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
                       <td><input aria-label={cellLabel('Price ₹', index)} className="input-field" inputMode="decimal" required value={row.price} onChange={(e) => setVariant(index, 'price', e.target.value)} placeholder="129" /></td>
                       <td><input aria-label={cellLabel('MRP ₹', index)} className="input-field" inputMode="decimal" value={row.mrp} onChange={(e) => setVariant(index, 'mrp', e.target.value)} /></td>
                       <td><input aria-label={cellLabel('Cost ₹', index)} className="input-field" inputMode="decimal" value={row.cost} onChange={(e) => setVariant(index, 'cost', e.target.value)} title="What you paid — never shown to customers" /></td>
+                      <td>
+                        <BarcodeInput id={`new-barcode-${index}`} label={cellLabel('Barcode', index)} compact placeholder="Scan or type" value={row.barcode}
+                          onChange={(value) => setVariant(index, 'barcode', value)} onScan={(code) => void barcodes.check(code)} />
+                        {barcodes.taken[row.barcode.trim()] && <span className="input-error-text" role="alert">Already on {barcodes.taken[row.barcode.trim()]}</span>}
+                      </td>
                       <td><input aria-label={cellLabel('SKU', index)} className="input-field mono" maxLength={50} value={row.sku} onChange={(e) => setVariant(index, 'sku', e.target.value)} placeholder="auto" /></td>
                       {form.trackInventory && <td><input aria-label={cellLabel('Opening stock', index)} type="number" min="0" className="input-field" value={row.opening} onChange={(e) => setVariant(index, 'opening', e.target.value)} placeholder="0" /></td>}
                       {hasOptions && <td>{variants.length > 1 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setVariants(variants.filter((_, i) => i !== index))} aria-label="Remove option"><IconX size={14} /></button>}</td>}
@@ -430,7 +468,7 @@ function CreateProductModal({ storeId, categories, onClose, onCreated }: { store
             </div>
             <p className="body-xs" style={{ color: 'var(--color-text-tertiary)' }}>
               <strong>Price</strong> is what customers pay. <strong>MRP</strong> is the printed maximum price — when it is higher, customers see the discount.{' '}
-              <strong>Cost</strong> is what you paid your supplier; only you see it. <strong>SKU</strong> is your own code for the item (for a barcode or your records) — leave it empty and one is made for you.
+              <strong>Cost</strong> is what you paid your supplier; only you see it. <strong>Barcode</strong> is the code printed on the pack — scan it, and the till and Receive stock find this product by it. <strong>SKU</strong> is your own code for the item — leave it empty and one is made for you.
             </p>
             {hasOptions && variants.length < 50 && (
               <button type="button" className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setVariants([...variants, emptyVariant()])}><IconPlus size={14} /> Add option</button>
@@ -553,7 +591,7 @@ function ProductPanel({ storeId, productId, categories, onClose, onChanged }: { 
                 <tbody>
                   {product.variants.map((variant) => (
                     <tr key={variant.id} style={{ opacity: variant.isActive ? 1 : 0.5 }}>
-                      <td>{variant.name}<div className="mono body-xs">{variant.sku}</div></td>
+                      <td>{variant.name}<div className="mono body-xs">{variant.sku}</div>{variant.barcode && <div className="mono body-xs" >Barcode {variant.barcode}</div>}</td>
                       <td style={{ fontWeight: 'var(--font-semibold)' }}>{formatPaise(variant.pricePaise)}</td>
                       <td>{formatPaise(variant.mrpPaise)}</td>
                       <td>{formatPaise(variant.costPaise)}</td>
@@ -670,17 +708,21 @@ function VariantModal({ storeId, product, variant, onClose, onSaved }: { storeId
   const [row, setRow] = useState<VariantRow>({
     name: variant?.name ?? '',
     sku: variant?.sku ?? '',
+    barcode: variant?.barcode ?? '',
     price: paiseToRupees(variant?.pricePaise),
     mrp: paiseToRupees(variant?.mrpPaise),
     cost: paiseToRupees(variant?.costPaise),
     opening: '',
   });
   const [isSaving, setIsSaving] = useState(false);
+  const barcodes = useBarcodeCheck(storeId);
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     const body = toVariantBody(row, { withOpening: !variant && product.trackInventory });
     if (typeof body === 'string') return showToast(body, 'error');
+    // Emptying the box removes the barcode from an existing option.
+    if (variant && !row.barcode.trim() && variant.barcode) body.barcode = null;
     setIsSaving(true);
     try {
       const { product: updated } = variant
@@ -716,6 +758,11 @@ function VariantModal({ storeId, product, variant, onClose, onSaved }: { storeId
             <div className="form-row">
               {field('cost', 'Cost ₹ (only you see this)', { inputMode: 'decimal' })}
               {field('sku', 'SKU', { maxLength: 50, placeholder: 'auto' })}
+            </div>
+            <div className="input-wrapper">
+              <label className="input-label" htmlFor="variant-barcode">Barcode</label>
+              <BarcodeInput id="variant-barcode" value={row.barcode} onChange={(value) => setRow({ ...row, barcode: value })} onScan={(code) => void barcodes.check(code, variant?.id)} />
+              {barcodes.taken[row.barcode.trim()] && <span className="input-error-text" role="alert">Already on {barcodes.taken[row.barcode.trim()]}</span>}
             </div>
             {!variant && product.trackInventory && field('opening', 'Opening stock', { type: 'number', min: 0, placeholder: '0' })}
             {variant && product.trackInventory && <p className="body-xs" style={{ color: 'var(--color-text-tertiary)' }}>To change stock, use Stock → receive, remove or count.</p>}

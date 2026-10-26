@@ -223,6 +223,35 @@ async function assertSkusFree(store, skus, exceptVariantId = null) {
   if (clash) throw skuTaken(clash);
 }
 
+/**
+ * One barcode identifies one physical product in a store (migration 0040).
+ * Checked up front so the refusal can name the product that already has it —
+ * a merchant scanning a new pack needs to know it is already "Toor Dal (1 kg)".
+ * The unique index stays the real guarantee (translateWriteError).
+ */
+async function assertBarcodesFree(store, barcodes, exceptVariantId = null) {
+  const wanted = barcodes.filter(Boolean);
+  if (wanted.length === 0) return;
+  const twice = wanted.find((code, index) => wanted.indexOf(code) !== index);
+  if (twice) {
+    throw validationFailed({ issues: [{ source: 'body', field: 'variants', message: `Two options have the same barcode ${twice}.` }] });
+  }
+  const { data, error } = await supabaseAdmin
+    .from('product_variants')
+    .select('id, name, barcode, product_id')
+    .eq('store_id', store.id)
+    .in('barcode', wanted);
+  if (error) throw internal('Could not check the barcodes.');
+  const clash = (data ?? []).find((row) => row.id !== exceptVariantId);
+  if (clash) {
+    const { data: product } = await supabaseAdmin.from('products').select('name').eq('id', clash.product_id).maybeSingle();
+    const label = `${product?.name ?? 'Another product'}${clash.name && clash.name !== 'Default' ? ` (${clash.name})` : ''}`;
+    throw new AppError(409, 'BARCODE_TAKEN', `${label} already has barcode ${clash.barcode}.`, {
+      barcode: clash.barcode, productId: clash.product_id, variantId: clash.id, productName: label,
+    });
+  }
+}
+
 /** Request variant → the SQL functions' payload, with a SKU filled in. */
 const toVariantPayload = (productName) => (variant) => ({
   name: variant.name,
@@ -275,6 +304,7 @@ export async function createProduct(store, merchant, input) {
 
   const variants = input.variants.map(toVariantPayload(input.name));
   await assertSkusFree(store, variants.map((variant) => variant.sku));
+  await assertBarcodesFree(store, variants.map((variant) => variant.barcode));
 
   const slugTaken = async (candidate) => {
     const { data, error } = await supabaseAdmin
@@ -412,6 +442,7 @@ export async function addVariant(store, merchant, productId, input) {
 
   const variant = toVariantPayload(product.name)(input);
   await assertSkusFree(store, [variant.sku]);
+  await assertBarcodesFree(store, [variant.barcode]);
 
   const { error } = await supabaseAdmin.rpc('add_product_variants', {
     payload: { store_id: store.id, product_id: productId, merchant_id: merchant.id, variants: [variant] },
@@ -448,6 +479,7 @@ export async function updateVariant(store, productId, variantId, input) {
   }
   if (input.name !== undefined) assertVariantNameFree(await productVariants(productId), input.name, variantId);
   if (input.sku !== undefined) await assertSkusFree(store, [input.sku], variantId);
+  if (input.barcode) await assertBarcodesFree(store, [input.barcode], variantId);
 
   const patch = {};
   if (input.name !== undefined) patch.name = input.name;

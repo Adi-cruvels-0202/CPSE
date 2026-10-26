@@ -101,7 +101,7 @@ describe('counter sale barcode scan', () => {
     expect(text()).toMatch(/₹126\.00/); // 120 + 5% GST
   });
 
-  it('looks up a code it has not loaded, and says so when nothing matches', async () => {
+  it('looks up a code it has not loaded, and offers to add a code nothing matches', async () => {
     const fresh = product({ id: B, name: 'Toor Dal', variants: [{ ...product().variants[0], id: C, name: 'Default', sku: 'DAL', barcode: '8909999999999', pricePaise: 15000 }] });
     const sent = fakeServer([
       ['GET', base('/categories'), () => ({ data: { categories: [] } })],
@@ -116,7 +116,8 @@ describe('counter sale barcode scan', () => {
     await waitFor(() => text().includes('Toor Dal'));
     expect(sent.find((r) => r.url.endsWith('/product-lookup'))!.params).toEqual({ barcode: '8909999999999' });
     await scan('0000');
-    await waitFor(() => text().includes('No product has that barcode.'));
+    await waitFor(() => text().includes("0000 isn't on any of your products yet."));
+    expect(byText('button', 'Add as new product')).toBeTruthy();
   });
 });
 

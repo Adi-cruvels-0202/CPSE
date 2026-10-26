@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Modal } from '../../components/common/ui';
 
 /**
@@ -6,7 +7,8 @@ import { Modal } from '../../components/common/ui';
  * recognition from scans"), through the browser's own BarcodeDetector — on
  * Chrome for Android and other browsers that have it. Where it is missing the
  * button does not appear and a USB/Bluetooth scanner or typing still works.
- * Recognising a product from a photo needs an AI provider and is not here.
+ * Rendered at the top of the page, above any dialog it was opened from (a
+ * product form, Receive stock).
  */
 type Detector = { detect: (source: HTMLVideoElement) => Promise<{ rawValue: string }[]> };
 const DetectorCtor = (): (new (options: { formats: string[] }) => Detector) | null =>
@@ -58,7 +60,8 @@ export function CameraScanner({ onCode, onClose }: { onCode: (code: string) => v
     };
   }, []);
 
-  return (
+  return createPortal(
+    <div className="camera-scanner-layer" style={{ position: 'relative', zIndex: 1300 }}>
     <Modal title="Scan a barcode" onClose={onClose}>
       {problem ? <div className="alert-strip alert-strip-warning">{problem}</div> : (
         <>
@@ -67,5 +70,7 @@ export function CameraScanner({ onCode, onClose }: { onCode: (code: string) => v
         </>
       )}
     </Modal>
+    </div>,
+    document.body,
   );
 }

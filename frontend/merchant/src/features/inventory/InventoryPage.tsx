@@ -1,11 +1,14 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { catalogueOpsApi } from '../../api/ops';
+import { ApiError } from '../../api/client';
+import { BarcodeInput } from '../../components/common/BarcodeInput';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { productApi, inventoryApi } from '../../api/endpoints';
 import { errorMessage } from '../../api/client';
 import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
-import { rupeesToPaise } from '../../lib/money';
+import { paiseToRupees, rupeesToPaise } from '../../lib/money';
 import { EmptyState, NoStore, Spinner } from '../../components/common/ui';
 import { IconClipboard, IconPlus, IconMinus, IconRefresh, IconSearch, IconHistory } from '../../components/icons/Icons';
 import './Inventory.css';
@@ -21,6 +24,8 @@ interface Row {
   productName: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
+  costPaise: number | null;
   onHand: number;
   held: number;
   available: number;
@@ -51,8 +56,7 @@ export default function InventoryPage() {
     enabled: !!activeStoreId,
   });
 
-  const rows = useMemo<Row[]>(() => {
-    const all = (products ?? [])
+  const allRows = useMemo<Row[]>(() => (products ?? [])
       .filter((product) => product.trackInventory)
       .flatMap((product) =>
         product.variants.map((variant) => ({
@@ -60,16 +64,19 @@ export default function InventoryPage() {
           productName: product.name,
           name: variant.name,
           sku: variant.sku,
+          barcode: variant.barcode ?? null,
+          costPaise: variant.costPaise ?? null,
           onHand: variant.quantityOnHand ?? 0,
           held: variant.reservedQuantity ?? 0,
           available: variant.availableQuantity ?? 0,
           isLow: variant.isLowStock,
           isActive: variant.isActive && product.isActive,
         })),
-      );
+      ), [products]);
+  const rows = useMemo<Row[]>(() => {
     const term = search.trim().toLowerCase();
-    return term ? all.filter((row) => `${row.productName} ${row.name} ${row.sku ?? ''}`.toLowerCase().includes(term)) : all;
-  }, [products, search]);
+    return term ? allRows.filter((row) => `${row.productName} ${row.name} ${row.sku ?? ''} ${row.barcode ?? ''}`.toLowerCase().includes(term)) : allRows;
+  }, [allRows, search]);
 
   if (!activeStoreId) return <NoStore title="Stock" />;
 
@@ -142,7 +149,7 @@ export default function InventoryPage() {
         <MovementModal
           storeId={activeStoreId}
           mode={moving.mode}
-          rows={rows}
+          rows={allRows}
           initial={moving.row}
           onClose={() => setMoving(null)}
           onDone={done}
@@ -162,7 +169,36 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
   const [reason, setReason] = useState(mode === 'out' ? 'damaged' : '');
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [code, setCode] = useState('');
+  const [scanNote, setScanNote] = useState<{ tone: 'ok' | 'warn'; text: string; addCode?: string } | null>(null);
+  const quantityInput = useRef<HTMLInputElement>(null);
   const selected = rows.find((row) => row.id === variantId);
+
+  const label = (row: Row) => `${row.productName}${row.name === 'Default' ? '' : ` (${row.name})`}`;
+  const pick = (row: Row) => {
+    setVariantId(row.id);
+    if (mode === 'in' && row.costPaise !== null && !unitCost) setUnitCost(paiseToRupees(row.costPaise));
+    setScanNote({ tone: 'ok', text: `Found ${label(row)}. Enter the quantity.` });
+    setCode('');
+    setTimeout(() => quantityInput.current?.focus(), 0);
+  };
+  /**
+   * A scanned or typed code → the product, so the merchant only enters the
+   * quantity. Barcode or SKU, from the list on screen first, then the server
+   * (a product added since the page opened). An unknown code can become a
+   * new product with that barcode already filled in.
+   */
+  const scan = async (scanned: string) => {
+    const local = rows.find((row) => row.barcode === scanned || row.sku?.toLowerCase() === scanned.toLowerCase());
+    if (local) return pick(local);
+    try {
+      const { product } = await catalogueOpsApi.lookup(storeId, { barcode: scanned });
+      setScanNote({ tone: 'warn', text: product.trackInventory ? `${product.name} was just added — reopen this form to receive it.` : `${product.name} is not stock-counted, so stock cannot be received for it. Turn on "Track stock" for it first.` });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) setScanNote({ tone: 'warn', text: `No product has barcode ${scanned}.`, addCode: scanned });
+      else setScanNote({ tone: 'warn', text: errorMessage(err) });
+    }
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -195,6 +231,17 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
         <div className="dialog-header"><h2 className="dialog-title" id="movement-title">{TITLES[mode]}</h2></div>
         <form onSubmit={submit}>
           <div className="dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div className="input-wrapper">
+              <label className="input-label" htmlFor="stock-scan">Scan the product</label>
+              <BarcodeInput id="stock-scan" value={code} onChange={setCode} onScan={(scanned) => void scan(scanned)} autoFocus={!initial} placeholder="Scan or type a barcode or SKU, then Enter" />
+              {scanNote && (
+                <div className={`alert-strip ${scanNote.tone === 'ok' ? 'alert-strip-success' : 'alert-strip-warning'}`} role="status">
+                  <span>{scanNote.text}</span>
+                  {scanNote.addCode && <Link className="btn btn-primary btn-sm" to={`/products?new=1&barcode=${encodeURIComponent(scanNote.addCode)}`}>Add as new product</Link>}
+                </div>
+              )}
+              <span className="input-helper">Or choose it from the list below.</span>
+            </div>
             <div className="input-wrapper"><label className="input-label" htmlFor="stock-product">Product *</label>
               <select id="stock-product" className="input-field select-field" required value={variantId} onChange={(e) => setVariantId(e.target.value)}>
                 <option value="">Choose…</option>
@@ -209,7 +256,7 @@ function MovementModal({ storeId, mode, rows, initial, onClose, onDone }: { stor
 
             <div className="input-wrapper">
               <label className="input-label" htmlFor="stock-quantity">{mode === 'count' ? 'Counted on the shelf *' : 'Quantity *'}</label>
-              <input id="stock-quantity" type="number" min={mode === 'count' ? Math.max(0, selected?.held ?? 0) : 1} max={mode === 'out' ? selected?.available : undefined} className="input-field" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <input id="stock-quantity" ref={quantityInput} type="number" min={mode === 'count' ? Math.max(0, selected?.held ?? 0) : 1} max={mode === 'out' ? selected?.available : undefined} className="input-field" required value={quantity} onChange={(e) => setQuantity(e.target.value)} />
               {mode === 'out' && selected && <span className="input-helper">At most {selected.available} — the rest is held for orders.</span>}
               {mode === 'count' && selected && selected.held > 0 && <span className="input-helper">At least {selected.held}: open orders hold that many.</span>}
             </div>

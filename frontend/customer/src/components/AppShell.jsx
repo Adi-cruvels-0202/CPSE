@@ -194,7 +194,10 @@ export function AppShell() {
         </p>
       )}
 
-      <header ref={headerRef} className={`shell__header${showShopSuggestions ? ' shell__header--search-open' : ''}`}>
+      <header
+        ref={headerRef}
+        className={`shell__header${showShopSuggestions ? ' shell__header--search-open' : ''}${locationOpen ? ' shell__header--location-open' : ''}`}
+      >
         <div className="shell__bar">
           <NavLink to="/" className="shell__brand">
             <span className="shell__brand-row"><LeafMark /><span>CPSE</span></span>

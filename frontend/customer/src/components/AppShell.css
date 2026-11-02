@@ -94,7 +94,8 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.shell__header--search-open {
+.shell__header--search-open,
+.shell__header--location-open {
   z-index: calc(var(--z-bottom-nav) + 1);
 }
 

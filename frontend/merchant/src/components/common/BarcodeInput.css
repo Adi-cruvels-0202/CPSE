@@ -1,0 +1,6 @@
+/* A barcode box with an optional camera button inside its right edge. */
+.barcode-input { position: relative; display: flex; align-items: center; min-width: 0; }
+.barcode-input > .input-field { width: 100%; }
+.barcode-input:has(.barcode-input__camera) > .input-field { padding-right: 44px; }
+.barcode-input__camera { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 6px; color: var(--color-text-secondary); }
+.barcode-input--compact { min-width: 150px; }

@@ -3,9 +3,11 @@ import { forbidden, internal } from '../lib/errors.js';
 import { supabaseAdmin } from '../lib/supabase.js';
 
 /**
- * Platform reviewers (migration 0039). Runs after requireAuth. Being a
- * reviewer is a row in platform_admins that only an operator creates, so a
- * signed-in customer or merchant is refused with 403 ADMIN_REQUIRED.
+ * The platform admin (migrations 0039, 0045, 0046). Runs after requireAuth.
+ * Being an admin is a row in platform_admins, made only by the operator
+ * (`npm run admin -- grant <email>`, or the seed's demo admin), so a
+ * signed-in customer or shop owner is refused with 403. There is one kind of
+ * admin, and an admin can do everything in the portal.
  */
 export async function loadAdmin(userId) {
   const { data, error } = await supabaseAdmin
@@ -13,13 +15,13 @@ export async function loadAdmin(userId) {
     .select('id, email, full_name, created_at')
     .eq('id', userId)
     .maybeSingle();
-  if (error) throw internal('Could not load the reviewer.');
+  if (error) throw internal('Could not load the admin.');
   return data ?? null;
 }
 
 export const requireAdmin = asyncHandler(async (req, res, next) => {
   const admin = await loadAdmin(req.authUser.id);
-  if (!admin) return next(forbidden('This account cannot review stores.'));
+  if (!admin) return next(forbidden('This account is not a platform admin.'));
   req.admin = admin;
   return next();
 });

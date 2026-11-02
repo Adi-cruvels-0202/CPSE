@@ -172,3 +172,13 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 .product-delete__start { align-self: flex-start; color: var(--color-danger); }
+
+/* New product → options. Each column keeps a readable width; when the dialog
+   is narrower than all of them, the table scrolls sideways inside its frame
+   instead of squeezing the boxes until the numbers cannot be read. */
+.variant-table { min-width: 860px; }
+.variant-table th { white-space: nowrap; }
+.variant-table td { vertical-align: top; }
+.variant-table td > .input-field { min-width: 84px; }
+.variant-table td:first-child > .input-field { min-width: 110px; }
+.variant-table .barcode-input { min-width: 180px; }

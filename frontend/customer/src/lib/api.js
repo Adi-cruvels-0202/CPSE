@@ -1,4 +1,5 @@
 import { readSession, writeSession, clearSession } from './tokens.js';
+import { refreshCartCount } from './cartSignal.js';
 
 /**
  * The one way this app talks to the backend.
@@ -195,8 +196,17 @@ export async function request(
     if (refreshed?.accessToken) response = await send(refreshed.accessToken);
   }
 
-  return parse(response);
+  const result = await parse(response);
+  if (method !== 'GET' && CART_CHANGING.test(path)) refreshCartCount();
+  return result;
 }
+
+/**
+ * Requests after which the number of items in a cart may differ: the cart
+ * itself, placing or reordering an order, the "add my usual" basket and adding
+ * a list. The Cart tab's count re-reads after any of them succeeds.
+ */
+const CART_CHANGING = /^\/(cart|orders|me\/smart-cart\/add|me\/lists\/[^/]+\/add-to-cart)(\/|\?|$)/;
 
 /** `data` only, for the majority of calls that do not read pagination. */
 export async function requestData(path, options) {

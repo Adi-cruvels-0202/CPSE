@@ -8,6 +8,7 @@ import { unprocessable } from '../../lib/errors.js';
 import { ownStore, storeIdParams, uuid, respond, respondPage, pageQuery } from '../../lib/merchantRoute.js';
 import { emptyBody } from '../../lib/schemas.js';
 import { INDUSTRIES, templateSummaries } from '../../lib/industryTemplates.js';
+import * as library from './productLibrary.service.js';
 import * as operations from './operations.service.js';
 import * as bulk from './bulk.service.js';
 import * as purchases from '../merchantPurchases/purchase.service.js';
@@ -132,6 +133,14 @@ operationsRouter.get(
       .refine((v) => Boolean(v.barcode) !== Boolean(v.sku), { message: 'Send a barcode or a SKU.', path: ['barcode'] }),
   }),
   respond(async (req) => operations.lookupVariant(req.store, req.query)),
+);
+
+// The CPSE product library: what other shops entered for a barcode this
+// store does not have yet (productLibrary.service.js). Read-only.
+operationsRouter.get(
+  '/stores/:storeId/barcode-library',
+  ...ownStore({ query: z.object({ barcode: z.string().trim().min(4).max(100).regex(/^[0-9A-Za-z-]+$/, 'Not a barcode.') }).strict() }),
+  respond(async (req) => library.libraryForBarcode(req.store, req.query.barcode)),
 );
 
 // ── Import / export ─────────────────────────────────────────────────────────

@@ -162,15 +162,28 @@
   color: var(--color-text-tertiary);
 }
 
-/* Select */
-.select-field {
+/* Select — every dropdown, whether or not it carries .select-field, so none
+   falls back to the browser's own arrow (which sits flush against the edge and
+   differs by browser). One chevron, centred, with the same inset everywhere. */
+.select-field,
+select.input-field {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234A5568' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
-  background-position: right var(--space-2) center;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%234A5568' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.75' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 12px center;
   background-repeat: no-repeat;
-  background-size: 20px;
-  padding-right: var(--space-10);
+  background-size: 16px 16px;
+  padding-right: 40px;
+  text-overflow: ellipsis;
+  cursor: pointer;
 }
+
+.select-field:disabled,
+select.input-field:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 
 /* Textarea */
 .textarea-field {
@@ -668,7 +681,9 @@
   gap: var(--space-3);
   margin-bottom: var(--space-4);
   flex-wrap: wrap;
-  align-items: center;
+  /* Fields line up on their bottom edge, so a field with a label above it
+     and one without sit on the same line. */
+  align-items: flex-end;
 }
 
 

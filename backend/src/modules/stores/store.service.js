@@ -18,7 +18,7 @@ import { pricePerKgPaise } from '../../lib/pricing.js';
 export const STORE_COLUMNS = `
   id, slug, name, description, logo_url, cover_image_url, phone, email,
   address_line1, address_line2, city, state, postal_code, country,
-  latitude, longitude, opening_hours, timezone,
+  latitude, longitude, opening_hours, timezone, shop_category,
   pickup_enabled, delivery_enabled, min_order_paise, delivery_fee_paise,
   free_delivery_threshold_paise, accepts_cash, accepts_online, khata_enabled,
   is_active, is_published, created_at, updated_at
@@ -113,6 +113,7 @@ export function toPublicStore(row, { isSaved = null, now = new Date(), holidays 
     id: row.id,
     slug: row.slug,
     name: row.name,
+    shopCategory: row.shop_category ?? null,
     description: row.description ?? null,
     logoUrl: row.logo_url ?? null,
     coverImageUrl: row.cover_image_url ?? null,
@@ -239,9 +240,32 @@ export async function listStores({ q, page, limit }, now = new Date()) {
   fail(error, 'Could not load the shops.');
 
   const rows = data ?? [];
-  const holidays = await holidaysByStore(rows.map((row) => row.id), now);
+  const storeIds = rows.map((row) => row.id);
+  const [holidays, categoryRows] = await Promise.all([
+    holidaysByStore(storeIds, now),
+    storeIds.length === 0
+      ? Promise.resolve([])
+      : supabaseAdmin
+          .from('categories')
+          .select('id,store_id,name,slug,sort_order')
+          .in('store_id', storeIds)
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+          .then(({ data, error }) => {
+            fail(error, 'Could not load shop categories.');
+            return data ?? [];
+          }),
+  ]);
+  const categoriesByStore = new Map();
+  for (const category of categoryRows) {
+    if (!categoriesByStore.has(category.store_id)) categoriesByStore.set(category.store_id, []);
+    categoriesByStore.get(category.store_id).push(toPublicCategory(category));
+  }
   return {
-    stores: rows.map((row) => toPublicStore(row, { now, holidays: holidays.get(row.id) ?? [] })),
+    stores: rows.map((row) => ({
+      ...toPublicStore(row, { now, holidays: holidays.get(row.id) ?? [] }),
+      productCategories: categoriesByStore.get(row.id) ?? [],
+    })),
     total: count ?? rows.length,
   };
 }

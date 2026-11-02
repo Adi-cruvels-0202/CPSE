@@ -97,20 +97,11 @@ export function StorePage() {
 
   return (
     <article className="store">
-      <StoreHeader store={store} status={status} onSaveChange={(isSaved) =>
+      <StoreHeader store={store} status={status} isSignedIn={isSignedIn} onSaveChange={(isSaved) =>
         setData({ store: { ...store, isSaved } })
       } />
 
-      {!status.isOpen ? (
-        <p className="notice notice--warning">
-          {store.name} is closed right now. You can still order — the shop will see it when they
-          open{status.detail ? `, ${status.detail.toLowerCase()}` : ''}.
-        </p>
-      ) : null}
-
-      <StoreConnect store={store} isSignedIn={isSignedIn} />
       <StoreOffers slug={slug} />
-      <ShopAssistant store={store} isSignedIn={isSignedIn} />
       {isSignedIn ? <DiscoverHere storeId={store.id} /> : null}
 
       <nav className="store__actions" aria-label="Browse this store">
@@ -132,7 +123,7 @@ export function StorePage() {
   );
 }
 
-function StoreHeader({ store, status, onSaveChange }) {
+function StoreHeader({ store, status, isSignedIn, onSaveChange }) {
   const hasCover = hasImage(store.coverImageUrl);
 
   return (
@@ -188,16 +179,12 @@ function StoreHeader({ store, status, onSaveChange }) {
         </div>
       </div>
 
-      {/* Under the name, where a delivery app puts it — not in a card below the
-          catalogue and the week's hours, which is where it used to be. */}
-      <StoreLocation store={store} />
-
-      {/* Ordering and opening hours, in the header rather than in two cards
-          below the whole catalogue — nobody scrolls past a hundred products to
-          discover there is a minimum order. */}
-      <StoreFacts store={store} />
-
-      {store.description ? <p className="store__description">{store.description}</p> : null}
+      <div className="store__details">
+        <StoreLocation store={store} />
+        <StoreFacts store={store} description={store.description} />
+        <StoreConnect store={store} isSignedIn={isSignedIn} />
+        <ShopAssistant store={store} isSignedIn={isSignedIn} />
+      </div>
     </header>
   );
 }

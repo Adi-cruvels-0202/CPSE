@@ -59,12 +59,11 @@ export function StoreLocation({ store }) {
         aria-haspopup="dialog"
         aria-expanded={open}
       >
-        <PinIcon />
-        <span className="store-loc__summary">{summary}</span>
-        <span className="store-loc__cta" aria-hidden="true">
-          Directions
+        <span className="store-loc__icon"><PinIcon /></span>
+        <span className="store-loc__copy">
+          <strong>Location & directions</strong>
+          <span className="store-loc__summary sr-only">{summary}</span>
         </span>
-        <ChevronRight />
       </button>
 
       <Sheet
@@ -153,14 +152,6 @@ function PinIcon() {
     <svg {...iconProps} className="store-loc__pin">
       <path d="M12 21s-6.5-5.5-6.5-10a6.5 6.5 0 0 1 13 0c0 4.5-6.5 10-6.5 10Z" />
       <circle cx="12" cy="11" r="2.25" />
-    </svg>
-  );
-}
-
-function ChevronRight() {
-  return (
-    <svg {...iconProps} width={16} height={16} className="store-loc__chevron">
-      <path d="M9 6l6 6-6 6" />
     </svg>
   );
 }

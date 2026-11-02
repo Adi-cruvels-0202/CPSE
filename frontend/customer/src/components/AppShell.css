@@ -25,6 +25,23 @@
   animation: shell-content-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
 }
 
+.shell__back-row { margin-bottom: var(--space-3); }
+.shell__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap-target-dense);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--text-brand);
+  background: transparent;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.shell__back:hover { background: var(--bg-brand-subtle); }
+.shell__back > span { font-size: 1.35rem; line-height: 1; }
+
 @keyframes shell-content-enter {
   from {
     opacity: 0;
@@ -72,80 +89,459 @@
   position: sticky;
   top: 0;
   z-index: var(--z-header);
-  height: var(--header-height);
+  height: auto;
   background: var(--bg-surface);
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.shell__header--search-open {
+  z-index: calc(var(--z-bottom-nav) + 1);
+}
+
 .shell__bar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(3.25rem, auto) 2.75rem;
+  align-items: center;
+  gap: 0 var(--space-2);
+  height: auto;
+  padding: var(--space-2) var(--content-gutter);
+  max-width: 88rem;
+}
+
+/* Location and account tools stay beside the wordmark on phones; search gets
+   the second row so its input and touch target remain comfortably wide. */
+.shell__location-wrap {
+  position: relative;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  width: max-content;
+  max-width: 100%;
+  justify-self: start;
+}
+
+.shell__location {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--tap-target);
+  padding: 0;
+  color: var(--text-body);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.shell__location > svg:first-child {
+  flex: 0 0 auto;
+  color: var(--brand);
+}
+
+.shell__location > svg:last-child {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.shell__location-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.shell__location-label {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.shell__location-copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__city-picker {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: var(--z-sheet);
+  width: min(21rem, calc(100vw - 2rem));
+  padding: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.shell__city-picker > label {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.shell__city-picker > input {
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.shell__city-options {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 14rem;
+  margin-top: var(--space-2);
+  overflow-y: auto;
+}
+
+.shell__city-option {
+  min-height: var(--tap-target-dense);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-body);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.shell__city-option:hover,
+.shell__city-option--selected {
+  color: var(--text-brand);
+  background: var(--bg-brand-subtle);
+}
+
+.shell__city-message {
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .shell__location:hover {
+    color: var(--text-brand);
+    text-decoration: none;
+  }
+}
+
+.shell__search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  color: var(--text-muted);
+  background: var(--bg-page);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+.shell__search-wrap {
+  position: relative;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-width: 0;
+}
+
+.shell__search:focus-within {
+  background: var(--bg-surface);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--bg-brand-subtle);
+}
+
+.shell__search > svg {
+  flex: 0 0 auto;
+}
+
+.shell__search input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  color: var(--text-body);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: var(--text-sm);
+}
+
+.shell__search input::placeholder {
+  color: var(--text-placeholder);
+  opacity: 1;
+}
+
+.shell__search input:disabled {
+  cursor: not-allowed;
+}
+
+.shell__search:has(input:disabled) {
+  color: var(--text-placeholder);
+}
+
+.shell__search-clear {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-full);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.shell__search-clear:hover {
+  color: var(--text-strong);
+  background: var(--bg-sunken);
+}
+
+.shell__shop-suggestions {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: calc(var(--z-bottom-nav) + 2);
+  width: 100%;
+  max-height: min(22rem, 60vh);
+  padding: var(--space-1);
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--green-300) transparent;
+}
+
+.shell__shop-suggestions::-webkit-scrollbar { width: 0.45rem; }
+.shell__shop-suggestions::-webkit-scrollbar-track { background: transparent; }
+.shell__shop-suggestions::-webkit-scrollbar-thumb {
+  border: 2px solid var(--bg-surface);
+  border-radius: var(--radius-full);
+  background: var(--green-300);
+}
+.shell__shop-suggestions::-webkit-scrollbar-thumb:hover { background: var(--green-500); }
+
+.shell__shop-suggestion {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  height: 100%;
-  /* Less on the right: the icon buttons carry their own padding. */
-  padding: 0 calc(var(--content-gutter) / 2) 0 var(--content-gutter);
+  width: 100%;
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-body);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
 }
 
-/* Saved stores and the bell, top right. */
-.shell__actions {
+.shell__shop-suggestion:hover,
+.shell__shop-suggestion--active {
+  background: var(--bg-brand-subtle);
+}
+
+.shell__suggestion-name {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell__suggestion-city,
+.shell__suggestion-message {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.shell__suggestion-message {
+  padding: var(--space-3);
+}
+
+.shell__account-actions {
+  grid-column: 3;
+  grid-row: 1;
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: flex-end;
+  gap: var(--space-3);
 }
 
-.shell__action {
-  position: relative;
-  display: grid;
-  place-items: center;
+.shell__login,
+.shell__cart,
+.shell__favorites {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.shell__favorites {
+  flex: 0 0 var(--tap-target);
   width: var(--tap-target);
-  height: var(--tap-target);
-  flex-shrink: 0;
+  padding: 0;
+  color: var(--text-brand);
+}
+
+.shell__login {
+  padding: 0 var(--space-2);
+  color: var(--text-brand);
+}
+
+.shell__cart {
+  position: relative;
+  padding: 0 var(--space-3);
+  color: var(--text-on-brand);
+  background: var(--brand);
+}
+
+.shell__cart--disabled {
+  color: var(--text-disabled);
+  background: var(--bg-sunken);
+  cursor: not-allowed;
+}
+
+.shell__cart--disabled svg {
+  color: var(--text-muted);
+}
+
+.shell__header-cart-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding-inline: 0.2rem;
+  color: var(--text-brand);
+  background: var(--bg-surface);
   border-radius: var(--radius-full);
-  color: var(--text-body);
-  transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+  font-size: 0.65rem;
+  line-height: 1;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .shell__action:hover {
+  .shell__login:hover {
+    color: var(--brand-hover);
     background: var(--bg-brand-subtle);
-    color: var(--text-brand);
+    text-decoration: none;
+  }
+
+  .shell__favorites:hover {
+    color: var(--brand-hover);
+    background: var(--bg-brand-subtle);
+    text-decoration: none;
+  }
+
+  .shell__cart:not(:disabled):hover {
+    background: var(--brand-hover);
+    box-shadow: var(--shadow-sm);
+    text-decoration: none;
   }
 }
 
-.shell__action:active {
-  transform: scale(0.94);
+.shell__login:active,
+.shell__favorites:active,
+.shell__cart:not(:disabled):active {
+  transform: scale(0.97);
 }
 
-.shell__action.active {
+/* Header glyphs use the same line weight and palette as the rest of the app. */
+.shell__header .shell__mark {
   color: var(--brand);
 }
 
-.shell__bell-badge {
-  position: absolute;
-  top: 0.35rem;
-  right: 0.3rem;
-  min-width: 1.1rem;
-  height: 1.1rem;
-  padding: 0 0.25rem;
-  border: 2px solid var(--bg-surface);
-  border-radius: var(--radius-full);
-  background: var(--danger);
-  color: var(--white);
-  font-size: 0.625rem;
-  font-weight: var(--weight-bold);
-  line-height: 0.85rem;
-  text-align: center;
+.shell__account-actions svg {
+  width: 19px;
+  height: 19px;
+}
+
+/* Keep the brand anchored at the left edge of the wide storefront frame. */
+@media (min-width: 64rem) {
+  .shell__bar {
+    grid-template-columns: auto max-content minmax(18rem, 1fr) auto;
+    grid-template-rows: minmax(4.75rem, auto);
+    gap: 0 var(--space-4);
+    padding-block: 0;
+  }
+
+  .shell__search-wrap {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .shell__location-wrap {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .shell__account-actions {
+    grid-column: 4;
+  }
+}
+
+@media (max-width: 26rem) {
+  .shell__location-label {
+    display: none;
+  }
+
+  .shell__location-copy strong {
+    max-width: 6.2rem;
+  }
+
+  .shell__login,
+  .shell__cart,
+  .shell__favorites {
+    gap: var(--space-1);
+    padding-inline: var(--space-2);
+    font-size: 0.75rem;
+  }
 }
 
 .shell__brand {
   display: inline-flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
   color: var(--text-brand);
   font-size: var(--text-lg);
   font-weight: var(--weight-bold);
   letter-spacing: -0.01em;
+}
+
+.shell__brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .shell__brand:hover {
@@ -185,10 +581,46 @@
 }
 
 .shell__tabs-inner {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
 }
+
+.shell__tabs-greeting,
+.shell__tabs-categories { display: none; }
+
+.shell__offers-wrap { position: relative; justify-self: end; }
+.shell__offers-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--text-brand);
+  background: transparent;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.shell__offers-trigger:hover,
+.shell__offers-trigger[aria-expanded='true'] { background: var(--bg-brand-subtle); }
+.shell__offers-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-2));
+  z-index: var(--z-sheet);
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: min(30rem, 70vh);
+  overflow-y: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+}
+.shell__offers-panel .home__section { gap: var(--space-2); padding: var(--space-4); }
 
 .shell__tab {
   position: relative;
@@ -212,24 +644,6 @@
   position: relative;
   display: grid;
   place-items: center;
-}
-
-.shell__cart-count {
-  position: absolute;
-  top: -0.35rem;
-  right: -0.45rem;
-  display: grid;
-  place-items: center;
-  min-width: 1.1rem;
-  height: 1.1rem;
-  padding-inline: 0.2rem;
-  border: 2px solid var(--bg-surface);
-  border-radius: var(--radius-full);
-  background: var(--brand);
-  color: var(--text-on-brand);
-  font-size: 0.625rem;
-  font-weight: var(--weight-bold);
-  line-height: 1;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -291,7 +705,7 @@
 /*
  * Past this width there is room for the nav beside the content rather than
  * under the thumb, so the bottom bar becomes a row directly below the header:
- * the same four links, laid out the way a desktop site lays them out.
+ * the same two links, laid out the way a desktop site lays them out.
  *
  * It is the same markup either way. The bar is `position: fixed` on a phone, so
  * where it sits in the document never mattered; here it simply stops being
@@ -300,7 +714,7 @@
 @media (min-width: 48rem) {
   .shell__tabs {
     position: sticky;
-    top: var(--header-height);
+    top: var(--shell-primary-header-height, var(--header-height));
     bottom: auto;
     height: auto;
     padding-bottom: 0;
@@ -310,9 +724,25 @@
 
   .shell__tabs-inner {
     display: flex;
+    align-items: center;
     gap: var(--space-1);
     padding: var(--space-2) var(--content-gutter);
   }
+
+  .shell__tabs-greeting {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap-target-dense);
+    margin-right: var(--space-3);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+  }
+
+  .shell__offers-wrap { flex: 0 0 auto; }
+  .shell__offers-panel { top: calc(100% + var(--space-2)); bottom: auto; }
+
+  .shell__tabs-categories { display: block; flex: 1; min-width: 0; }
 
   /* No fixed bar to clear any more. */
   .shell:has(.shell__tabs) .shell__main {

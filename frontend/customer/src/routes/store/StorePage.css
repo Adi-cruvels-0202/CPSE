@@ -137,10 +137,10 @@
   background: var(--green-500);
 }
 
-.store__description {
-  color: var(--text-body);
-  font-size: var(--text-sm);
-  padding-top: var(--space-6);
+.store__details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
 }
 
 /* When there is no description, the identity block still needs the space the
@@ -182,74 +182,74 @@
 
 .store__search:active { transform: scale(0.99); }
 
-/* A quiet, compact entry keeps the shop helper available without making it
-   compete with the catalogue for the customer's attention. */
+/* Shares the compact icon tile pattern used by other shop actions. */
 .store-assistant-trigger {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  min-height: 3.75rem;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-subtle);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: 4.25rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-lg);
   background: var(--bg-surface);
   color: var(--text-body);
-  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  text-align: center;
   cursor: pointer;
-  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .store-assistant-trigger__icon {
   display: grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
   border-radius: var(--radius-full);
   background: var(--bg-brand-subtle);
   color: var(--text-brand);
 }
+.store-assistant-trigger__icon svg { width: 1rem; height: 1rem; }
 
 .store-assistant-trigger__copy {
   display: grid;
-  flex: 1;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .store-assistant-trigger__copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   color: var(--text-strong);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+  line-height: 1.2;
 }
 
-.store-assistant-trigger__copy span {
+.store-assistant-trigger__copy > span {
+  overflow: hidden;
   color: var(--text-muted);
   font-size: var(--text-xs);
-}
-
-.store-assistant-trigger__arrow {
-  color: var(--text-muted);
-  font-size: 1.5rem;
-  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .store-assistant-trigger:hover {
     border-color: var(--green-300);
     background: var(--bg-brand-subtle);
-    box-shadow: var(--shadow-sm);
+    color: var(--text-brand);
     transform: translateY(-1px);
   }
 }
 
 .store-assistant-trigger:active { transform: scale(0.99); }
-
-.store-assistant-trigger:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
-}
 
 .store-assistant__intro { margin: 0; }
 

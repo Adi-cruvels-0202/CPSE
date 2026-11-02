@@ -64,10 +64,9 @@ export function ShopAssistant({ store, isSignedIn }) {
       >
         <span className="store-assistant-trigger__icon" aria-hidden="true"><ChatIcon /></span>
         <span className="store-assistant-trigger__copy">
-          <strong>Ask {store.name}</strong>
-          <span>Products, prices or store hours</span>
+          <strong>Shop assistant</strong>
+          <span className="sr-only">Products, prices & hours</span>
         </span>
-        <span className="store-assistant-trigger__arrow" aria-hidden="true">›</span>
       </button>
 
       <Sheet

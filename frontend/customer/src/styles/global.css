@@ -22,6 +22,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -51,15 +52,19 @@ textarea {
 
 button {
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 a {
   color: var(--text-brand);
   text-decoration: none;
+  touch-action: manipulation;
 }
 
-a:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  a:hover {
+    text-decoration: underline;
+  }
 }
 
 h1, h2, h3, h4 {
@@ -144,15 +149,34 @@ ul, ol {
   color: var(--text-on-brand);
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.btn:hover:not(:disabled) {
-  background: var(--brand-hover);
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled) {
+    background: var(--brand-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .btn--secondary:hover:not(:disabled) {
+    background: var(--bg-brand-subtle);
+    border-color: var(--green-300);
+  }
+
+  .btn--ghost:hover:not(:disabled) {
+    background: var(--bg-brand-subtle);
+  }
+
+  .btn--danger:hover:not(:disabled) {
+    background: var(--red-700);
+  }
 }
 
 .btn:active:not(:disabled) {
   background: var(--brand-active);
+  transform: scale(0.98);
+  box-shadow: none;
 }
 
 .btn:disabled {
@@ -168,27 +192,14 @@ ul, ol {
   color: var(--text-brand);
 }
 
-.btn--secondary:hover:not(:disabled) {
-  background: var(--bg-brand-subtle);
-  border-color: var(--green-300);
-}
-
 .btn--ghost {
   background: transparent;
   color: var(--text-brand);
   padding: 0 var(--space-3);
 }
 
-.btn--ghost:hover:not(:disabled) {
-  background: var(--bg-brand-subtle);
-}
-
 .btn--danger {
   background: var(--danger);
-}
-
-.btn--danger:hover:not(:disabled) {
-  background: var(--red-700);
 }
 
 .btn--block {
@@ -219,11 +230,12 @@ ul, ol {
   border: 1px solid var(--border-control);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .field__input:focus {
   border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--green-100);
 }
 
 .field__input::placeholder {
@@ -292,10 +304,17 @@ ul, ol {
   color: var(--text-brand);
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
-.field__action:hover {
-  background: var(--bg-brand-subtle);
+@media (hover: hover) and (pointer: fine) {
+  .field__action:hover {
+    background: var(--bg-brand-subtle);
+  }
+}
+
+.field__action:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .card {
@@ -304,6 +323,56 @@ ul, ol {
   border-radius: var(--radius-lg);
   padding: var(--space-4);
   box-shadow: var(--shadow-sm);
+}
+
+/* The same restrained feedback for the customer's other clickable rows. */
+.saved-row,
+.order-row,
+.khata-row,
+.address--selectable,
+.choice,
+.notification {
+  transition: border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .saved-row:hover,
+  .order-row:hover,
+  .khata-row:hover,
+  .address--selectable:hover,
+  .choice:hover,
+  .notification:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.saved-row:active,
+.order-row:active,
+.khata-row:active,
+.address--selectable:active,
+.choice:active,
+.notification:active {
+  transform: scale(0.99);
+}
+
+/* New result rows get a quick, capped stagger as they enter. */
+:is(.orders, .saved, .notifications, .khata__accounts, .addresses, .prows) > * {
+  animation: shell-content-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
+:is(.orders, .saved, .notifications, .khata__accounts, .addresses, .prows) > :nth-child(2) { animation-delay: 35ms; }
+:is(.orders, .saved, .notifications, .khata__accounts, .addresses, .prows) > :nth-child(3) { animation-delay: 70ms; }
+:is(.orders, .saved, .notifications, .khata__accounts, .addresses, .prows) > :nth-child(4) { animation-delay: 105ms; }
+:is(.orders, .saved, .notifications, .khata__accounts, .addresses, .prows) > :nth-child(5) { animation-delay: 140ms; }
+:is(.orders, .saved, .notifications, .khata__accounts, .addresses, .prows) > :nth-child(n + 6) { animation-delay: 175ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.orders, .saved, .notifications, .khata__accounts, .addresses, .prows) > * {
+    animation-name: shell-content-fade;
+    animation-duration: 120ms;
+    animation-delay: 0ms !important;
+  }
 }
 
 .badge {

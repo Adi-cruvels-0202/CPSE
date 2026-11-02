@@ -25,6 +25,7 @@ export function rememberStore(store) {
   } catch {
     // Kept for this tab only.
   }
+  window.dispatchEvent(new Event('cpse:active-store-changed'));
 }
 
 export function readActiveStore() {

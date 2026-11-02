@@ -10,7 +10,10 @@
   "scripts": {
     "dev": "node --watch-path=./src --watch-preserve-output src/server.js",
     "start": "node src/server.js",
+    "start:static": "SERVE_STATIC_FRONTEND=true node src/server.js",
+    "service": "node src/service.js",
     "build": "npm --prefix ../frontend/customer ci --include=dev && npm --prefix ../frontend/customer run build && npm --prefix ../frontend/merchant ci --include=dev && npm --prefix ../frontend/merchant run build",
+    "build:frontends": "npm --prefix ../frontend/customer run build && npm --prefix ../frontend/merchant run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -27,12 +30,12 @@
     "express-rate-limit": "^7.4.1",
     "helmet": "^8.0.0",
     "multer": "^2.4.0",
-    "sharp": "^0.34.5",
-    "zod": "^3.23.8"
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "supertest": "^7.0.0",
-    "vitest": "^2.1.4"
+    "vitest": "^5.0.5"
   }
 }

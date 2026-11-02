@@ -8,13 +8,21 @@
   background: var(--bg-surface);
   color: var(--text-muted);
   box-shadow: var(--shadow-sm);
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+  transition: color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.save-store:hover {
-  color: var(--danger);
-  border-color: var(--red-200);
+@media (hover: hover) and (pointer: fine) {
+  .save-store:hover {
+    color: var(--danger);
+    border-color: var(--red-200);
+    transform: scale(1.04);
+    box-shadow: var(--shadow-md);
+  }
 }
+
+.save-store:active { transform: scale(0.92); }
+.save-store svg { transition: transform var(--transition-fast); }
+.save-store--on svg { transform: scale(1.08); }
 
 .save-store--on {
   color: var(--danger);

@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useUnreadCount } from '../hooks/useUnreadCount.js';
+import { useCartCount } from '../hooks/useCartCount.js';
 import { useOnline } from '../hooks/useOnline.js';
 import './AppShell.css';
 
@@ -27,6 +28,8 @@ export function AppShell() {
   const { isSignedIn } = useAuth();
   const { pathname } = useLocation();
   const unread = useUnreadCount();
+  const routeStoreId = pathname.match(/^\/(?:cart|checkout)\/([^/]+)/)?.[1] ?? null;
+  const cartCount = useCartCount(routeStoreId);
   const online = useOnline();
 
   /**
@@ -98,13 +101,23 @@ export function AppShell() {
                 key={to}
                 to={to}
                 end={end}
+                aria-label={label === 'Cart' && cartCount > 0
+                  ? `Cart, ${cartCount} ${cartCount === 1 ? 'item' : 'items'}`
+                  : undefined}
                 className={({ isActive }) =>
                   `shell__tab${isActive ? ' shell__tab--active' : ''}`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    <Icon filled={isActive} />
+                    <span className="shell__tab-icon">
+                      <Icon filled={isActive} />
+                      {label === 'Cart' && cartCount > 0 ? (
+                        <span className="shell__cart-count" aria-hidden="true">
+                          {cartCount > 99 ? '99+' : cartCount}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="shell__tab-label">{label}</span>
                   </>
                 )}

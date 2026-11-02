@@ -110,8 +110,10 @@
   text-decoration: underline;
 }
 
-.cart-line__remove:hover:not(:disabled) {
-  color: var(--danger-text);
+@media (hover: hover) and (pointer: fine) {
+  .cart-line__remove:hover:not(:disabled) {
+    color: var(--danger-text);
+  }
 }
 
 .cart-line__remove:disabled {

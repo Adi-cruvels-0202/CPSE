@@ -14,13 +14,19 @@
   font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.store-loc__row:hover {
-  border-color: var(--green-300);
-  background: var(--bg-brand-subtle);
-  color: var(--text-brand);
+@media (hover: hover) and (pointer: fine) {
+  .store-loc__row:hover {
+    border-color: var(--green-300);
+    background: var(--bg-brand-subtle);
+    color: var(--text-brand);
+    box-shadow: var(--shadow-sm);
+  }
 }
+
+.store-loc__row:active { transform: scale(0.99); }
 
 .store-loc__pin {
   flex-shrink: 0;

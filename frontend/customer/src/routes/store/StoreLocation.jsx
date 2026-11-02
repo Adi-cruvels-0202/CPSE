@@ -67,18 +67,14 @@ export function StoreLocation({ store }) {
         <ChevronRight />
       </button>
 
-      {open ? (
-        <Sheet
-          title="Where to find them"
-          onClose={() => {
-            setOpen(false);
-            // Back where they were, not back to the top of the document.
-            triggerRef.current?.focus();
-          }}
-        >
-          <LocationBody name={name} address={address} mapHref={mapHref} phone={contact?.phone} />
-        </Sheet>
-      ) : null}
+      <Sheet
+        open={open}
+        title="Where to find them"
+        returnFocusTarget={triggerRef.current}
+        onClose={() => setOpen(false)}
+      >
+        <LocationBody name={name} address={address} mapHref={mapHref} phone={contact?.phone} />
+      </Sheet>
     </>
   );
 }

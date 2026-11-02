@@ -45,9 +45,11 @@
   color: var(--text-body);
 }
 
-.khata-row:hover {
-  text-decoration: none;
-  border-color: var(--green-300);
+@media (hover: hover) and (pointer: fine) {
+  .khata-row:hover {
+    text-decoration: none;
+    border-color: var(--green-300);
+  }
 }
 
 .khata-row__body {

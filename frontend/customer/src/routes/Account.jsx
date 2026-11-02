@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { endpoints } from '../lib/endpoints.js';
@@ -12,8 +12,8 @@ import './Account.css';
 /**
  * Checklist 11.3 — the profile, and the way out of the app.
  *
- * Laid out the way every account tab is: who you are at the top, the things you
- * own as one list of rows below it, and the way out at the bottom.
+ * Identity first, then the account links grouped by what they help with, and
+ * the way out at the bottom.
  *
  * The edit form used to sit open on this screen, which made the first thing a
  * customer saw a set of inputs they had not asked to fill in — and pushed the
@@ -31,6 +31,7 @@ export function Account() {
 
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const editTriggerRef = useRef(null);
 
   const { submit: doSignOut, pending: signingOut } = useSubmit(signOut, {
     onSuccess: () => navigate('/', { replace: true }),
@@ -62,6 +63,7 @@ export function Account() {
         </div>
 
         <button
+          ref={editTriggerRef}
           type="button"
           className="btn btn--secondary btn--sm account__edit"
           onClick={() => {
@@ -76,40 +78,27 @@ export function Account() {
         {saved ? <FormSuccess>Saved.</FormSuccess> : null}
       </section>
 
-      <nav className="card account__links" aria-label="Your things">
-        <AccountLink
-          to="/orders"
-          icon={<ReceiptIcon />}
-          label="Orders"
-          hint="What you have bought"
-        />
-        <AccountLink
-          to="/account/addresses"
-          icon={<PinIcon />}
-          label="Addresses"
-          hint="Where your orders go"
-        />
-        <AccountLink
-          to="/khata"
-          icon={<LedgerIcon />}
-          label="Khata"
-          hint="What you owe your stores"
-        />
-        <AccountLink to="/my-shopping" icon={<ReceiptIcon />} label="My shopping" hint="Buy again, favourites, recently viewed" />
-        <AccountLink to="/lists" icon={<LedgerIcon />} label="Lists and templates" hint="What to buy, and your regular baskets" />
-        <AccountLink to="/points" icon={<ShopIcon />} label="Points" hint="Loyalty points and rewards at your shops" />
-        <AccountLink to="/messages" icon={<ReceiptIcon />} label="Messages" hint="Questions, requests and support" />
-        <AccountLink to="/account/preferences" icon={<PinIcon />} label="Preferences" hint="How you shop and what shops may send you" />
-        {/* The merchant app, a separate app at /merchant. A shop is its own
-            account with its own email (MERGE_MAPPING D-2, revised), so this
-            opens shop sign-up rather than carrying this login across. */}
-        <AccountLink
-          href="/merchant/register"
-          icon={<ShopIcon />}
-          label="Sell on CPSE"
-          hint="Open a shop — it needs its own email"
-        />
-      </nav>
+      <div className="account__groups">
+        <AccountGroup title="Shopping">
+          <AccountLink to="/orders" icon={<ReceiptIcon />} label="Orders" />
+          <AccountLink to="/my-shopping" icon={<ReceiptIcon />} label="My shopping" />
+          <AccountLink to="/lists" icon={<LedgerIcon />} label="Lists and templates" />
+        </AccountGroup>
+
+        <AccountGroup title="Payments and rewards">
+          <AccountLink to="/khata" icon={<LedgerIcon />} label="Khata" />
+          <AccountLink to="/points" icon={<ShopIcon />} label="Points" />
+        </AccountGroup>
+
+        <AccountGroup title="Account and support">
+          <AccountLink to="/account/addresses" icon={<PinIcon />} label="Addresses" />
+          <AccountLink to="/messages" icon={<ReceiptIcon />} label="Messages" />
+          <AccountLink to="/account/preferences" icon={<PinIcon />} label="Preferences" />
+          {/* The merchant app is separate and opens shop sign-up rather than
+              carrying this customer login across. */}
+          <AccountLink href="/merchant/register" icon={<ShopIcon />} label="Sell on CPSE" />
+        </AccountGroup>
+      </div>
 
       <button
         type="button"
@@ -120,16 +109,19 @@ export function Account() {
         {signingOut ? 'Signing out…' : 'Sign out'}
       </button>
 
-      {editing ? (
-        <Sheet title="Edit profile" onClose={() => setEditing(false)}>
+      <Sheet
+        open={editing}
+        title="Edit profile"
+        onClose={() => setEditing(false)}
+        returnFocusTarget={editTriggerRef.current}
+      >
           <ProfileForm
             onSaved={() => {
               setSaved(true);
               setEditing(false);
             }}
           />
-        </Sheet>
-      ) : null}
+      </Sheet>
     </div>
   );
 }
@@ -212,8 +204,19 @@ function ProfileForm({ onSaved }) {
   );
 }
 
+function AccountGroup({ title, children }) {
+  return (
+    <section className="account__group" aria-label={title}>
+      <h2 className="account__group-title">{title}</h2>
+      <nav className="card account__links" aria-label={title}>
+        {children}
+      </nav>
+    </section>
+  );
+}
+
 /** `to` for a page in this app; `href` for one outside it, like /merchant. */
-function AccountLink({ to, href, icon, label, hint }) {
+function AccountLink({ to, href, icon, label }) {
   const body = (
     <>
       <span className="account__link-icon" aria-hidden="true">
@@ -221,7 +224,6 @@ function AccountLink({ to, href, icon, label, hint }) {
       </span>
       <span className="account__link-text">
         <span className="account__link-label">{label}</span>
-        <span className="account__link-hint">{hint}</span>
       </span>
       <ChevronRight />
     </>

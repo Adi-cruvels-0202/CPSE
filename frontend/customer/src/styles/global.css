@@ -23,6 +23,36 @@
 html {
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
+  scrollbar-color: var(--green-300) transparent;
+  scrollbar-width: thin;
+}
+
+/* Keep the browser's native scrolling behavior while carrying the customer's
+   green, low-contrast scrollbar treatment through page and nested scroll areas. */
+:where(*) {
+  scrollbar-color: var(--green-300) transparent;
+  scrollbar-width: thin;
+}
+
+:where(*)::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+:where(*)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:where(*)::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--radius-full);
+  background: var(--green-200);
+  background-clip: padding-box;
+}
+
+:where(*)::-webkit-scrollbar-thumb:hover {
+  background: var(--green-300);
+  background-clip: padding-box;
 }
 
 body {

@@ -164,9 +164,9 @@ export function CartPage() {
     return (
       <EmptyState
         title="Your cart is empty"
-        body="Add something from the shop and it will show up here."
-        actionTo={cart?.storeSlug ? `/store/${cart.storeSlug}` : '/'}
-        actionLabel={cart?.storeName ? `Back to ${cart.storeName}` : 'Find a shop'}
+        body="Find something you like and it will be waiting here."
+        actionTo="/"
+        actionLabel="Explore shops"
       />
     );
   }

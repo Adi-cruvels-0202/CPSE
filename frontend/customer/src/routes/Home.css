@@ -20,9 +20,296 @@
   font-size: var(--text-base);
 }
 
+.home__category-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home__category-navigation--header { display: none; }
+
+.home__category-scroll-row { display: flex; align-items: center; min-width: 0; gap: var(--space-1); }
+
+.home__category-list,
+.home__subcategory-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home__subcategory-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.home__category-list {
+  flex: 1;
+  padding: 0 0 var(--space-1);
+  scrollbar-width: none;
+}
+
+.home__category-list::-webkit-scrollbar { display: none; }
+
+.home__category-prev,
+.home__category-next {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-brand);
+  background: var(--bg-surface);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.home__category-arrow--hidden { visibility: hidden; pointer-events: none; }
+
+.home__category-prev span,
+.home__category-next span { transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+.home__category-prev:hover span,
+.home__category-prev:active span { transform: translateX(-0.15rem); }
+.home__category-next:hover span,
+.home__category-next:active span { transform: translateX(0.15rem); }
+
+.home__category-chip,
+.home__subcategory-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  color: var(--text-body);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.home__category-chip > span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding-inline: var(--space-1);
+  color: var(--text-muted);
+  background: var(--bg-page);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  line-height: 1;
+}
+
+.home__category-chip--active {
+  color: var(--text-on-brand);
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.home__category-chip--active > span {
+  color: var(--text-brand);
+  background: var(--bg-surface);
+}
+
+.home__subcategory-panel {
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  border-left: 2px solid var(--green-200);
+  animation: category-subcategory-enter 180ms ease-out both;
+}
+
+.home__subcategory-chip {
+  min-height: var(--tap-target-dense);
+  color: var(--text-brand);
+  background: var(--bg-brand-subtle);
+}
+
+.home__subcategory-chip--active {
+  color: var(--text-on-brand);
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+@keyframes category-subcategory-enter {
+  from { opacity: 0; transform: translateX(0.35rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home__subcategory-panel {
+    animation: none;
+  }
+
+  .home__category-prev span,
+  .home__category-next span,
+  .home__shop-rail-prev span,
+  .home__shop-rail-next span { transition: none; }
+}
+
+@media (min-width: 48rem) {
+  .home__category-navigation--body { display: none; }
+  .home__category-navigation--header { display: block; }
+  .home__category-navigation--header .home__category-navigation { gap: var(--space-1); }
+  .home__category-navigation--header .home__category-chip { min-height: var(--tap-target-dense); padding-inline: var(--space-2); font-size: var(--text-xs); }
+  .home__category-navigation--header .home__category-chip > span { min-width: 1rem; height: 1rem; font-size: 0.65rem; }
+  .home__category-navigation--header .home__subcategory-panel { padding: 0; border: 0; animation: none; }
+  .home__category-navigation--header .home__subcategory-chip { min-height: 1.75rem; padding-inline: var(--space-2); font-size: var(--text-xs); }
+  .home__category-navigation--header .home__category-prev,
+  .home__category-navigation--header .home__category-next { width: 1.75rem; height: 1.75rem; background: var(--bg-page); }
+}
+
 .home__more {
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
+}
+
+/* ── Horizontal shop shelves ─────────────────────────────────────────── */
+.home__shop-shelves { display: flex; flex-direction: column; gap: var(--space-5); }
+.home__shop-shelf { min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.home__shop-shelf-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.home__see-all { padding: var(--space-1) var(--space-2); border: 0; color: var(--text-brand); background: transparent; cursor: pointer; }
+.home__back-categories {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap-target-dense);
+  padding: 0 var(--space-2);
+  border: 0;
+  color: var(--text-brand);
+  background: transparent;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.home__back-categories > span { font-size: 1.35rem; line-height: 1; }
+.home__shop-rail {
+  display: grid;
+  grid-auto-columns: minmax(12rem, 14.5rem);
+  grid-auto-flow: column;
+  gap: var(--space-3);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: 0.15rem 0.1rem var(--space-2);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.home__shop-rail::-webkit-scrollbar { display: none; }
+.home__shop-rail-wrap { position: relative; min-width: 0; }
+.home__shop-rail-next {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-strong);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 1.5rem;
+  transform: translateY(-50%);
+}
+.home__shop-rail-next span { transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+.home__shop-rail-next:hover span { transform: translateX(0.1rem); }
+.home__shop-rail-next:active span { transform: translateX(0.2rem); }
+.home__shop-rail-prev {
+  position: absolute;
+  top: 50%;
+  left: var(--space-2);
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--text-strong);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 1.5rem;
+  transform: translateY(-50%);
+}
+.home__shop-rail-prev span { transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+.home__shop-rail-prev:hover span { transform: translateX(-0.1rem); }
+.home__shop-rail-prev:active span { transform: translateX(-0.2rem); }
+.home__shop-rail-item { min-width: 0; }
+.home__shop-rail--list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(12rem, 100%), 1fr));
+  grid-auto-flow: row;
+  grid-auto-columns: unset;
+  gap: var(--space-2);
+  overflow: visible;
+  padding: 0.15rem 0.1rem var(--space-2);
+}
+.home__shop-rail--list .home__shop-rail-item { width: 100%; }
+.home__shop-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--text-body);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+@media (hover: hover) and (pointer: fine) {
+  .home__shop-card:hover { border-color: var(--green-300); box-shadow: var(--shadow-sm); transform: translateY(-1px); text-decoration: none; }
+}
+.home__shop-card-image { width: 100%; border-radius: 0; background: var(--bg-page); }
+.home__shop-card-body { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: var(--space-1); padding: var(--space-3); }
+.home__shop-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); }
+.home__shop-card-name { min-width: 0; color: var(--text-strong); font-size: var(--text-sm); font-weight: var(--weight-semibold); line-height: 1.3; overflow-wrap: anywhere; }
+.home__shop-card-favorite {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 1;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  color: var(--brand);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+}
+.home__shop-card-favorite svg { width: 1.2rem; height: 1.2rem; }
+.home__shop-card-category { color: var(--text-brand); font-size: var(--text-xs); font-weight: var(--weight-medium); }
+.home__shop-card-meta { color: var(--text-muted); font-size: var(--text-xs); }
+@media (max-width: 40rem) {
+  .home__shop-rail { grid-auto-columns: minmax(11rem, 66vw); gap: var(--space-2); }
+  .home__shop-rail--list { grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home__shop-card { transition: none; }
+  .home__shop-rail-prev span,
+  .home__shop-rail-next span,
+  .home__category-prev span,
+  .home__category-next span { transition: none; }
 }
 
 /* ── The live order ─────────────────────────────────────────────────────── */
@@ -91,63 +378,15 @@
  * habit — the Saved screen is where the opening hours and the minimum order
  * belong, and repeating them here would make the home screen a worse copy of it.
  */
-.home__shops {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(7rem, 100%), 1fr));
-  gap: var(--space-3);
-}
-
-.home__shops > li,
 .home__directory > li {
   animation: shell-content-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
 }
 
-.home__shops > li:nth-child(2),
 .home__directory > li:nth-child(2) { animation-delay: 35ms; }
-.home__shops > li:nth-child(3),
 .home__directory > li:nth-child(3) { animation-delay: 70ms; }
-.home__shops > li:nth-child(4),
 .home__directory > li:nth-child(4) { animation-delay: 105ms; }
-.home__shops > li:nth-child(5),
 .home__directory > li:nth-child(5) { animation-delay: 140ms; }
-.home__shops > li:nth-child(n + 6),
 .home__directory > li:nth-child(n + 6) { animation-delay: 175ms; }
-
-.home__shop {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  height: 100%;
-  padding: var(--space-3) var(--space-2);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  color: var(--text-body);
-  text-align: center;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .home__shop:hover {
-    text-decoration: none;
-    border-color: var(--green-300);
-    box-shadow: var(--shadow-sm);
-    transform: translateY(-1px);
-  }
-}
-
-.home__shop-mark {
-  width: 3rem;
-}
-
-.home__shop-name {
-  flex: 1;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--text-strong);
-  overflow-wrap: anywhere;
-}
 
 .home__shop-state {
   padding: 0.1rem var(--space-2);
@@ -243,7 +482,6 @@
 .home__listing-mark { width: 3.5rem; flex-shrink: 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .home__shops > li,
   .home__directory > li {
     animation-name: shell-content-fade;
     animation-duration: 120ms;

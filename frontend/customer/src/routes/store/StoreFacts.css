@@ -1,58 +1,59 @@
-/* ── The chip strip ─────────────────────────────────────────────────────── */
-
-.store-facts {
-  display: flex;
-  gap: var(--space-2);
-  /* Sideways rather than wrapping: a wrapped row reflows the whole header
-     every time one shop has a fact another does not. */
-  overflow-x: auto;
-  /* The strip runs to the screen edge — a chip cut off at the margin reads as
-     a bug, a chip cut off at the edge reads as "there is more". */
-  margin: 0 calc(var(--space-4) * -1);
-  padding: 0 var(--space-4) var(--space-1);
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.store-facts::-webkit-scrollbar {
-  display: none;
-}
-
-.store-facts__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-shrink: 0;
-  min-height: var(--tap-target-dense);
-  padding: 0 var(--space-3);
+/* Compact overview tile; detailed hours and fulfillment open on demand. */
+.store-facts__summary {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 4.5rem;
+  padding: var(--space-1);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-full);
-  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
   color: var(--text-body);
-  font-size: var(--text-sm);
-  white-space: nowrap;
+  background: var(--bg-surface);
+  text-align: left;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+  transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
 }
 
-.store-facts__chip svg {
+.store-facts__icon {
+  display: grid;
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: var(--radius-full);
   color: var(--text-brand);
-  flex-shrink: 0;
+  background: var(--bg-brand-subtle);
+}
+
+.store-facts__icon svg { width: 1.1rem; height: 1.1rem; }
+
+.store-facts__copy {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--text-xs);
+  line-height: 1.15;
+}
+
+.store-facts__copy strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  color: var(--text-strong);
+  text-align: center;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .store-facts__chip:hover {
-    border-color: var(--green-300);
-    background: var(--bg-brand-subtle);
-    color: var(--text-brand);
-    transform: translateY(-1px);
-  }
+  .store-facts__summary:hover { border-color: var(--green-300); background: var(--bg-brand-subtle); }
 }
 
-.store-facts__chip:active { transform: scale(0.98); }
+.store-facts__summary:active { transform: scale(0.99); }
 
-/* ── Inside the sheets ──────────────────────────────────────────────────── */
-
+/* ── Inside the sheet ───────────────────────────────────────────────────── */
 .store-facts__status {
   display: flex;
   align-items: center;
@@ -61,16 +62,9 @@
   color: var(--text-muted);
 }
 
-.store-facts__status strong {
-  color: var(--danger-text);
-}
+.store-facts__status strong { color: var(--danger-text); }
+.store-facts__status--open strong { color: var(--green-700); }
 
-.store-facts__status--open strong {
-  color: var(--green-700);
-}
-
-/* The dot repeats the open/closed state in position as well as colour, so it is
-   not the only cue — and the words are there regardless. */
 .store-facts__dot {
   width: 0.5rem;
   height: 0.5rem;
@@ -79,9 +73,7 @@
   flex-shrink: 0;
 }
 
-.store-facts__status--open .store-facts__dot {
-  background: var(--green-500);
-}
+.store-facts__status--open .store-facts__dot { background: var(--green-500); }
 
 .store-facts__list,
 .store-facts__week {
@@ -105,9 +97,7 @@
 }
 
 .store-facts__list dt,
-.store-facts__week dt {
-  color: var(--text-muted);
-}
+.store-facts__week dt { color: var(--text-muted); }
 
 .store-facts__list dd,
 .store-facts__week dd {
@@ -120,4 +110,15 @@
 .store-facts__week-row--today dd {
   color: var(--text-brand);
   font-weight: var(--weight-semibold);
+}
+
+.store-facts__description {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-body);
+  font-size: var(--text-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .store-facts__summary { transition: none; }
 }

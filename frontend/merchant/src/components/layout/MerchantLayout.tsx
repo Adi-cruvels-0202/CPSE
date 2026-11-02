@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../hooks/useAuth';
@@ -107,13 +107,19 @@ export default function MerchantLayout() {
 function useMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const { pathname } = useLocation();
 
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => {
     if (!open) return undefined;
     const close = (event: MouseEvent | KeyboardEvent) => {
-      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !ref.current?.contains(event.target as Node)) setOpen(false);
+      if (event instanceof KeyboardEvent && event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      } else if (!(event instanceof KeyboardEvent) && !ref.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', close);
@@ -123,7 +129,21 @@ function useMenu() {
     };
   }, [open]);
 
-  return { open, setOpen, ref };
+  return { open, setOpen, ref, triggerRef };
+}
+
+function handleMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+  const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
+  if (!keys.includes(event.key)) return;
+  const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]'));
+  if (!items.length) return;
+  event.preventDefault();
+  const index = items.indexOf(document.activeElement as HTMLElement);
+  const next = event.key === 'Home' ? 0
+    : event.key === 'End' ? items.length - 1
+      : event.key === 'ArrowDown' ? (index + 1) % items.length
+        : (index <= 0 ? items.length - 1 : index - 1);
+  items[next].focus();
 }
 
 /** Which store every screen is working on; a merchant may run several. */
@@ -131,26 +151,32 @@ function StoreSwitcher() {
   const { stores } = useAuth();
   const { activeStoreId, setActiveStoreId } = useActiveStore();
   const navigate = useNavigate();
-  const { open, setOpen, ref } = useMenu();
+  const { open, setOpen, ref, triggerRef } = useMenu();
   const current = stores.find((store) => store.id === activeStoreId);
 
   if (stores.length === 0) return null;
 
   const choose = (id: string) => {
     setOpen(false);
+    triggerRef.current?.focus();
     if (id !== activeStoreId) setActiveStoreId(id);
     navigate('/dashboard');
   };
 
   return (
     <div className="shell__store-wrap" ref={ref}>
-      <button type="button" className="shell__store" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu" aria-label={`Store: ${current?.name ?? 'choose a store'}`}>
+      <button ref={triggerRef} type="button" className="shell__store" onClick={() => setOpen(!open)} onKeyDown={(event) => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          setOpen(true);
+          requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus());
+        }
+      }} aria-expanded={open} aria-haspopup="menu" aria-label={`Store: ${current?.name ?? 'choose a store'}`}>
         <StoreDot live={current?.isPublished} />
         <span className="shell__store-name">{current?.name ?? 'Choose a store'}</span>
         <svg className="shell__store-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
       </button>
-      {open && (
-        <div className="shell__menu shell__menu--stores" role="menu" aria-label="Your stores">
+      <div className={`shell__menu shell__menu--stores${open ? ' shell__menu--open' : ''}`} role="menu" aria-label="Your stores" aria-hidden={!open} inert={!open} onKeyDown={handleMenuKeyDown}>
           <div className="shell__menu-label">Your stores</div>
           {stores.map((store) => {
             const active = store.id === activeStoreId;
@@ -164,8 +190,7 @@ function StoreSwitcher() {
           })}
           <div className="shell__menu-divider" role="separator" />
           <NavLink role="menuitem" className="shell__menu-item shell__menu-item--accent" to="/store/new">+ New store</NavLink>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -178,18 +203,23 @@ function AccountMenu() {
   const { merchant, stores, logout } = useAuth();
   const { activeStoreId } = useActiveStore();
   const navigate = useNavigate();
-  const { open, setOpen, ref } = useMenu();
+  const { open, setOpen, ref, triggerRef } = useMenu();
   const current = stores.find((store) => store.id === activeStoreId);
   const name = merchant?.fullName || merchant?.email || 'Merchant';
   const initials = name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <div className="shell__account" ref={ref}>
-      <button type="button" className="shell__avatar" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="menu" aria-label={`Account: ${name}`}>
+      <button ref={triggerRef} type="button" className="shell__avatar" onClick={() => setOpen(!open)} onKeyDown={(event) => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          setOpen(true);
+          requestAnimationFrame(() => ref.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus());
+        }
+      }} aria-expanded={open} aria-haspopup="menu" aria-label={`Account: ${name}`}>
         {initials}
       </button>
-      {open && (
-        <div className="shell__menu" role="menu">
+      <div className={`shell__menu${open ? ' shell__menu--open' : ''}`} role="menu" aria-hidden={!open} inert={!open} onKeyDown={handleMenuKeyDown}>
           <div className="shell__menu-head">
             <strong>{name}</strong>
             <span>{merchant?.email}</span>
@@ -205,8 +235,7 @@ function AccountMenu() {
           <button role="menuitem" type="button" className="shell__menu-item shell__menu-item--danger" onClick={async () => { await logout(); navigate('/login'); }}>
             Sign out
           </button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -20,6 +20,35 @@
   margin-inline: auto;
 }
 
+/* A short arrival cue on route content; the shell and navigation stay still. */
+.shell__content > *:not(.auth) {
+  animation: shell-content-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
+@keyframes shell-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell__content > *:not(.auth) {
+    animation-name: shell-content-fade;
+    animation-duration: 120ms;
+  }
+
+  @keyframes shell-content-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
 /* Visible only once focused — the first Tab on any screen. */
 .shell__skip {
   position: absolute;
@@ -74,11 +103,18 @@
   flex-shrink: 0;
   border-radius: var(--radius-full);
   color: var(--text-body);
+  transition: color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
 }
 
-.shell__action:hover {
-  background: var(--bg-brand-subtle);
-  color: var(--text-brand);
+@media (hover: hover) and (pointer: fine) {
+  .shell__action:hover {
+    background: var(--bg-brand-subtle);
+    color: var(--text-brand);
+  }
+}
+
+.shell__action:active {
+  transform: scale(0.94);
 }
 
 .shell__action.active {
@@ -155,6 +191,7 @@
 }
 
 .shell__tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -200,6 +237,24 @@
 .shell__tab--active {
   color: var(--brand);
   font-weight: var(--weight-semibold);
+}
+
+.shell__tab::after {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1.25rem;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--brand);
+  content: '';
+  transform: translateX(-50%) scaleX(0);
+  transform-origin: center;
+  transition: transform var(--transition-fast);
+}
+
+.shell__tab--active::after {
+  transform: translateX(-50%) scaleX(1);
 }
 
 .shell__tab-label {

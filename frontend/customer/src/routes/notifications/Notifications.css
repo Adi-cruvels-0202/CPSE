@@ -47,9 +47,11 @@
   border-bottom: 0;
 }
 
-a.notification:hover {
-  text-decoration: none;
-  background: var(--bg-brand-subtle);
+@media (hover: hover) and (pointer: fine) {
+  a.notification:hover {
+    text-decoration: none;
+    background: var(--bg-brand-subtle);
+  }
 }
 
 .notification__icon {

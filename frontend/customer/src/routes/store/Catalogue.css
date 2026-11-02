@@ -35,22 +35,29 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   white-space: nowrap;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
 }
 
-.chip:hover {
-  border-color: var(--green-300);
-  background: var(--bg-brand-subtle);
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover {
+    border-color: var(--green-300);
+    background: var(--bg-brand-subtle);
+    transform: translateY(-1px);
+  }
+
+  .chip--active:hover {
+    background: var(--brand-hover);
+  }
+}
+
+.chip:active {
+  transform: scale(0.97);
 }
 
 .chip--active {
   background: var(--brand);
   border-color: var(--brand);
   color: var(--text-on-brand);
-}
-
-.chip--active:hover {
-  background: var(--brand-hover);
 }
 
 .catalogue__grid {
@@ -67,6 +74,16 @@
   gap: var(--space-3);
 }
 
+.catalogue__grid > li {
+  animation: shell-content-enter 220ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+
+.catalogue__grid > li:nth-child(2) { animation-delay: 35ms; }
+.catalogue__grid > li:nth-child(3) { animation-delay: 70ms; }
+.catalogue__grid > li:nth-child(4) { animation-delay: 105ms; }
+.catalogue__grid > li:nth-child(5) { animation-delay: 140ms; }
+.catalogue__grid > li:nth-child(n + 6) { animation-delay: 175ms; }
+
 /* On a wide column the same 9.5rem floor would pack in six or seven thumbnails
    the size of a postage stamp. The floor rises so the grid gets calmer as it
    gets wider, rather than denser. */
@@ -74,6 +91,14 @@
   .catalogue__grid {
     grid-template-columns: repeat(auto-fill, minmax(min(12rem, 100%), 1fr));
     gap: var(--space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalogue__grid > li {
+    animation-name: shell-content-fade;
+    animation-duration: 120ms;
+    animation-delay: 0ms !important;
   }
 }
 

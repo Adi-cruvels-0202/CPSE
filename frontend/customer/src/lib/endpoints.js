@@ -16,6 +16,13 @@
  */
 import { api, request } from './api.js';
 
+function afterCartMutation(requestPromise) {
+  return requestPromise.then((result) => {
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('cpse:cart-updated'));
+    return result;
+  });
+}
+
 export const endpoints = {
   health: () => request('/health', { auth: 'none' }),
 
@@ -52,10 +59,10 @@ export const endpoints = {
 
   cart: {
     get: (storeId) => api.get('/cart', { query: { storeId } }),
-    addItem: (body) => api.post('/cart/items', body),
-    updateItem: (itemId, body) => api.patch(`/cart/items/${itemId}`, body),
-    removeItem: (itemId) => api.delete(`/cart/items/${itemId}`),
-    clear: (storeId) => api.delete('/cart', { query: { storeId } }),
+    addItem: (body) => afterCartMutation(api.post('/cart/items', body)),
+    updateItem: (itemId, body) => afterCartMutation(api.patch(`/cart/items/${itemId}`, body)),
+    removeItem: (itemId) => afterCartMutation(api.delete(`/cart/items/${itemId}`)),
+    clear: (storeId) => afterCartMutation(api.delete('/cart', { query: { storeId } })),
     validate: (body) => api.post('/cart/validate', body),
   },
 
@@ -82,7 +89,7 @@ export const endpoints = {
     get: (id) => api.get(`/orders/${id}`),
     cancel: (id, body) => api.post(`/orders/${id}/cancel`, body ?? {}),
     receipt: (id) => api.get(`/orders/${id}/receipt`),
-    reorder: (id) => api.post(`/orders/${id}/reorder`, undefined),
+    reorder: (id) => afterCartMutation(api.post(`/orders/${id}/reorder`, undefined)),
   },
 
   payments: {
@@ -119,7 +126,7 @@ export const endpoints = {
     recentlyPurchased: (query) => api.get('/me/recently-purchased', { query }),
     buyAgain: (query) => api.get('/me/buy-again', { query }),
     smartCart: (storeId) => api.get('/me/smart-cart', { query: { storeId } }),
-    addUsual: (storeId, onlyMissing = true) => api.post('/me/smart-cart/add', { storeId, onlyMissing }),
+    addUsual: (storeId, onlyMissing = true) => afterCartMutation(api.post('/me/smart-cart/add', { storeId, onlyMissing })),
     insights: () => api.get('/me/insights'),
     favourites: (query) => api.get('/me/favourites', { query }),
     favourite: (productId) => api.post(`/me/favourites/${productId}`, {}),
@@ -135,7 +142,7 @@ export const endpoints = {
     addItem: (id, body) => api.post(`/me/lists/${id}/items`, body),
     updateItem: (id, itemId, body) => api.patch(`/me/lists/${id}/items/${itemId}`, body),
     removeItem: (id, itemId) => api.delete(`/me/lists/${id}/items/${itemId}`),
-    addToCart: (id, storeId) => api.post(`/me/lists/${id}/add-to-cart`, storeId ? { storeId } : {}),
+    addToCart: (id, storeId) => afterCartMutation(api.post(`/me/lists/${id}/add-to-cart`, storeId ? { storeId } : {})),
   },
 
   loyalty: {

@@ -288,7 +288,7 @@ export function CheckoutPage() {
         <p className="muted">{cart.data?.cart?.storeName ?? store.data?.store?.name}</p>
       </header>
 
-      <Step step={1} title="How do you want it?">
+      <Step step={1} title="Delivery or pickup">
         <FulfilmentChoice
           fulfilment={fulfilment ?? FALLBACK_FULFILMENT}
           value={fulfilmentMode}
@@ -298,7 +298,7 @@ export function CheckoutPage() {
       </Step>
 
       {needsAddress ? (
-        <Step step={2} title="Where to?">
+        <Step step={2} title="Delivery address">
           <AddressPicker
             state={addresses}
             selectedId={addressId}
@@ -317,7 +317,7 @@ export function CheckoutPage() {
         </Step>
       ) : null}
 
-      <Step step={needsAddress ? 3 : 2} title="How do you want to pay?">
+      <Step step={needsAddress ? 3 : 2} title="Payment">
         <PaymentChoice
           methods={offeredMethods}
           value={paymentMethod}
@@ -326,46 +326,7 @@ export function CheckoutPage() {
         />
       </Step>
 
-      <Step step={needsAddress ? 4 : 3} title="Coupons and points">
-        <Benefits
-          coupons={offers.data?.coupons}
-          couponCode={couponCode}
-          onCoupon={setCouponCode}
-          loyalty={loyalty.data?.loyalty}
-          quoteLoyalty={quoted?.benefits?.loyalty}
-          redeemPoints={redeemPoints}
-          onRedeem={setRedeemPoints}
-          disabled={placing}
-        />
-      </Step>
-
-      <Step step={needsAddress ? 5 : 4} title="If something is out of stock">
-        <SubstitutionChoice
-          value={substitutionPreference ?? 'contact_me'}
-          onChange={setSubstitutionPreference}
-          options={SUBSTITUTION_PREFERENCE}
-          disabled={placing}
-        />
-      </Step>
-
-      <Step
-        step={needsAddress ? 6 : 5}
-        title="Anything the shop should know?"
-        hint="Optional — a floor number, a preferred time, how ripe you like the bananas."
-      >
-        <textarea
-          className="field__input checkout__note"
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          rows={3}
-          maxLength={500}
-          placeholder="Leave at the gate, please."
-          disabled={placing}
-          aria-label="Note for the shop"
-        />
-      </Step>
-
-      <Step step={needsAddress ? 7 : 6} title="Check it over">
+      <Step step={needsAddress ? 4 : 3} title="Order summary">
         {!canQuote ? (
           <p className="muted">Choose an address to see the total.</p>
         ) : quote.loading ? (
@@ -380,6 +341,50 @@ export function CheckoutPage() {
           </>
         ) : null}
       </Step>
+
+      <section className="checkout__optional" aria-label="Optional order details">
+        <details className="checkout__disclosure" open={Boolean(couponCode || redeemPoints > 0)}>
+          <summary>{couponCode ? `Coupon ${couponCode} applied` : 'Add a coupon or use points'}</summary>
+          <Benefits
+            coupons={offers.data?.coupons}
+            couponCode={couponCode}
+            onCoupon={setCouponCode}
+            loyalty={loyalty.data?.loyalty}
+            quoteLoyalty={quoted?.benefits?.loyalty}
+            redeemPoints={redeemPoints}
+            onRedeem={setRedeemPoints}
+            disabled={placing}
+          />
+        </details>
+
+        <details className="checkout__disclosure">
+          <summary>Substitutions and a note for the shop</summary>
+          <div className="stack" style={{ gap: 'var(--space-3)' }}>
+            <div>
+              <h2 className="checkout__subheading">If something is out of stock</h2>
+              <SubstitutionChoice
+                value={substitutionPreference ?? 'contact_me'}
+                onChange={setSubstitutionPreference}
+                options={SUBSTITUTION_PREFERENCE}
+                disabled={placing}
+              />
+            </div>
+            <label className="stack" style={{ gap: 'var(--space-2)' }}>
+              <span className="checkout__subheading">Note for the shop <span className="muted">(optional)</span></span>
+              <textarea
+                className="field__input checkout__note"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="Floor number, preferred time, or delivery instructions"
+                disabled={placing}
+                aria-label="Note for the shop"
+              />
+            </label>
+          </div>
+        </details>
+      </section>
 
       <div className="checkout__place">
         <FormError error={placeError} />

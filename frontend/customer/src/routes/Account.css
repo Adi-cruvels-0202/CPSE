@@ -18,6 +18,23 @@
   align-items: center;
 }
 
+.account__groups {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.account__group {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.account__group-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
 .account__avatar {
   width: 3.5rem;
   border: 2px solid var(--bg-surface);
@@ -68,7 +85,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-height: var(--tap-target);
+  min-height: 3.5rem;
   padding: var(--space-3) var(--space-4);
   color: var(--text-body);
   border-bottom: 1px solid var(--border-subtle);
@@ -79,9 +96,11 @@
   border-bottom: 0;
 }
 
-.account__link:hover {
-  text-decoration: none;
-  background: var(--bg-brand-subtle);
+@media (hover: hover) and (pointer: fine) {
+  .account__link:hover {
+    text-decoration: none;
+    background: var(--bg-brand-subtle);
+  }
 }
 
 /* A tinted disc rather than a bare glyph: it gives the rows a common left edge
@@ -109,14 +128,15 @@
   font-weight: var(--weight-medium);
 }
 
-.account__link-hint {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
 .account__chevron {
   color: var(--ink-300);
   flex-shrink: 0;
+}
+
+.account__link:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline-offset: -3px;
 }
 
 /* ── The way out ────────────────────────────────────────────────────────── */
@@ -133,8 +153,10 @@
   color: var(--danger-text);
 }
 
-.btn.account__signout:hover:not(:disabled) {
-  background: var(--red-50);
+@media (hover: hover) and (pointer: fine) {
+  .btn.account__signout:hover:not(:disabled) {
+    background: var(--red-50);
+  }
 }
 
 /* ── Inside the edit sheet ──────────────────────────────────────────────── */

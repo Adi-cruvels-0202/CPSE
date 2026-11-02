@@ -55,6 +55,13 @@ const envSchema = z.object({
     .default('true')
     .transform((value) => value === 'true'),
 
+  // Serve the pre-built frontend (dist/) even in development, rather than
+  // spinning up Vite dev middleware. Always true in production.
+  SERVE_STATIC_FRONTEND: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
   // Absolute public URL of this deployment, for links and QR codes a merchant

@@ -10,13 +10,10 @@ import { loginSchema } from '../auth/auth.schemas.js';
 import { signInWithPassword, endSession, toSession } from '../auth/auth.service.js';
 import * as verification from '../verification/verification.service.js';
 import { adminSupportRouter } from '../messaging/messaging.routes.js';
-import * as portal from './adminPortal.service.js';
 
 /**
- * /admin — the platform admin portal: store verification (roadmap §4 P1),
- * escalated support (§5 P5), and since migration 0045 every store, every
- * account and the admin action log. Every route but sign-in needs a
- * platform_admins row; an admin can do everything here.
+ * /admin — the platform's own reviewers, for store verification (roadmap §4
+ * P1). Every route but sign-in needs a platform_admins row.
  */
 export const adminRouter = Router();
 
@@ -105,112 +102,3 @@ adminRouter.post(
 
 // Escalated customer support (roadmap §5 P5).
 adminRouter.use('/support', adminSupportRouter);
-
-// ── Portal (migration 0045) ─────────────────────────────────────────────────
-
-const reason = (what) => z.string().trim().min(3, `Say why ${what} (3 characters or more).`).max(500);
-const search = z.string().trim().min(1).max(100).optional();
-const accountParams = z.object({ accountId: uuid('account') }).strict();
-
-adminRouter.get(
-  '/overview',
-  requireAuth,
-  requireAdmin,
-  respond(async (req) => ({ overview: await portal.overview(req.admin) })),
-);
-
-adminRouter.get(
-  '/stores',
-  requireAuth,
-  requireAdmin,
-  validate({
-    query: pageQuery({
-      search,
-      verification: z.enum(['not_submitted', 'pending', 'verified', 'rejected']).optional(),
-      published: z.enum(['yes', 'no']).optional(),
-    }, { maxLimit: 50 }),
-  }),
-  respondPage(async (req) => {
-    const { stores, total } = await portal.listStores(req.query);
-    return { data: { stores }, total };
-  }),
-);
-
-adminRouter.get(
-  '/stores/:storeId',
-  requireAuth,
-  validate({ params: storeParams }),
-  requireAdmin,
-  respond(async (req) => portal.storeDetail(req.params.storeId)),
-);
-
-adminRouter.post(
-  '/stores/:storeId/unpublish',
-  writeLimiter,
-  requireAuth,
-  validate({ params: storeParams }),
-  requireAdmin,
-  validate({ body: z.object({ reason: reason('the store is taken off') }).strict() }),
-  respond(async (req) => portal.unpublishStore(req.admin, req.params.storeId, req.body)),
-);
-
-adminRouter.get(
-  '/accounts',
-  requireAuth,
-  requireAdmin,
-  validate({
-    query: pageQuery({
-      search,
-      kind: z.enum(['all', 'customer', 'merchant']).default('all'),
-      status: z.enum(['all', 'active', 'suspended']).default('all'),
-    }, { maxLimit: 50 }),
-  }),
-  respondPage(async (req) => {
-    const { accounts, total } = await portal.listAccounts(req.query);
-    return { data: { accounts }, total };
-  }),
-);
-
-adminRouter.get(
-  '/accounts/:accountId',
-  requireAuth,
-  validate({ params: accountParams }),
-  requireAdmin,
-  respond(async (req) => portal.accountDetail(req.params.accountId)),
-);
-
-adminRouter.post(
-  '/accounts/:accountId/suspend',
-  writeLimiter,
-  requireAuth,
-  validate({ params: accountParams }),
-  requireAdmin,
-  validate({ body: z.object({ reason: reason('the account is suspended') }).strict() }),
-  respond(async (req) => portal.suspendAccount(req.admin, req.params.accountId, req.body)),
-);
-
-adminRouter.post(
-  '/accounts/:accountId/reinstate',
-  writeLimiter,
-  requireAuth,
-  validate({ params: accountParams }),
-  requireAdmin,
-  validate({ body: z.object({ reason: reason('the account is reinstated') }).strict() }),
-  respond(async (req) => portal.reinstateAccount(req.admin, req.params.accountId, req.body)),
-);
-
-adminRouter.get(
-  '/log',
-  requireAuth,
-  requireAdmin,
-  validate({
-    query: pageQuery({
-      targetType: z.enum(['store', 'account', 'admin']).optional(),
-      action: z.string().trim().min(1).max(40).optional(),
-    }, { maxLimit: 100 }),
-  }),
-  respondPage(async (req) => {
-    const { actions, total } = await portal.listActions(req.query);
-    return { data: { actions }, total };
-  }),
-);

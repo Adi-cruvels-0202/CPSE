@@ -1,7 +1,6 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { internal } from '../../lib/errors.js';
 import { toPublicProduct } from '../stores/store.service.js';
-import { sortVariants } from '../../lib/variantOrder.js';
 
 /**
  * Products as the customer app shows them in any list — favourites, buy
@@ -27,7 +26,7 @@ export async function productCards(productIds) {
   const [variants, images, stores] = await Promise.all([
     supabaseAdmin
       .from('product_variants')
-      .select('id, product_id, name, weight_grams, price_paise, mrp_paise, quantity_on_hand, reserved_quantity, is_available, sort_order')
+      .select('id, product_id, name, price_paise, mrp_paise, quantity_on_hand, reserved_quantity, is_available, sort_order')
       .in('product_id', rows.map((r) => r.id)),
     supabaseAdmin.from('product_images').select('product_id, url, sort_order').in('product_id', rows.map((r) => r.id)).order('sort_order', { ascending: true }),
     supabaseAdmin.from('stores').select('id, slug, name, is_active, is_published').in('id', storeIds),
@@ -47,7 +46,7 @@ export async function productCards(productIds) {
   for (const row of rows) {
     const store = visibleStores.get(row.store_id);
     if (!store) continue;
-    const productVariants = sortVariants(variantsByProduct.get(row.id));
+    const productVariants = (variantsByProduct.get(row.id) ?? []).sort((a, b) => a.sort_order - b.sort_order);
     cards.set(row.id, {
       ...toPublicProduct(row, imageByProduct.get(row.id) ?? null, productVariants),
       store: { id: store.id, slug: store.slug, name: store.name },

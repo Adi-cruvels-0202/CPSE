@@ -52,11 +52,8 @@ export default function CustomersPage() {
       <PageHeader title="Customers" subtitle="Everyone who has ordered from you or saved your shop." />
       <div className="filters-bar">
         <div className="input-wrapper" style={{ flex: 1, minWidth: 200 }}>
-          <label className="input-label" htmlFor="crm-search">Name or phone</label>
-          <div className="input-with-icon">
-            <IconSearch size={16} />
-            <input id="crm-search" className="input-field" placeholder="Search customers" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
+          <label className="input-label" htmlFor="crm-search"><IconSearch size={14} /> Name or phone</label>
+          <input id="crm-search" className="input-field" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
         <div className="input-wrapper">
           <label className="input-label" htmlFor="crm-seg">Group</label>

@@ -20,7 +20,6 @@ import {
   flattenSeed,
   testCustomer,
   demoMerchant,
-  demoAdmin,
   khataSeed,
   CATALOGUE_PHOTOS_DIR,
   photoSlug,
@@ -176,34 +175,18 @@ async function ensureDemoMerchant() {
   return id;
 }
 
-/** The demo admin: an ordinary account plus its platform_admins row. */
-async function ensureDemoAdmin() {
-  const id = await ensureAuthUser(demoAdmin);
-  const { error } = await supabaseAdmin
-    .from('platform_admins')
-    .upsert({ id, email: demoAdmin.email, full_name: demoAdmin.full_name }, { onConflict: 'id' });
-  if (error) throw new Error(`platform_admins: ${error.message}`);
-  console.log('  platform_admins    1 row');
-  return id;
-}
-
 async function seedKhata(customerId) {
   await upsert('khata_accounts', [
     { id: khataSeed.accountId, customer_id: customerId, store_id: khataSeed.storeId },
   ]);
 
-  // Khata entries are permanent (migration 0037: a mistake is reversed, never
-  // deleted), so the demo entries are written once. A re-run leaves whatever
-  // the account holds now — including anything recorded while testing.
-  const { count, error: countError } = await supabaseAdmin
+  // Clear first: the balance is maintained by a trigger, and deleting the old
+  // rows unwinds their effect, so re-seeding cannot double the balance.
+  const { error: clearError } = await supabaseAdmin
     .from('khata_transactions')
-    .select('id', { count: 'exact', head: true })
+    .delete()
     .eq('account_id', khataSeed.accountId);
-  if (countError) throw new Error(`khata_transactions: ${countError.message}`);
-  if (count > 0) {
-    console.log(`  khata_transactions kept ${count} existing rows`);
-    return;
-  }
+  if (clearError) throw new Error(`khata_transactions: ${clearError.message}`);
 
   const { error } = await supabaseAdmin
     .from('khata_transactions')
@@ -234,7 +217,6 @@ async function seed() {
   await upsert('product_variants', await adoptExistingDefaultVariants(variantRows));
 
   const customerId = await ensureTestCustomer();
-  await ensureDemoAdmin();
   await seedKhata(customerId);
 
   const { data: account } = await supabaseAdmin
@@ -245,7 +227,6 @@ async function seed() {
 
   console.log(`\nDone. Test login: ${testCustomer.email} / ${testCustomer.password}`);
   console.log(`Merchant login: ${demoMerchant.email} / ${demoMerchant.password} (owns every seeded store)`);
-  console.log(`Admin login:    ${demoAdmin.email} / ${demoAdmin.password} (at /admin)`);
   console.log(`Khata balance: ${account?.balance_paise ?? '?'} paise owed.`);
 }
 

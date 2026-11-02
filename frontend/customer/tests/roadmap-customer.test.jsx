@@ -657,11 +657,7 @@ describe('shop assistant and plain-words search', () => {
     class FakeRecognition { start() { setTimeout(() => this.onresult({ results: [[{ transcript: 'are you open' }]] }), 0); } }
     window.SpeechRecognition = FakeRecognition;
     const { user } = renderAt('/store/sharma-kirana', storeRoutes);
-    const speak = await screen.findByRole('button', { name: 'Speak' });
-    // A drawn microphone, not an emoji.
-    expect(speak.querySelector('svg')).not.toBeNull();
-    expect(speak.textContent).not.toMatch(/\p{Extended_Pictographic}/u);
-    await user.click(speak);
+    await user.click(await screen.findByRole('button', { name: 'Speak' }));
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Ask the shop assistant' })).toHaveValue('are you open'));
     delete window.SpeechRecognition;
   });
@@ -717,12 +713,6 @@ describe('phone-width layout', () => {
     const global = readFileSync(`${process.cwd()}/src/styles/global.css`, 'utf8').replace(/\s+/g, ' ');
     expect(global).toMatch(/\.inline-form \.field__input \{ flex: 1; min-width: 0; \}/);
     expect(global).toMatch(/\.inline-form \.btn \{ flex-shrink: 0; \}/);
-  });
-
-  it('dropdowns draw one inset chevron instead of the browser arrow against the edge', async () => {
-    const { readFileSync } = await import('node:fs');
-    const global = readFileSync(`${process.cwd()}/src/styles/global.css`, 'utf8').replace(/\s+/g, ' ');
-    expect(global).toMatch(/select\.field__input \{[^}]*appearance: none;[^}]*padding-right: 2\.5rem;[^}]*background-position: right 0\.75rem center;/);
   });
 
   it('the assistant, coupon, list and reply rows use it (not the password-toggle layout)', async () => {

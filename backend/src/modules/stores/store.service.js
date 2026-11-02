@@ -2,7 +2,6 @@ import { supabaseAdmin } from '../../lib/supabase.js';
 import { notFound, upstreamFailure } from '../../lib/errors.js';
 import { resolveOpenState } from '../../lib/openingHours.js';
 import { pricePerKgPaise } from '../../lib/pricing.js';
-import { sortVariants } from '../../lib/variantOrder.js';
 
 /**
  * Storefront reads. Checklist 3.1 – 3.6.
@@ -454,7 +453,7 @@ export async function listVariantRows(productId) {
     .order('name', { ascending: true });
 
   fail(error, 'Could not load the product variants.');
-  return sortVariants(data);
+  return data ?? [];
 }
 
 /**

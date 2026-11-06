@@ -83,3 +83,7 @@ export const IconTrash = (p: IconProps) => <Icon {...p}><polyline points="3 6 5 
 export const IconImage = (p: IconProps) => <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></Icon>;
 
 export const IconUpload = (p: IconProps) => <Icon {...p}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></Icon>;
+
+export const IconMic = (p: IconProps) => <Icon {...p}><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M19 10v1a7 7 0 01-14 0v-1" /><line x1="12" y1="18" x2="12" y2="22" /><line x1="8" y1="22" x2="16" y2="22" /></Icon>;
+
+export const IconScanBarcode = (p: IconProps) => <Icon {...p}><path d="M3 7V5a2 2 0 012-2h2" /><path d="M17 3h2a2 2 0 012 2v2" /><path d="M21 17v2a2 2 0 01-2 2h-2" /><path d="M7 21H5a2 2 0 01-2-2v-2" /><line x1="7" y1="8" x2="7" y2="16" /><line x1="10.5" y1="8" x2="10.5" y2="16" /><line x1="14" y1="8" x2="14" y2="16" /><line x1="17" y1="8" x2="17" y2="16" /></Icon>;

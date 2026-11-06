@@ -122,6 +122,8 @@ function condition(column, operator, value, types, params) {
   const col = quoteIdent(column);
   const type = types.get(column);
   if (!type) throw new Error(`Unknown column ${column}`);
+  // supabase-js .not(column, op, value): the same condition, negated.
+  if (operator.startsWith('not.')) return `not (${condition(column, operator.slice(4), value, types, params)})`;
   switch (operator) {
     case 'eq':
       return `${col} = ${params.add(value, type)}`;
@@ -270,6 +272,9 @@ class QueryBuilder {
   }
   filter(column, operator, value) {
     return this.filterOn(column, operator, value);
+  }
+  not(column, operator, value) {
+    return this.filterOn(column, `not.${operator}`, value);
   }
 
   order(column, { ascending = true, nullsFirst } = {}) {

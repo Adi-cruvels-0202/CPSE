@@ -103,7 +103,8 @@ npm run db:seed
 
 Three dummy stores with a catalogue, variants and opening hours, plus a test
 login: **`test.customer@cpse.local`** / **`CpseTest!2026`**, and the shopkeeper who owns every
-seeded store: **`demo.merchant@cpse.local`** / **`CpseMerchant!2026`**. Safe to re-run.
+seeded store: **`demo.merchant@cpse.local`** / **`CpseMerchant!2026`**, and a platform
+superadmin for the admin portal at `/admin`: **`demo.admin@cpse.local`** / **`CpseAdmin!2026`**. Safe to re-run.
 
 Real product photos are optional: put them in `backend/catlog photos/`, named after
 the product (`toor_dal.png` → Toor Dal), and the seed uploads them to Supabase

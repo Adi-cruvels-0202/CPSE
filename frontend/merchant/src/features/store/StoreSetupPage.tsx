@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { storeApi } from '../../api/endpoints';
 import { ApiError, errorMessage } from '../../api/client';
@@ -21,7 +21,12 @@ const TABS = [
   { id: 'branding', label: 'Logo & cover' },
 ] as const;
 
-const CATEGORIES = ['grocery', 'pharmacy', 'restaurant', 'bakery', 'electronics', 'clothing', 'general', 'other'];
+const CATEGORIES = ['grocery', 'bakery', 'restaurant', 'pharmacy', 'clothing', 'electronics', 'stationery', 'general', 'other'];
+const CATEGORY_LABELS: Record<string, string> = {
+  grocery: 'Grocery / Kirana', bakery: 'Bakery & Sweets', restaurant: 'Restaurant / Café', pharmacy: 'Pharmacy / Chemist',
+  clothing: 'Clothing', electronics: 'Electronics & Mobile', stationery: 'Stationery & Books', general: 'General store', other: 'Other',
+};
+const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? capitalise(c);
 const DAYS: { id: Day; label: string }[] = [
   { id: 'mon', label: 'Monday' }, { id: 'tue', label: 'Tuesday' }, { id: 'wed', label: 'Wednesday' },
   { id: 'thu', label: 'Thursday' }, { id: 'fri', label: 'Friday' }, { id: 'sat', label: 'Saturday' }, { id: 'sun', label: 'Sunday' },
@@ -155,8 +160,9 @@ function CreateStoreView() {
             <div className="input-wrapper">
               <label className="input-label" htmlFor="category">Type of shop</label>
               <select id="category" className="input-field select-field" value={form.shopCategory} onChange={(e) => setForm({ ...form, shopCategory: e.target.value })}>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{capitalise(c)}</option>)}
+                {CATEGORIES.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
               </select>
+              {form.shopCategory !== 'other' && <span className="input-helper">Your store starts with the usual categories for this kind of shop. Rename, reorder or delete them any time.</span>}
             </div>
             <div className="input-wrapper">
               <label className="input-label" htmlFor="phone">Phone</label>
@@ -181,35 +187,67 @@ function CreateStoreView() {
 function PublishToggle({ store }: { store: Store }) {
   const { showToast } = useToast();
   const saved = useStoreSaved();
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const [missing, setMissing] = useState<string[]>([]);
+  const [blocked, setBlocked] = useState<{ missing: string[]; verificationStatus: string } | null>(null);
 
   const toggle = async () => {
     if (store.isPublished && !window.confirm('Unpublish the store? Customers will not be able to open it or order until you publish again. Orders already placed carry on.')) return;
     setBusy(true);
-    setMissing([]);
+    setBlocked(null);
     try {
       const { store: updated } = store.isPublished ? await storeApi.unpublish(store.id) : await storeApi.publish(store.id);
       await saved(updated);
       showToast(updated.isPublished ? 'Published — customers can now see your store.' : 'Store unpublished.', updated.isPublished ? 'success' : 'info');
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'STORE_INCOMPLETE') setMissing(err.details?.missing ?? []);
-      else showToast(errorMessage(err), 'error');
+      if (err instanceof ApiError && err.code === 'STORE_INCOMPLETE') {
+        setBlocked({ missing: err.details?.missing ?? [], verificationStatus: err.details?.verificationStatus ?? store.verificationStatus ?? 'not_submitted' });
+        // The publish request was remembered on the server; show it.
+        queryClient.invalidateQueries({ queryKey: ['store', store.id] });
+      } else showToast(errorMessage(err), 'error');
     } finally {
       setBusy(false);
     }
   };
 
+  const waiting = !store.isPublished && Boolean(store.publishRequestedAt);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 'var(--space-2)' }}>
+    <div className="publish-box">
       <button className={`btn ${store.isPublished ? 'btn-secondary' : 'btn-success'}`} onClick={toggle} disabled={busy}>
         {busy ? 'Saving…' : store.isPublished ? 'Unpublish' : '● Publish store'}
       </button>
-      {missing.length > 0 && (
-        <div className="alert-strip alert-strip-warning" role="alert" style={{ maxWidth: 360 }}>
-          Before publishing, add {missing.map((m) => MISSING_LABELS[m] ?? m).join(', ')}.
-        </div>
+      {waiting && !blocked && (
+        <p className="publish-note" role="status">
+          {store.verificationStatus === 'pending'
+            ? 'Goes live automatically when CPSE approves it.'
+            : 'Goes live automatically once CPSE verifies it — '}
+          {store.verificationStatus !== 'pending' && <Link to="/verification">send it for verification</Link>}
+        </p>
       )}
+      {blocked && <PublishSteps blocked={blocked} />}
+    </div>
+  );
+}
+
+/** What stands between the store and going live, as steps the owner can take. */
+function PublishSteps({ blocked }: { blocked: { missing: string[]; verificationStatus: string } }) {
+  const details = blocked.missing.filter((m) => m !== 'verification');
+  const needsVerification = blocked.missing.includes('verification');
+  return (
+    <div className="publish-steps" role="alert">
+      <strong className="publish-steps__title">Almost there — before your store goes live:</strong>
+      <ol className="publish-steps__list">
+        {details.length > 0 && <li>Add {details.map((m) => MISSING_LABELS[m] ?? m).join(', ')} in the sections below, then press Publish again.</li>}
+        {needsVerification && (
+          blocked.verificationStatus === 'pending' ? (
+            <li><strong>CPSE is checking your store.</strong> {details.length ? 'Once the details above are added, it' : 'It'} goes live automatically when approved — usually within a working day. Nothing more to do.</li>
+          ) : blocked.verificationStatus === 'rejected' ? (
+            <li><strong>CPSE sent your verification back.</strong> Fix what they asked for and send it again. Your store goes live automatically once approved.<div className="publish-steps__action"><Link to="/verification" className="btn btn-primary btn-sm">Go to verification</Link></div></li>
+          ) : (
+            <li><strong>Send your store for verification.</strong> CPSE checks your business details and three documents (a shop photo, ID and address proof) to keep customers safe. Your store goes live automatically once approved.<div className="publish-steps__action"><Link to="/verification" className="btn btn-primary btn-sm">Go to verification</Link></div></li>
+          )
+        )}
+      </ol>
     </div>
   );
 }
@@ -276,7 +314,7 @@ function DetailsTab({ store }: { store: Store }) {
             <div className="input-wrapper">
               <label className="input-label" htmlFor="store-type-of-shop">Type of shop</label>
               <select id="store-type-of-shop" className="input-field select-field" value={form.shopCategory} onChange={set('shopCategory')}>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{capitalise(c)}</option>)}
+                {CATEGORIES.map((c) => <option key={c} value={c}>{categoryLabel(c)}</option>)}
               </select>
             </div>
           </div>

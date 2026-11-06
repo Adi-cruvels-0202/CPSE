@@ -62,6 +62,8 @@ export interface Store {
   paymentMethods: { cash: boolean; online: boolean };
   isPublished: boolean;
   verificationStatus?: 'not_submitted' | 'pending' | 'verified' | 'rejected';
+  /** Set when the owner pressed Publish before verification: approval publishes the store. */
+  publishRequestedAt?: string | null;
   khata?: { enabled: boolean; dueDays: number; autoReminders: boolean };
   publicPath: string;
   createdAt: string;

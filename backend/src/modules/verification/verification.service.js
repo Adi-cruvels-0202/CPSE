@@ -3,6 +3,8 @@ import { conflict, internal, notFound, unprocessable } from '../../lib/errors.js
 import { logger } from '../../lib/logger.js';
 import { storeDocument, signedDocumentUrl, removeDocument } from '../../lib/documentUpload.js';
 import { emitToStore } from '../notifications/merchantNotification.service.js';
+import { recordAdminAction } from '../admin/adminLog.js';
+import { missingForPublish } from '../merchantStores/merchantStore.service.js';
 
 /**
  * Store verification (KYC) — roadmap §4 P1 and the critical addition
@@ -290,7 +292,7 @@ export async function listForReview({ status = ['pending'], page = 1, limit = 20
 async function storeFor(storeId) {
   const { data, error } = await supabaseAdmin
     .from('stores')
-    .select('id, name, slug, phone, email, address_line1, address_line2, city, state, postal_code, owner_id, is_published')
+    .select('id, name, slug, phone, email, address_line1, address_line2, city, state, postal_code, owner_id, is_published, publish_requested_at')
     .eq('id', storeId)
     .maybeSingle();
   fail(error, 'Could not load the store.');
@@ -310,6 +312,8 @@ export async function reviewView(storeId) {
       email: store.email ?? null,
       address: [store.address_line1, store.address_line2, store.city, store.state, store.postal_code].filter(Boolean).join(', '),
       isPublished: store.is_published,
+      // Approving publishes the store at once (the owner already asked to).
+      publishRequestedAt: store.publish_requested_at ?? null,
     },
     verification: view,
   };
@@ -317,14 +321,47 @@ export async function reviewView(storeId) {
 
 export async function decide(storeId, admin, { decision, reason = null, note = null }) {
   const store = await storeFor(storeId);
+  const wasVerified = (await currentStatus(storeId)) === 'verified';
   const toStatus = decision === 'approve' ? 'verified' : 'rejected';
   await setStatus(storeId, toStatus, { actorType: 'admin', actorId: admin.id, reason, reviewNote: note });
 
+  // The owner already pressed Publish (merchantStore.publishStore): approval
+  // finishes that, as long as nothing else is missing.
+  let published = false;
+  let stillMissing = [];
+  if (toStatus === 'verified') {
+    const { data: row, error } = await supabaseAdmin.from('stores').select('*').eq('id', storeId).single();
+    fail(error, 'Could not load the store.');
+    stillMissing = missingForPublish(row);
+    if (row.publish_requested_at && !row.is_published && stillMissing.length === 0) {
+      const { error: publishError } = await supabaseAdmin
+        .from('stores')
+        .update({ is_published: true, publish_requested_at: null })
+        .eq('id', storeId);
+      if (publishError) logger.error('approved store could not be published', { storeId, reason: publishError.message });
+      else published = true;
+    }
+  }
+
   await emitToStore(store.id, {
     type: 'verification_update',
-    title: toStatus === 'verified' ? `${store.name} is verified` : `${store.name} needs changes before it can be verified`,
-    body: toStatus === 'verified' ? 'You can publish your store now.' : reason,
-    payload: { store_id: store.id, status: toStatus },
+    title: toStatus === 'verified'
+      ? published ? `${store.name} is verified and live` : `${store.name} is verified`
+      : wasVerified ? `${store.name} is no longer verified` : `${store.name} needs changes before it can be verified`,
+    body: toStatus === 'verified'
+      ? published
+        ? 'Customers can now find your store and order.'
+        : stillMissing.length ? `Add ${stillMissing.join(', ')} and publish your store.` : 'You can publish your store now.'
+      : reason,
+    payload: { store_id: store.id, status: toStatus, published },
   });
-  return reviewView(storeId);
+  await recordAdminAction(admin, {
+    action: toStatus === 'verified' ? 'store_approved' : wasVerified ? 'store_verification_revoked' : 'store_rejected',
+    targetType: 'store',
+    targetId: store.id,
+    targetLabel: store.name,
+    reason: toStatus === 'verified' ? note : reason,
+    details: { published },
+  });
+  return { ...(await reviewView(storeId)), published };
 }

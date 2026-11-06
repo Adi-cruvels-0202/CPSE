@@ -120,7 +120,7 @@ packaging, handwritten bills, and accuracy over many products.
 
 - The order-conversation escalation the screens described did not exist; it was built (`escalateUnanswered`, job `support-escalation`) with integration tests.
 - Two older checkout tests asserted on the quote immediately after the page heading appeared. Extra optional requests on checkout made that a race (about one full run in four); they now wait for the quote.
-- `AI_PROVIDER=anthropic` was accepted by config but did nothing; config now accepts `none` or `gemini`, and `gemini` is implemented.
+- An `AI_PROVIDER` value with no provider behind it was accepted by config and did nothing; config now accepts `none` or `gemini`, and `gemini` is implemented.
 - At the till, a photo match for an out-of-stock pack silently filled the search box; it now says the item is out of stock (found in the browser check).
 
 ## Not verified here, and why

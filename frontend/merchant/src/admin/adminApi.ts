@@ -71,19 +71,59 @@ async function send<T>(config: AxiosRequestConfig, retried = false): Promise<{ d
 const get = async <T>(url: string, params?: Record<string, unknown>) => (await send<T>({ method: 'get', url, params })).data;
 const post = async <T>(url: string, body: unknown = {}) => (await send<T>({ method: 'post', url, data: body })).data;
 
+export interface AdminMe { id: string; email: string; fullName: string | null }
+
+export interface AdminAction {
+  id: string; at: string; admin: { id: string | null; email: string }; action: string;
+  target: { type: 'store' | 'account' | 'admin'; id: string | null; label: string | null }; reason: string | null; details: Record<string, unknown>;
+}
+export interface Overview {
+  you: { id: string; email: string };
+  stores: { total: number; published: number; waitingForReview: number; sentBack: number; waitingToPublish: number };
+  accounts: { total: number; merchants: number; customers: number; suspended: number };
+  support: { escalated: number };
+  recentActions: AdminAction[];
+}
+export interface StoreOwner { id: string; email: string; name: string | null; phone: string | null; isSuspended: boolean }
+export interface AdminStoreRow {
+  id: string; name: string; slug: string; city: string | null; shopCategory: string | null; isPublished: boolean;
+  verificationStatus: 'not_submitted' | 'pending' | 'verified' | 'rejected'; verificationLabel: string; publishRequestedAt: string | null;
+  createdAt: string; owner: StoreOwner | null;
+}
+export interface AdminStoreDetail {
+  store: AdminStoreRow & { phone: string | null; email: string | null; address: string; missingForPublish: string[] };
+  counts: { products: number; orders: number; ordersLast30Days: number };
+  actions: AdminAction[];
+}
+export interface AdminAccount {
+  id: string; email: string; name: string | null; phone: string | null; createdAt: string; type: 'customer' | 'merchant' | 'admin';
+  isSuspended: boolean; suspendedAt: string | null; suspendedReason: string | null; storeCount: number; orderCount: number;
+}
+export interface AdminAccountDetail { account: AdminAccount; stores: AdminStoreRow[]; actions: AdminAction[] }
+
 export interface ReviewRow {
   storeId: string; name: string; slug: string; city: string | null; legalName: string | null;
   status: Verification['status']; statusLabel: string; isPublished: boolean; submittedAt: string | null;
 }
 export interface ReviewView {
-  store: { id: string; name: string; slug: string; phone: string | null; email: string | null; address: string; isPublished: boolean };
+  store: { id: string; name: string; slug: string; phone: string | null; email: string | null; address: string; isPublished: boolean; publishRequestedAt: string | null };
   verification: Verification;
+  published?: boolean;
 }
 
 export const adminApi = {
   login: (email: string, password: string) =>
-    post<{ admin: { id: string; email: string; fullName: string | null }; session: AdminSession }>('/admin/auth/login', { email, password }),
-  me: () => get<{ admin: { id: string; email: string; fullName: string | null } }>('/admin/me'),
+    post<{ admin: AdminMe; session: AdminSession }>('/admin/auth/login', { email, password }),
+  me: () => get<{ admin: AdminMe }>('/admin/me'),
+  overview: () => get<{ overview: Overview }>('/admin/overview'),
+  stores: (params: { search?: string; verification?: string; published?: string; page?: number }) => send<{ stores: AdminStoreRow[] }>({ method: 'get', url: '/admin/stores', params }),
+  store: (storeId: string) => get<AdminStoreDetail>(`/admin/stores/${storeId}`),
+  unpublishStore: (storeId: string, reason: string) => post<AdminStoreDetail>(`/admin/stores/${storeId}/unpublish`, { reason }),
+  accounts: (params: { search?: string; kind?: string; status?: string; page?: number }) => send<{ accounts: AdminAccount[] }>({ method: 'get', url: '/admin/accounts', params }),
+  account: (accountId: string) => get<AdminAccountDetail>(`/admin/accounts/${accountId}`),
+  suspend: (accountId: string, reason: string) => post<AdminAccountDetail>(`/admin/accounts/${accountId}/suspend`, { reason }),
+  reinstate: (accountId: string, reason: string) => post<AdminAccountDetail>(`/admin/accounts/${accountId}/reinstate`, { reason }),
+  log: (params: { targetType?: string; page?: number }) => send<{ actions: AdminAction[] }>({ method: 'get', url: '/admin/log', params }),
   logout: () => post('/auth/logout'),
   queue: (params: { status?: string; page?: number }) => send<{ stores: ReviewRow[] }>({ method: 'get', url: '/admin/verifications', params }),
   review: (storeId: string) => get<ReviewView>(`/admin/verifications/${storeId}`),

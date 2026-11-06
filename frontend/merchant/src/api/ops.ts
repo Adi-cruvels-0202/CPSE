@@ -193,6 +193,17 @@ export const khataApi = {
 
 // ── Catalogue operations ────────────────────────────────────────────────────
 
+export interface BarcodeLibrary {
+  barcode: string;
+  found: boolean;
+  shops?: number;
+  agreeing?: number;
+  suggestion: {
+    name: string; optionName: string | null; unit: string | null; taxPercent: number | null;
+    mrpPaise: number | null; weightGrams: number | null; category: { name: string; id: string | null } | null;
+  } | null;
+  note?: string;
+}
 export interface TemplateSummary { industry: string; label: string; categoryCount: number; productCount: number; defaults: Record<string, any> }
 export interface Template {
   industry: string;
@@ -238,6 +249,8 @@ export const catalogueOpsApi = {
     api.delete<{ movedProducts: number }>(`${store(storeId)}/categories/${categoryId}`, body),
   duplicate: (storeId: string, productId: string, name?: string) =>
     api.post<{ product: Product }>(`${store(storeId)}/products/${productId}/duplicate`, name ? { name } : {}),
+  /** What other shops entered for a barcode this store does not have yet (the CPSE product library). */
+  barcodeLibrary: (storeId: string, barcode: string) => api.get<{ library: BarcodeLibrary }>(`${store(storeId)}/barcode-library`, { barcode }),
   lookup: (storeId: string, params: { barcode?: string; sku?: string }) => api.get<{ product: Product; variant: Product['variants'][number] }>(`${store(storeId)}/product-lookup`, params),
   exportCsv: (storeId: string) => api.download(`${store(storeId)}/catalogue/export`),
   previewImport: (storeId: string, csv: string) => api.text<ImportPreview & { mode: 'preview' }>(`${store(storeId)}/catalogue/import`, csv, { mode: 'preview' }),

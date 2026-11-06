@@ -42,7 +42,9 @@ npm run db:seed   # dummy stores, catalogue and one test customer's khata
 ```
 
 `db:seed` needs only the service-role key. It creates the login
-`test.customer@cpse.local` / `CpseTest!2026` and is safe to re-run — every seeded row has a
+`test.customer@cpse.local` / `CpseTest!2026`, the shop login
+`demo.merchant@cpse.local` / `CpseMerchant!2026` and the admin login
+`demo.admin@cpse.local` / `CpseAdmin!2026` (superadmin, at `/admin`), and is safe to re-run — every seeded row has a
 fixed id and is upserted. It refuses to run with `NODE_ENV=production`.
 
 **Money is stored as integer paise everywhere** (`price_paise`, `total_paise`, …). Never a float.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Customer Portal & Shopping Experience — backend API",
+  "description": "Customer Portal & Shopping Experience \u2014 backend API",
   "engines": {
     "node": ">=20"
   },
@@ -12,8 +12,8 @@
     "start": "node src/server.js",
     "start:static": "SERVE_STATIC_FRONTEND=true node src/server.js",
     "service": "node src/service.js",
-    "build": "npm --prefix ../frontend/customer ci --include=dev && npm --prefix ../frontend/customer run build && npm --prefix ../frontend/merchant ci --include=dev && npm --prefix ../frontend/merchant run build",
-    "build:frontends": "npm --prefix ../frontend/customer run build && npm --prefix ../frontend/merchant run build",
+    "build": "npm --prefix ../frontend/customer ci --include=dev && npm --prefix ../frontend/customer run build && npm --prefix ../frontend/merchant ci --include=dev && npm --prefix ../frontend/merchant run build && npm --prefix ../frontend-redesign-v2 ci --include=dev && npm --prefix ../frontend-redesign-v2 run build",
+    "build:frontends": "npm --prefix ../frontend/customer run build && npm --prefix ../frontend/merchant run build && npm --prefix ../frontend-redesign-v2 run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

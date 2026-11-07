@@ -13,7 +13,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_ROOT = path.resolve(HERE, '../../../frontend');
 
 /**
- * The two apps this process serves beside the API, on the same port and
+ * The three customer/merchant app entry points served beside the API, on the same port and
  * origin — so they share one login (the session in localStorage) and the API
  * needs no CORS:
  *
@@ -25,6 +25,14 @@ const FRONTEND_ROOT = path.resolve(HERE, '../../../frontend');
  * /merchant/* otherwise.
  */
 const APPS = [
+  {
+    name: 'redesign-v2',
+    dir: path.resolve(FRONTEND_ROOT, '../frontend-redesign-v2'),
+    config: 'vite.config.ts',
+    base: '/v2',
+    hmrPort: 24681,
+    output: 'nitro-middleware',
+  },
   {
     name: 'merchant',
     dir: path.join(FRONTEND_ROOT, 'merchant'),
@@ -87,9 +95,12 @@ async function mountDevServer(router, httpServer, app) {
   const server = await createServer({
     root: app.dir,
     configFile: path.join(app.dir, app.config),
-    // 'spa' is what makes Vite's own middleware stack serve and transform
-    // index.html, including the deep-link fallback React Router needs.
-    appType: 'spa',
+    // TanStack's SSR request runner resolves source imports independently of
+    // the browser transform pipeline, so define the app's @/ alias explicitly.
+    resolve: { alias: { '@': path.join(app.dir, 'src') } },
+    // TanStack Start installs its own request handler in middleware mode;
+    // React SPAs use Vite's HTML fallback and index transformation instead.
+    appType: app.output === 'nitro-middleware' ? 'custom' : 'spa',
     server: {
       middlewareMode: true,
       hmr: app.hmrPort ? { port: app.hmrPort } : httpServer ? { server: httpServer } : true,
@@ -109,6 +120,35 @@ async function mountDevServer(router, httpServer, app) {
  * produces both; an app without one is reported plainly rather than answering
  * every page with a 404.
  */
+async function mountBuiltMiddlewareApp(router, app) {
+  const outputDir = path.join(app.dir, '.output');
+  const publicDir = path.join(outputDir, 'public');
+  const serverEntry = path.join(outputDir, 'server/index.mjs');
+
+  if (!fs.existsSync(serverEntry)) {
+    logger.warn(`${app.name} app build missing`, { expected: serverEntry });
+    return;
+  }
+
+  const { middleware } = await import(pathToFileURL(serverEntry).href);
+  if (typeof middleware !== 'function') {
+    throw new Error(`${app.name} build does not export a Node middleware handler.`);
+  }
+
+  // Serve fingerprinted assets and public files, then let the TanStack Start
+  // Fetch handler render /v2 and its client-side routes through this process.
+  if (fs.existsSync(publicDir)) {
+    const assetsDir = path.join(publicDir, 'assets');
+    if (fs.existsSync(assetsDir)) {
+      router.use(`${app.base}/assets`, express.static(assetsDir, { immutable: true, maxAge: '1y' }));
+    }
+    router.use(app.base, express.static(publicDir, { index: false }));
+  }
+  const owns = belongsTo(app.base);
+  router.use((req, res, next) => (owns(req) ? middleware(req, res, next) : next()));
+  logger.info(`${app.name} app mounted (Node middleware build)`, { outputDir, at: app.base });
+}
+
 function mountBuiltApp(router, app) {
   const dist = path.join(app.dir, 'dist');
   const indexHtml = path.join(dist, 'index.html');
@@ -146,8 +186,15 @@ export async function mountFrontend(app, httpServer) {
   router.use(apiRequestsPassThrough);
 
   for (const frontend of APPS) {
-    if (env.isProduction || env.SERVE_STATIC_FRONTEND) mountBuiltApp(router, frontend);
-    else await mountDevServer(router, httpServer, frontend);
+    if (env.isProduction || env.SERVE_STATIC_FRONTEND) {
+      if (frontend.output === 'nitro-middleware') {
+        await mountBuiltMiddlewareApp(router, frontend);
+      } else {
+        mountBuiltApp(router, frontend);
+      }
+    } else {
+      await mountDevServer(router, httpServer, frontend);
+    }
   }
 }
 

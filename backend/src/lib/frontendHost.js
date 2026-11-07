@@ -145,7 +145,12 @@ async function mountBuiltMiddlewareApp(router, app) {
     router.use(app.base, express.static(publicDir, { index: false }));
   }
   const owns = belongsTo(app.base);
-  router.use((req, res, next) => (owns(req) ? middleware(req, res, next) : next()));
+  router.use((req, res, next) => {
+    if (!owns(req)) return next();
+    const nonce = res.locals?.cspNonce;
+    if (nonce) req.headers['x-cpse-csp-nonce'] = nonce;
+    return middleware(req, res, next);
+  });
   logger.info(`${app.name} app mounted (Node middleware build)`, { outputDir, at: app.base });
 }
 

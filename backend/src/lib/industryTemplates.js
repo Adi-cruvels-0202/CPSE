@@ -17,7 +17,7 @@ export const INDUSTRY_TEMPLATES = {
     label: 'Grocery / Kirana',
     shopCategory: 'grocery',
     defaults: { lowStockThreshold: 5, taxPercent: 5, trackInventory: true, expiryAlertDays: 30 },
-    categories: ['Rice & Grains', 'Atta & Flours', 'Dals & Pulses', 'Oils & Ghee', 'Spices', 'Tea & Coffee', 'Snacks & Biscuits', 'Household'],
+    categories: ['Rice & Grains', 'Atta & Flours', 'Dals & Pulses', 'Fruits & Vegetables', 'Dairy & Eggs', 'Oils & Ghee', 'Spices', 'Tea & Coffee', 'Snacks & Biscuits', 'Household'],
     products: [
       { key: 'basmati-rice', name: 'Basmati Rice', category: 'Rice & Grains', unit: 'kg', taxPercent: 5, variants: [v('1 kg', 12000, { weightGrams: 1000 }), v('5 kg', 57500, { weightGrams: 5000 })] },
       { key: 'sona-masoori', name: 'Sona Masoori Rice', category: 'Rice & Grains', unit: 'kg', taxPercent: 5, variants: [v('1 kg', 6500, { weightGrams: 1000 }), v('5 kg', 31000, { weightGrams: 5000 })] },
@@ -84,14 +84,14 @@ export const INDUSTRY_TEMPLATES = {
     shopCategory: 'bakery',
     // Fresh goods: alert two days ahead, and expect frequent restocking.
     defaults: { lowStockThreshold: 5, taxPercent: 5, trackInventory: true, expiryAlertDays: 2 },
-    categories: ['Breads', 'Cakes', 'Cookies', 'Savouries', 'Sweets'],
+    categories: ['Cakes', 'Breads', 'Cookies', 'Snacks & Savouries', 'Sweets'],
     products: [
       { key: 'white-bread', name: 'White Bread', category: 'Breads', unit: 'pcs', taxPercent: 0, variants: [v('400 g loaf', 4500, { weightGrams: 400 })] },
       { key: 'brown-bread', name: 'Brown Bread', category: 'Breads', unit: 'pcs', taxPercent: 0, variants: [v('400 g loaf', 5500, { weightGrams: 400 })] },
       { key: 'pav', name: 'Ladi Pav', category: 'Breads', unit: 'pack', taxPercent: 0, variants: [v('Pack of 6', 3500)] },
       { key: 'black-forest', name: 'Black Forest Cake', category: 'Cakes', unit: 'kg', taxPercent: 18, variants: [v('500 g', 45000, { weightGrams: 500 }), v('1 kg', 85000, { weightGrams: 1000 })] },
       { key: 'butter-cookies', name: 'Butter Cookies', category: 'Cookies', unit: 'g', taxPercent: 18, variants: [v('250 g', 15000, { weightGrams: 250 })] },
-      { key: 'veg-puff', name: 'Veg Puff', category: 'Savouries', unit: 'pcs', taxPercent: 5, variants: [v('Piece', 2500)] },
+      { key: 'veg-puff', name: 'Veg Puff', category: 'Snacks & Savouries', unit: 'pcs', taxPercent: 5, variants: [v('Piece', 2500)] },
       { key: 'kaju-katli', name: 'Kaju Katli', category: 'Sweets', unit: 'kg', taxPercent: 5, variants: [v('250 g', 27500, { weightGrams: 250 }), v('500 g', 54000, { weightGrams: 500 })] },
     ],
   },
@@ -107,6 +107,21 @@ export const INDUSTRY_TEMPLATES = {
       { key: 'crayons', name: 'Wax Crayons', category: 'Art & Craft', unit: 'box', taxPercent: 12, variants: [v('12 shades', 4500), v('24 shades', 8500)] },
       { key: 'a4-paper', name: 'A4 Copier Paper', category: 'Office Supplies', unit: 'pack', taxPercent: 12, variants: [v('Ream of 500', 32000)] },
       { key: 'geometry-box', name: 'Geometry Box', category: 'School Essentials', unit: 'pcs', taxPercent: 18, variants: [v('Box', 12000)] },
+    ],
+  },
+  restaurant: {
+    label: 'Restaurant / Café',
+    shopCategory: 'restaurant',
+    // Cooked to order: stock is usually not counted, and nothing is kept for days.
+    defaults: { lowStockThreshold: 0, taxPercent: 5, trackInventory: false, expiryAlertDays: 1 },
+    categories: ['Starters', 'Main Course', 'Breads', 'Rice & Biryani', 'Desserts', 'Beverages'],
+    products: [
+      { key: 'paneer-tikka', name: 'Paneer Tikka', category: 'Starters', unit: 'plate', taxPercent: 5, variants: [v('Half', 18000), v('Full', 32000)] },
+      { key: 'dal-makhani', name: 'Dal Makhani', category: 'Main Course', unit: 'plate', taxPercent: 5, variants: [v('Half', 16000), v('Full', 28000)] },
+      { key: 'butter-naan', name: 'Butter Naan', category: 'Breads', unit: 'pcs', taxPercent: 5, variants: [v('Piece', 5000)] },
+      { key: 'veg-biryani', name: 'Veg Biryani', category: 'Rice & Biryani', unit: 'plate', taxPercent: 5, variants: [v('Half', 15000), v('Full', 26000)] },
+      { key: 'gulab-jamun', name: 'Gulab Jamun', category: 'Desserts', unit: 'pcs', taxPercent: 5, variants: [v('2 pieces', 8000)] },
+      { key: 'masala-chai', name: 'Masala Chai', category: 'Beverages', unit: 'serving', taxPercent: 5, variants: [v('Cup', 3000)] },
     ],
   },
   general: {
@@ -141,3 +156,12 @@ export const templateSummaries = () =>
       defaults: template.defaults,
     };
   });
+
+/**
+ * The template that matches a shop type (stores.shop_category), if any — used
+ * to give a new store its starter categories. 'other' has none.
+ */
+export function templateForShopCategory(shopCategory) {
+  const key = INDUSTRIES.find((industry) => INDUSTRY_TEMPLATES[industry].shopCategory === shopCategory);
+  return key ? { industry: key, ...INDUSTRY_TEMPLATES[key] } : null;
+}

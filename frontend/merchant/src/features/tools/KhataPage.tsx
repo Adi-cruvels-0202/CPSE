@@ -41,9 +41,9 @@ export default function KhataPage() {
         </>} />
       {summary && (
         <div className="metric-grid">
-          <div className="metric"><div className="metric__label">Outstanding</div><div className="metric__value">{formatPaise(summary.outstandingPaise)}</div></div>
-          <div className="metric"><div className="metric__label">Overdue</div><div className="metric__value" style={{ color: summary.overduePaise ? 'var(--color-danger)' : undefined }}>{formatPaise(summary.overduePaise)}</div></div>
-          <div className="metric"><div className="metric__label">Accounts</div><div className="metric__value">{summary.accountCount}</div></div>
+          <div className="metric-tile"><div className="metric__label">Outstanding</div><div className="metric__value">{formatPaise(summary.outstandingPaise)}</div></div>
+          <div className="metric-tile"><div className="metric__label">Overdue</div><div className="metric__value" style={{ color: summary.overduePaise ? 'var(--color-danger)' : undefined }}>{formatPaise(summary.overduePaise)}</div></div>
+          <div className="metric-tile"><div className="metric__label">Accounts</div><div className="metric__value">{summary.accountCount}</div></div>
         </div>
       )}
       <SubTabs value={status} options={[{ value: 'outstanding', label: 'Owes money' }, { value: 'overdue', label: 'Overdue' }, { value: 'all', label: 'All' }]} onChange={setStatus} />
@@ -51,7 +51,16 @@ export default function KhataPage() {
         <input className="input-field" style={{ maxWidth: 320 }} placeholder="Search name or phone" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search khata accounts" />
       </div>
       {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : accounts.length === 0 ? (
-        <EmptyState icon={<IconDollarSign size={32} />} title="No accounts here" description="Open a khata for a customer to record credit and payments." />
+        summary && summary.accountCount === 0 && !search.trim() ? (
+          <KhataGuide onOpen={() => setOpening(true)} />
+        ) : (
+          <EmptyState
+            icon={<IconDollarSign size={32} />}
+            title={search.trim() ? 'No account matches that search' : status === 'overdue' ? 'Nothing is overdue' : status === 'outstanding' ? 'Nobody owes you money right now' : 'No accounts here'}
+            description={status === 'all' || search.trim() ? 'Open a khata for a customer to record credit and payments.' : 'Accounts with nothing to pay are under All.'}
+            action={status !== 'all' ? <button type="button" className="btn btn-secondary" onClick={() => setStatus('all')}>Show all accounts</button> : undefined}
+          />
+        )
       ) : (
         <div className="table-container">
           <table className="table">
@@ -75,6 +84,22 @@ export default function KhataPage() {
       {openAccount && <AccountModal storeId={activeStoreId} accountId={openAccount} onClose={() => setOpenAccount(null)} />}
       {settings && <SettingsModal storeId={activeStoreId} onClose={() => setSettings(false)} />}
     </div>
+  );
+}
+
+/** Shown until the first khata is opened: what the khata is and the three steps. */
+function KhataGuide({ onOpen }: { onOpen: () => void }) {
+  return (
+    <section className="card khata-guide" aria-labelledby="khata-guide-title">
+      <h2 id="khata-guide-title" className="khata-guide__title">How the khata works</h2>
+      <ol className="khata-guide__steps">
+        <li><strong>Open a khata</strong> for a customer, using the phone number or email they signed up with. Set a credit limit if they may also order on khata online.</li>
+        <li><strong>Record credit given</strong> each time they take goods without paying. Their balance goes up, and they see it in their app.</li>
+        <li><strong>Record payments</strong> when they pay you back. Use <em>Clear balance</em> to settle everything they owe in one go.</li>
+      </ol>
+      <p className="khata-guide__note">Entries are never edited or deleted. A mistake is reversed with a new entry, so every balance has a history that explains it.</p>
+      <div><button type="button" className="btn btn-primary" onClick={onOpen}><IconPlus size={16} /> Open a khata</button></div>
+    </section>
   );
 }
 
@@ -174,13 +199,25 @@ function AccountModal({ storeId, accountId, onClose }: { storeId: string; accoun
       {query.isLoading ? <Spinner /> : query.error || !data ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
         <div className="stack">
           <div className="metric-grid">
-            <div className="metric"><div className="metric__label">Balance</div><div className="metric__value">{formatPaise(data.account.balancePaise)}</div></div>
-            <div className="metric"><div className="metric__label">Overdue</div><div className="metric__value">{formatPaise(data.account.ageing.overduePaise)}</div></div>
-            <div className="metric"><div className="metric__label">Credit left</div><div className="metric__value">{data.account.availableCreditPaise === null ? '—' : formatPaise(data.account.availableCreditPaise)}</div></div>
+            <div className="metric-tile">
+              <div className="metric__label">They owe you</div>
+              <div className="metric__value">{formatPaise(Math.max(data.account.balancePaise, 0))}</div>
+              {data.account.balancePaise <= 0 && <span className="badge badge-success" style={{ justifySelf: 'start' }}>Settled</span>}
+            </div>
+            <div className="metric-tile"><div className="metric__label">Overdue</div><div className="metric__value">{formatPaise(data.account.ageing.overduePaise)}</div></div>
+            <div className="metric-tile"><div className="metric__label">Credit left</div><div className="metric__value">{data.account.availableCreditPaise === null ? '—' : formatPaise(data.account.availableCreditPaise)}</div></div>
           </div>
           <div className="row-between">
             <span className="muted">{data.account.customer?.phone ?? ''}</span>
             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+              {data.account.balancePaise > 0 && (
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => {
+                  setKind('payment');
+                  setAmount(paiseToRupees(data.account.balancePaise));
+                  setDescription('Balance cleared');
+                  document.getElementById('kh-amt')?.focus();
+                }}>Clear balance ({formatPaise(data.account.balancePaise)})</button>
+              )}
               <button type="button" className="btn btn-secondary btn-sm" disabled={remind.isPending || data.account.ageing.outstandingPaise <= 0 || !data.account.remindersEnabled} onClick={() => remind.mutate()}>Send reminder</button>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
                 const value = window.prompt('Credit limit in ₹ (empty = no khata at checkout)', data.account.creditLimitPaise === null ? '' : paiseToRupees(data.account.creditLimitPaise));

@@ -16,13 +16,17 @@ const FRONTEND_ROOT = path.resolve(HERE, '../../../frontend');
  * The three customer/merchant app entry points served beside the API, on the same port and
  * origin — so they share one login (the session in localStorage) and the API
  * needs no CORS:
+ * The three apps this process serves beside the API, on the same port and
+ * origin — so the API needs no CORS:
  *
  *   /           the customer app   frontend/customer  (React + Vite)
  *   /merchant/  the merchant app   frontend/merchant  (React + TS + Vite, base '/merchant/')
+ *   /admin/     the admin portal   frontend/merchant/admin (its own page and build,
+ *                                  vite.admin.config.ts → dist-admin/, base '/admin/')
  *
- * The merchant app is mounted first: the customer app's deep-link fallback
- * answers every unknown path with its own index.html, and would swallow
- * /merchant/* otherwise.
+ * The customer app is mounted last: its deep-link fallback answers every
+ * unknown path with its own index.html, and would swallow /merchant/* and
+ * /admin/* otherwise.
  */
 const APPS = [
   {
@@ -41,6 +45,16 @@ const APPS = [
     // Its own HMR port in development: two Vite servers both upgrading
     // WebSockets on the API's socket would fight over each connection.
     hmrPort: 24679,
+  },
+  {
+    name: 'admin',
+    dir: path.join(FRONTEND_ROOT, 'merchant'),
+    // Its page lives in its own folder; the code and dependencies are the merchant project's.
+    root: path.join(FRONTEND_ROOT, 'merchant', 'admin'),
+    config: 'vite.admin.config.ts',
+    base: '/admin',
+    dist: 'dist-admin',
+    hmrPort: 24680,
   },
   {
     name: 'customer',
@@ -93,7 +107,7 @@ async function mountDevServer(router, httpServer, app) {
   const createServer = vite.createServer ?? vite.default?.createServer;
 
   const server = await createServer({
-    root: app.dir,
+    root: app.root ?? app.dir,
     configFile: path.join(app.dir, app.config),
     // TanStack's SSR request runner resolves source imports independently of
     // the browser transform pipeline, so define the app's @/ alias explicitly.
@@ -155,7 +169,7 @@ async function mountBuiltMiddlewareApp(router, app) {
 }
 
 function mountBuiltApp(router, app) {
-  const dist = path.join(app.dir, 'dist');
+  const dist = path.join(app.dir, app.dist ?? 'dist');
   const indexHtml = path.join(dist, 'index.html');
 
   if (!fs.existsSync(indexHtml)) {

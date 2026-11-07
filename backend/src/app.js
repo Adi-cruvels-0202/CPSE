@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
+import { randomBytes } from 'node:crypto';
 
 import { env } from './config/env.js';
 import { apiRouter } from './routes.js';
@@ -45,6 +46,13 @@ export function createApp() {
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
 
+  // One nonce per response lets the SSR frontend run its inline hydration
+  // scripts without allowing arbitrary inline scripts through the CSP.
+  app.use((req, res, next) => {
+    res.locals.cspNonce = randomBytes(18).toString('base64');
+    next();
+  });
+
   // Now that the app is served from here, helmet's CSP applies to it too.
   // In production the built app needs one relaxation: product images are
   // remote URLs, and the default `img-src 'self' data:` would blank them.
@@ -56,7 +64,11 @@ export function createApp() {
       contentSecurityPolicy: env.isProduction
         ? {
             useDefaults: true,
-            directives: { 'img-src': ["'self'", 'data:', 'https:'] },
+            directives: {
+              'img-src': ["'self'", 'data:', 'https:'],
+              'script-src': ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+              'style-src': ["'self'", 'https:', "'unsafe-inline'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+            },
           }
         : false,
     }),

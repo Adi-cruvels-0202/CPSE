@@ -1,8 +1,17 @@
 import { QueryClient } from "@tanstack/react-query";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
-export const getRouter = () => {
+const readCspNonce = createIsomorphicFn()
+  .server(async () => {
+    const { getRequestHeader } = await import("@tanstack/react-start/server");
+    return getRequestHeader("x-cpse-csp-nonce");
+  })
+  .client(() => undefined);
+
+export const getRouter = async () => {
+  const nonce = await readCspNonce();
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -17,6 +26,7 @@ export const getRouter = () => {
   const router = createRouter({
     routeTree,
     basepath: "/v2",
+    ssr: { nonce },
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,

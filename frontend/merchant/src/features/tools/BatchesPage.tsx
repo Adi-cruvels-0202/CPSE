@@ -55,9 +55,9 @@ export default function BatchesPage() {
       <PageHeader title="Batches & expiry" subtitle="Lots received with a batch number or expiry date. Sales use the soonest-expiring lot first." />
       {summary && (
         <div className="metric-grid">
-          <div className="metric"><div className="metric__label">Expiring soon</div><div className="metric__value">{summary.expiringCount}</div></div>
-          <div className="metric"><div className="metric__label">Expired lots</div><div className="metric__value">{summary.expiredCount}</div></div>
-          <div className="metric"><div className="metric__label">Expired units on shelf</div><div className="metric__value">{summary.expiredQuantity}</div></div>
+          <div className="metric-tile"><div className="metric__label">Expiring soon</div><div className="metric__value">{summary.expiringCount}</div></div>
+          <div className="metric-tile"><div className="metric__label">Expired lots</div><div className="metric__value">{summary.expiredCount}</div></div>
+          <div className="metric-tile"><div className="metric__label">Expired units on shelf</div><div className="metric__value">{summary.expiredQuantity}</div></div>
         </div>
       )}
       <SubTabs value={status} options={[{ value: 'expiring', label: 'Expiring soon' }, { value: 'expired', label: 'Expired' }, { value: 'active', label: 'On the shelf' }, { value: 'all', label: 'All' }]} onChange={(v) => { setStatus(v); setPage(1); }} />

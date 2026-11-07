@@ -81,6 +81,7 @@ const CALLS: [string, () => Promise<unknown>][] = [
   ['catalogue.deleteCategory', () => catalogueOpsApi.deleteCategory(S, ID, { uncategorise: true })],
   ['catalogue.duplicate', () => catalogueOpsApi.duplicate(S, ID)],
   ['catalogue.lookup', () => catalogueOpsApi.lookup(S, { barcode: '890' })],
+  ['catalogue.barcodeLibrary', () => catalogueOpsApi.barcodeLibrary(S, '8904043901015')],
   ['catalogue.exportCsv', () => catalogueOpsApi.exportCsv(S)],
   ['catalogue.previewImport', () => catalogueOpsApi.previewImport(S, 'product_name,price\nRice,10\n')],
   ['catalogue.commitImport', () => catalogueOpsApi.commitImport(S, 'product_name,price\nRice,10\n')],
@@ -173,6 +174,15 @@ describe('reviewer console client ↔ backend docs/API.md', () => {
     ['admin.escalated', () => adminApi.escalated()],
     ['admin.conversation', () => adminApi.conversation(ID)],
     ['admin.reply', () => adminApi.reply(ID, 'On it')],
+    ['admin.overview', () => adminApi.overview()],
+    ['admin.stores', () => adminApi.stores({ search: 'kirana' })],
+    ['admin.store', () => adminApi.store(S)],
+    ['admin.unpublishStore', () => adminApi.unpublishStore(S, 'Banned items')],
+    ['admin.accounts', () => adminApi.accounts({ kind: 'customer' })],
+    ['admin.account', () => adminApi.account(ID)],
+    ['admin.suspend', () => adminApi.suspend(ID, 'Fake orders')],
+    ['admin.reinstate', () => adminApi.reinstate(ID, 'Appeal accepted')],
+    ['admin.log', () => adminApi.log({ targetType: 'store' })],
   ];
 
   it.each(ADMIN_CALLS)('%s calls a documented route with the reviewer token', async (_name, call) => {

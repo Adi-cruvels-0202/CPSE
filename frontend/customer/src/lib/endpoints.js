@@ -84,7 +84,8 @@ export const endpoints = {
   orders: {
     // The idempotency key is the caller's to supply — it must survive a retry,
     // so it is generated when the customer opens the review screen, not here.
-    create: (body, idempotencyKey) => api.post('/orders', body, { idempotencyKey }),
+    // Placing an order empties that shop's cart, so the header count refreshes too.
+    create: (body, idempotencyKey) => afterCartMutation(api.post('/orders', body, { idempotencyKey })),
     list: (query) => api.get('/orders', { query }),
     get: (id) => api.get(`/orders/${id}`),
     cancel: (id, body) => api.post(`/orders/${id}/cancel`, body ?? {}),

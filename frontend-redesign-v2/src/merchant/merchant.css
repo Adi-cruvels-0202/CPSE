@@ -2141,3 +2141,169 @@ input[type="file"]::file-selector-button:hover {
   .table-scroll > .table { min-width: 600px; }
 }
 }
+
+/* ── Ported from the original merchant app (frontend/merchant) ──────────────
+   Barcodes, starter categories and products, khata guide, publish steps and
+   tool tiles. Keep in step with the original app's CSS. */
+
+/* from components/common/BarcodeInput.css */
+/* A barcode box with an optional camera button inside its right edge. */
+.barcode-input { position: relative; display: flex; align-items: center; min-width: 0; }
+.barcode-input > .input-field { width: 100%; }
+.barcode-input:has(.barcode-input__camera) > .input-field { padding-right: 44px; }
+.barcode-input__camera { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 6px; color: var(--color-text-secondary); }
+.barcode-input--compact { min-width: 150px; }
+
+/* from features/categories/Categories.css */
+
+/* Drag to reorder: a handle, the row being moved fades, the target gets a line. */
+.category-row { cursor: grab; }
+.category-row.is-dragging { opacity: 0.45; }
+.category-row.is-drop-target td { box-shadow: inset 0 2px 0 var(--navy); }
+.drag-handle { display: inline-block; margin-right: var(--space-2); letter-spacing: -2px; color: var(--color-text-tertiary); cursor: grab; user-select: none; }
+
+/* Starter categories from the shop's industry template. */
+.starter-link { margin: 0 0 var(--space-3); }
+.starter-panel { display: grid; gap: var(--space-4); padding: var(--space-5); margin-bottom: var(--space-5); }
+.starter-panel__head { display: grid; gap: var(--space-1); }
+.starter-panel__title { font-size: var(--text-lg); font-weight: var(--font-semibold); line-height: 1.3; margin: 0; }
+.starter-panel__hint { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); }
+.starter-panel__type { max-width: 320px; }
+.starter-panel__chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.starter-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 8px 14px; border: 1px solid var(--color-border); border-radius: 999px;
+  background: var(--color-surface); font-size: var(--text-sm); cursor: pointer; user-select: none;
+}
+.starter-chip.is-on { border-color: var(--navy); background: var(--navy-10); }
+.starter-chip input { margin: 0; accent-color: var(--navy); }
+.starter-panel__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
+
+/* from features/products/Products.css */
+
+/* New product → options. Each column keeps a readable width; when the dialog
+   is narrower than all of them, the table scrolls sideways inside its frame
+   instead of squeezing the boxes until the numbers cannot be read. */
+.variant-table { min-width: 860px; }
+.variant-table th { white-space: nowrap; }
+.variant-table td { vertical-align: top; }
+.variant-table td > .input-field { min-width: 84px; }
+.variant-table td:first-child > .input-field { min-width: 110px; }
+.variant-table .barcode-input { min-width: 180px; }
+
+/* ── First-time starter products ─────────────────────────────────────────── */
+
+.starter-products {
+  display: grid;
+  gap: var(--space-5, 20px);
+  padding: var(--space-6, 24px);
+  animation: starter-rise 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.starter-products__head { display: flex; gap: var(--space-4, 16px); align-items: flex-start; }
+.starter-products__badge {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--navy-10);
+  color: var(--navy);
+  animation: starter-pop 480ms cubic-bezier(0.34, 1.56, 0.64, 1) 120ms both;
+}
+.starter-products__title { margin: 0 0 4px; font-size: var(--text-lg); font-weight: var(--font-semibold); line-height: 1.3; }
+.starter-products__hint { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); max-width: 64ch; }
+.starter-products__type { max-width: 320px; }
+.starter-products__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--space-3, 12px);
+}
+.starter-card {
+  display: grid;
+  gap: var(--space-3, 12px);
+  align-content: start;
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color 160ms ease, background-color 160ms ease, opacity 160ms ease;
+  animation: starter-rise 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.starter-card.is-on { border-color: var(--navy); background: var(--navy-10); }
+.starter-card:not(.is-on) { opacity: 0.7; }
+.starter-card__top { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; cursor: pointer; }
+.starter-card__top input { margin: 0; width: 18px; height: 18px; accent-color: var(--navy); grid-row: span 2; }
+.starter-card__name { font-weight: var(--font-semibold); }
+.starter-card__category { font-size: var(--text-xs); color: var(--color-text-secondary); }
+.starter-card__sizes { display: grid; gap: var(--space-2, 8px); }
+.starter-size {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+  padding-top: var(--space-2, 8px);
+  border-top: 1px dashed var(--color-border);
+}
+.starter-size__name { flex: 1 0 100%; font-size: var(--text-sm); font-weight: var(--font-medium); }
+.starter-size__field { display: grid; gap: 2px; flex: 1 1 72px; font-size: var(--text-xs); color: var(--color-text-secondary); }
+.starter-size__field--date { flex-basis: 130px; }
+.starter-size__field .input-field { padding: 6px 8px; min-height: 34px; background: var(--color-surface); }
+.starter-products__error { margin: 0; color: var(--color-danger-text); font-size: var(--text-sm); }
+.starter-products__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-2, 8px); }
+
+@keyframes starter-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes starter-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .starter-products, .starter-card, .starter-products__badge { animation: none; }
+}
+@media (max-width: 600px) {
+  .starter-products { padding: var(--space-4, 16px); }
+  .starter-products__actions .btn { flex: 1 1 auto; }
+}
+
+/* from features/sales/Sales.css */
+
+/* A scanned code that is on no product yet. */
+.sale-unknown { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-2); }
+.sale-unknown__actions { display: flex; gap: var(--space-2); }
+
+/* from features/store/StoreSetup.css */
+
+/* Publish: the button, and what stands between the store and going live. */
+.publish-box { display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); max-width: 420px; }
+.publish-note { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); text-align: right; }
+.publish-steps { display: grid; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-warning-bg, #fdf6e7); color: var(--color-text); font-size: var(--text-sm); line-height: 1.5; }
+.publish-steps__title { font-size: var(--text-sm); }
+.publish-steps__list { margin: 0; padding-left: 1.2rem; display: grid; gap: var(--space-2); }
+.publish-steps__action { margin-top: var(--space-2); }
+
+/* from features/tools/Tools.css */
+/* Summary tiles at the top of a tool page. Not `.metric`: that is the global
+   big-number style (tight negative letter-spacing) and squeezed these labels. */
+.metric-tile { display: grid; gap: var(--space-1); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
+.metric__label { font-size: var(--text-sm); line-height: 1.3; letter-spacing: 0.01em; color: var(--color-text-secondary); }
+.metric__value { font-size: var(--text-xl); line-height: 1.2; font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+
+/* A text field with a leading icon inside it (search boxes). */
+.input-with-icon { position: relative; }
+.input-with-icon > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); pointer-events: none; }
+.input-with-icon > .input-field { padding-left: 36px; }
+
+/* Khata: the first-visit guide. */
+.khata-guide { display: grid; gap: var(--space-4); padding: var(--space-6); max-width: 720px; }
+.khata-guide__title { margin: 0; font-size: var(--text-lg); font-weight: var(--font-semibold); }
+.khata-guide__steps { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--space-3); line-height: 1.55; }
+.khata-guide__note { margin: 0; font-size: var(--text-sm); color: var(--color-text-secondary); line-height: 1.5; }
+
+/* from styles/components.css: fields in a filter row line up on their bottom edge. */
+.filters-bar { align-items: flex-end; }

@@ -175,6 +175,8 @@ export default function CategoriesPage() {
 const SHOP_LABELS: Record<string, string> = {
   grocery: 'grocery / kirana', bakery: 'bakery', restaurant: 'restaurant', pharmacy: 'pharmacy', clothing: 'clothing',
   electronics: 'electronics', stationery: 'stationery', general: 'general',
+  dairy: 'dairy', fruits_vegetables: 'fruit and vegetable', meat_fish: 'meat and fish', hardware: 'hardware',
+  home_kitchen: 'home and kitchen', beauty: 'beauty', footwear: 'footwear', toys_gifts: 'toy and gift', pet_supplies: 'pet supplies',
 };
 
 /**

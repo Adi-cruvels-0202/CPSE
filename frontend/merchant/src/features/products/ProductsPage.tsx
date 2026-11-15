@@ -10,6 +10,7 @@ import { useToast } from '../../hooks/useToast';
 import { formatPaise, paiseToRupees, rupeesToPaise } from '../../lib/money';
 import { EmptyState, NoStore, Pagination, Spinner } from '../../components/common/ui';
 import { BarcodeInput } from '../../components/common/BarcodeInput';
+import { StarterProducts, starterDismissed } from './StarterProducts';
 import { IconPackage, IconPlus, IconSearch, IconEdit, IconEye, IconX, IconUpload, IconTrash, IconTag, IconCopy } from '../../components/icons/Icons';
 import './Products.css';
 
@@ -35,6 +36,7 @@ export default function ProductsPage() {
   const [creating, setCreating] = useState(searchParams.get('new') === '1');
   const [newBarcode] = useState(searchParams.get('barcode') ?? '');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [starterHidden, setStarterHidden] = useState(false);
 
   const params = {
     page,
@@ -115,7 +117,9 @@ export default function ProductsPage() {
         </select>
       </div>
 
-      {isLoading ? <Spinner large /> : products.length === 0 ? (
+      {isLoading ? <Spinner large /> : products.length === 0 && !search && !categoryId && !filter && !starterHidden && !starterDismissed(activeStoreId) ? (
+        <StarterProducts storeId={activeStoreId} onAdded={reload} onDismiss={() => setStarterHidden(true)} />
+      ) : products.length === 0 ? (
         <EmptyState
           icon={<IconPackage size={32} />}
           title={search || categoryId || filter ? 'Nothing matches' : 'No products yet'}

@@ -21,10 +21,15 @@ const TABS = [
   { id: 'branding', label: 'Logo & cover' },
 ] as const;
 
-const CATEGORIES = ['grocery', 'bakery', 'restaurant', 'pharmacy', 'clothing', 'electronics', 'stationery', 'general', 'other'];
+const CATEGORIES = [
+  'grocery', 'dairy', 'fruits_vegetables', 'meat_fish', 'bakery', 'restaurant', 'pharmacy', 'beauty', 'clothing', 'footwear',
+  'electronics', 'hardware', 'home_kitchen', 'stationery', 'toys_gifts', 'pet_supplies', 'general', 'other',
+];
 const CATEGORY_LABELS: Record<string, string> = {
   grocery: 'Grocery / Kirana', bakery: 'Bakery & Sweets', restaurant: 'Restaurant / Café', pharmacy: 'Pharmacy / Chemist',
   clothing: 'Clothing', electronics: 'Electronics & Mobile', stationery: 'Stationery & Books', general: 'General store', other: 'Other',
+  dairy: 'Dairy / Milk booth', fruits_vegetables: 'Fruits & Vegetables', meat_fish: 'Meat, Fish & Eggs', hardware: 'Hardware & Paints',
+  home_kitchen: 'Home & Kitchen', beauty: 'Beauty & Cosmetics', footwear: 'Footwear', toys_gifts: 'Toys & Gifts', pet_supplies: 'Pet Supplies',
 };
 const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? capitalise(c);
 const DAYS: { id: Day; label: string }[] = [

@@ -442,7 +442,9 @@ format the customer store page computes open/closed from.
 ```
 
 `shopCategory`: `grocery`, `pharmacy`, `restaurant`, `bakery`, `electronics`,
-`clothing`, `general`, `other`. `publicPath` is what a "share" or QR-code button
+`clothing`, `stationery`, `general`, `dairy`, `fruits_vegetables`, `meat_fish`,
+`hardware`, `home_kitchen`, `beauty`, `footwear`, `toys_gifts`, `pet_supplies`,
+`other` (migration 0047). Every type except `other` has a starter template. `publicPath` is what a "share" or QR-code button
 links to.
 
 
@@ -870,7 +872,7 @@ defaults for anything the request leaves out.
 |---|---|
 | `GET /merchant/templates` | Bearer, merchant. `{ templates: [{ industry, label, categoryCount, productCount, defaults }] }`. |
 | `GET /merchant/templates/:industry` | Bearer, merchant. `{ template }` with every starter product and its `suggestedPricePaise`. |
-| `POST /merchant/stores/:storeId/templates/apply` | Bearer, merchant. `{ industry, applyDefaults?, categories?: "all" \| [names], products?: "all" \| [{ key, name?, taxPercent?, prices?: { "<variant name>": paise } }] }` → **201** `{ report: { categoriesCreated, categoriesSkipped, productsCreated, productsSkipped, failed } }`. Products are created with no stock. |
+| `POST /merchant/stores/:storeId/templates/apply` | Bearer, merchant. `{ industry, applyDefaults?, categories?: "all" \| [names], products?: "all" \| [{ key, name?, taxPercent?, prices?: { "<variant name>": paise }, stock?: { "<variant name>": { quantity, expiresOn? } } }] }` → **201** `{ report: { categoriesCreated, categoriesSkipped, productsCreated, productsSkipped, failed } }`. Without `stock` a product starts with none. Opening stock with an `expiresOn` (YYYY-MM-DD) goes in as a dated batch, so expiry alerts and first-expiry-first-out selling see it. A size the product does not have (`UNKNOWN_TEMPLATE_VARIANT`), or stock for a template that does not count stock (`NOT_TRACKED`), is reported in `failed` for that product only. The merchant app offers this on the first visit to Products while the shop has none. |
 | `GET /merchant/stores/:storeId/defaults` | Bearer, merchant. `{ defaults: { lowStockThreshold, taxPercent, trackInventory, expiryAlertDays, templateApplied } }`. |
 | `PUT /merchant/stores/:storeId/defaults` | Bearer, merchant. Any of `{ lowStockThreshold, taxPercent, trackInventory, expiryAlertDays }`. |
 

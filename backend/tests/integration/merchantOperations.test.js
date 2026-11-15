@@ -23,12 +23,67 @@ beforeEach(async () => {
 const base = (shop) => `/merchant/stores/${shop.store.id}`;
 
 describe('industry templates and workflow defaults', () => {
-  it('lists all eight industries', async () => {
+  it('has a starter template for every kind of shop except "other"', async () => {
     const shop = await flow.openShop();
     const { templates } = expectStatus(await call('get', '/merchant/templates', shop.merchant), 200);
-    expect(templates.map((t) => t.industry).sort()).toEqual(
-      ['bakery', 'clothing', 'electronics', 'general', 'grocery', 'pharmacy', 'restaurant', 'stationery'],
+    const { SHOP_CATEGORIES } = await import('../../src/modules/merchantStores/merchantStore.schemas.js');
+    expect(templates.map((t) => t.industry).sort()).toEqual(SHOP_CATEGORIES.filter((c) => c !== 'other').sort());
+    for (const t of templates) expect(t.productCount).toBeGreaterThanOrEqual(5);
+  });
+
+  it('a store can be any of the new shop types and starts with its categories', async () => {
+    for (const shopCategory of ['hardware', 'dairy', 'pet_supplies']) {
+      const shop = await flow.openShop({ shopCategory });
+      const names = (await sql('select name from categories where store_id = $1', [shop.store.id])).map((r) => r.name);
+      expect(names.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('starter products can come with opening stock, and stock with an expiry date is a dated batch', async () => {
+    const shop = await flow.openShop({ shopCategory: 'bakery' });
+    const { report } = expectStatus(
+      await call('post', `${base(shop)}/templates/apply`, shop.merchant, {
+        industry: 'bakery',
+        applyDefaults: false,
+        categories: [],
+        products: [
+          { key: 'milk', prices: { '500 ml': 3000 }, stock: { '500 ml': { quantity: 20, expiresOn: '2099-01-02' } } },
+          { key: 'glucose-biscuits', stock: { 'Small pack': { quantity: 48 } } },
+          { key: 'white-bread' },
+        ],
+      }),
+      201,
     );
+    expect(report.productsCreated.map((p) => p.key)).toEqual(['milk', 'glucose-biscuits', 'white-bread']);
+    expect(report.failed).toEqual([]);
+
+    const stock = Object.fromEntries(
+      (await sql(
+        `select p.name || ' / ' || v.name as k, v.quantity_on_hand as q, v.price_paise as price from products p join product_variants v on v.product_id = p.id where p.store_id = $1`,
+        [shop.store.id],
+      )).map((r) => [r.k, [r.q, r.price]]),
+    );
+    expect(stock['Toned Milk / 500 ml']).toEqual([20, 3000]);
+    expect(stock['Toned Milk / 1 litre']).toEqual([0, 5400]);
+    expect(stock['Glucose Biscuits / Small pack']).toEqual([48, 1000]);
+    expect(stock['White Bread / 400 g loaf']).toEqual([0, 4500]);
+
+    const batches = await sql('select expires_on::text as e, quantity_remaining as q from inventory_batches where store_id = $1', [shop.store.id]);
+    expect(batches).toEqual([{ e: '2099-01-02', q: 20 }]);
+  });
+
+  it('refuses opening stock for a size the product does not have, or for a shop that does not count stock', async () => {
+    const shop = await flow.openShop({ shopCategory: 'restaurant' });
+    const { report } = expectStatus(
+      await call('post', `${base(shop)}/templates/apply`, shop.merchant, {
+        industry: 'restaurant',
+        applyDefaults: false,
+        products: [{ key: 'masala-chai', stock: { Cup: { quantity: 5 } } }, { key: 'butter-naan', prices: { Jumbo: 900 } }],
+      }),
+      201,
+    );
+    expect(report.failed.map((f) => f.code)).toEqual(['NOT_TRACKED', 'UNKNOWN_TEMPLATE_VARIANT']);
+    expect(report.productsCreated).toEqual([]);
   });
 
   it('creates categories, chosen products at the merchant’s prices, and defaults — and is safe to apply twice', async () => {

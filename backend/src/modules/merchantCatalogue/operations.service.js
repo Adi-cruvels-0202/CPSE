@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { INDUSTRY_TEMPLATES } from '../../lib/industryTemplates.js';
 import { createCategory, listCategories } from './category.service.js';
 import { createProduct, getProduct, generateSku } from './product.service.js';
+import { recordMovement } from '../merchantInventory/inventory.service.js';
 
 /**
  * Catalogue operations that save the merchant repeated work — roadmap §4 P1:
@@ -133,6 +134,16 @@ export async function applyTemplate(store, merchant, input) {
       continue;
     }
     const prices = choice.prices ?? {};
+    const stock = choice.stock ?? {};
+    const unknownVariant = Object.keys({ ...prices, ...stock }).find((name) => !product.variants.some((variant) => variant.name === name));
+    if (unknownVariant) {
+      report.failed.push({ key: choice.key, name, code: 'UNKNOWN_TEMPLATE_VARIANT', message: `"${unknownVariant}" is not a size of ${product.name}.` });
+      continue;
+    }
+    if (!template.defaults.trackInventory && Object.keys(stock).length > 0) {
+      report.failed.push({ key: choice.key, name, code: 'NOT_TRACKED', message: `${name} does not count stock, so it cannot have opening stock.` });
+      continue;
+    }
     try {
       const created = await createProduct(store, merchant, {
         name,
@@ -147,9 +158,21 @@ export async function applyTemplate(store, merchant, input) {
           name: variant.name,
           pricePaise: prices[variant.name] ?? variant.pricePaise,
           weightGrams: variant.weightGrams ?? null,
-          openingQuantity: 0,
+          // Stock with an expiry date goes in as a dated batch below, so the
+          // expiry alerts and first-expiry-first-out selling see it.
+          openingQuantity: stock[variant.name] && !stock[variant.name].expiresOn ? stock[variant.name].quantity : 0,
         })),
       });
+      for (const variant of created.variants ?? []) {
+        const opening = stock[variant.name];
+        if (!opening?.expiresOn) continue;
+        await recordMovement(store, merchant, 'stock_in', {
+          variantId: variant.id,
+          quantity: opening.quantity,
+          expiresOn: opening.expiresOn,
+          notes: 'Opening stock',
+        });
+      }
       existingNames.add(name.toLowerCase());
       report.productsCreated.push({ key: choice.key, productId: created.id, name });
     } catch (createError) {

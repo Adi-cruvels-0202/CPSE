@@ -8,7 +8,9 @@ import { toMinutes } from '../../lib/openingHours.js';
  */
 
 export const SHOP_CATEGORIES = [
-  'grocery', 'pharmacy', 'restaurant', 'bakery', 'electronics', 'clothing', 'stationery', 'general', 'other',
+  'grocery', 'pharmacy', 'restaurant', 'bakery', 'electronics', 'clothing', 'stationery', 'general',
+  'dairy', 'fruits_vegetables', 'meat_fish', 'hardware', 'home_kitchen', 'beauty', 'footwear', 'toys_gifts', 'pet_supplies',
+  'other',
 ];
 
 export const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];

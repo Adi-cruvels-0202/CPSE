@@ -46,6 +46,13 @@ const templateProductChoice = z
     taxPercent: taxPercent.optional(),
     // Variant name → the merchant's own price, in paise.
     prices: z.record(z.string().max(120), z.number().int().min(0).max(100_000_000)).optional(),
+    // Variant name → opening stock, with the expiry date of that stock if it has one.
+    stock: z
+      .record(
+        z.string().max(120),
+        z.object({ quantity: z.number().int().min(1).max(100_000), expiresOn: isoDate.nullable().optional() }).strict(),
+      )
+      .optional(),
   })
   .strict();
 

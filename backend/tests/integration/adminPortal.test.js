@@ -211,7 +211,9 @@ describe('starter categories for a new store', () => {
     expect(await names(await flow.openShop({ shopCategory: 'grocery' }))).toEqual(
       ['Rice & Grains', 'Atta & Flours', 'Dals & Pulses', 'Fruits & Vegetables', 'Dairy & Eggs', 'Oils & Ghee', 'Spices', 'Tea & Coffee', 'Snacks & Biscuits', 'Household'],
     );
-    expect(await names(await flow.openShop({ name: 'Pastry Palace', shopCategory: 'bakery' }))).toEqual(['Cakes', 'Breads', 'Cookies', 'Snacks & Savouries', 'Sweets']);
+    expect(await names(await flow.openShop({ name: 'Pastry Palace', shopCategory: 'bakery' }))).toEqual(
+      ['Cakes', 'Breads', 'Cookies', 'Biscuits & Rusk', 'Dairy & Eggs', 'Snacks & Savouries', 'Sweets'],
+    );
     expect(await names(await flow.openShop({ name: 'Spice Route', shopCategory: 'restaurant' }))).toContain('Main Course');
     expect(await names(await flow.openShop({ name: 'Odds and Ends', shopCategory: 'other' }))).toEqual([]);
   });

@@ -51,6 +51,9 @@ const HARDWARE_PRODUCT_CATEGORIES = new Set(["tools-repair", "garden-outdoor"]);
 export function categoryForStore(store: any): ShopCategoryId | null {
   switch (store?.shopCategory) {
     case "grocery":
+    case "dairy":
+    case "fruits_vegetables":
+    case "meat_fish":
       return "groceries";
     case "restaurant":
     case "bakery":
@@ -58,9 +61,18 @@ export function categoryForStore(store: any): ShopCategoryId | null {
     case "pharmacy":
       return "health";
     case "clothing":
+    case "footwear":
+    case "beauty":
       return "fashion";
     case "electronics":
       return "electronics";
+    case "home_kitchen":
+    case "pet_supplies":
+      return "home";
+    case "hardware":
+      return "hardware";
+    case "stationery":
+    case "toys_gifts":
     case "other":
       return "kids";
     case "general":

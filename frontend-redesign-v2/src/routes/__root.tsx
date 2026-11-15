@@ -125,8 +125,9 @@ function CartSync() {
 
 function AppFrame({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  // The merchant app owns its own frame under /merchant; everything else is the shop.
+  // The merchant app and the admin console own their frames; everything else is the shop.
   if (pathname === "/merchant" || pathname.startsWith("/merchant/")) return <>{children}</>;
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return <>{children}</>;
   return <CustomerShell>{children}</CustomerShell>;
 }
 

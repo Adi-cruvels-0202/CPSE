@@ -172,9 +172,9 @@ function Directory() {
             <h2 id="fav-heading" className="text-xl font-bold">Your favourites</h2>
             <Link to="/saved" className="text-sm font-semibold text-primary-strong hover:underline">Manage</Link>
           </div>
-          <ul className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+          <ul className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-2 pt-1">
             {favourites.map((s: any) => (
-              <li key={s.id} className="shrink-0">
+              <li key={s.id} className="relative shrink-0 hover:z-10 focus-within:z-10">
                 <Link to="/store/$slug" params={{ slug: s.slug }} className="surface press flex w-56 items-center gap-3 p-3">
                   <ShopAvatar store={s} className="h-11 w-11 shrink-0 text-sm" />
                   <span className="min-w-0">

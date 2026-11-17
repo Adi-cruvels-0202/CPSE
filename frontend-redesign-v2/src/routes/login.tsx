@@ -68,6 +68,12 @@ function LoginPage() {
               Merchant sign in
             </a>
           </p>
+          <p>
+            Managing CPSE?{" "}
+            <a href="/admin" className="font-bold text-foreground underline-offset-4 hover:underline">
+              Admin sign in
+            </a>
+          </p>
         </>
       }
     >

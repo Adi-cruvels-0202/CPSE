@@ -14,6 +14,7 @@ import { ShopCard, ShopCardSkeleton, ShopAvatar } from "@/customer/components/Sh
 import { EmptyState, ErrorState } from "@/components/cpse/States";
 import { OrderStamp } from "@/components/cpse/Stamp";
 import { Button } from "@/components/ui/button";
+import { HomeAssistant } from "@/customer/components/HomeAssistant";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -72,6 +73,7 @@ function HomePage() {
       </section>
 
       <Directory />
+      <HomeAssistant />
     </div>
   );
 }

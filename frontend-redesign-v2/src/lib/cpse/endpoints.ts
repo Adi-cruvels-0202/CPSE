@@ -155,6 +155,7 @@ export const endpoints = {
 
   // Roadmap §5 P6: deterministic and read-only — results go through the cart.
   intelligence: {
+    homeAssistant: (message, city) => api.post('/stores/assistant', { message, ...(city ? { city } : {}) }, { auth: 'optional' }),
     smartSearch: (slug, q) => api.get(`/stores/${slug}/smart-search`, { auth: 'optional', query: { q } }),
     assistant: (slug, message) => api.post(`/stores/${slug}/assistant`, { message }, { auth: 'optional' }),
     recommendations: (slug, productId) => api.get(`/stores/${slug}/products/${productId}/recommendations`, { auth: 'optional' }),

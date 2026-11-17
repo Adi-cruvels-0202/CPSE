@@ -298,15 +298,15 @@ function StoreSkeleton() {
   return (
     <div role="status" aria-label="Loading the shop" className="space-y-6">
       <Skel className="h-52 w-full rounded-3xl" />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }, (_, i) => <ProductTileSkeleton key={i} />)}
-        </div>
-        <div className="hidden space-y-4 lg:block">
-          <Skel className="h-64 rounded-2xl" />
-          <Skel className="h-36 rounded-2xl" />
-        </div>
+      <div aria-hidden="true" className="flex gap-2 overflow-hidden">
+        <Skel className="h-11 w-36 shrink-0 rounded-xl" />
+        <Skel className="h-11 w-40 shrink-0 rounded-xl" />
+        <Skel className="h-11 w-32 shrink-0 rounded-xl" />
       </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }, (_, i) => <ProductTileSkeleton key={i} />)}
+      </div>
+      <div aria-hidden="true"><Skel className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 h-14 w-14 rounded-full shadow-pop md:bottom-24 md:right-6" /></div>
     </div>
   );
 }

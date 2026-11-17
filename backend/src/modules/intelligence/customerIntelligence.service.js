@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { internal, notFound } from '../../lib/errors.js';
 import { formatPaise } from '../../lib/pricing.js';
-import { findActiveStoreBySlug, findActiveStoreById, toPublicVariant, toPublicStore, holidaysFor } from '../stores/store.service.js';
+import { findActiveStoreBySlug, findActiveStoreById, toPublicVariant, toPublicStore, holidaysFor, listStores } from '../stores/store.service.js';
 import { productCards } from '../engagement/productCards.js';
 import { buyAgain } from '../engagement/engagement.service.js';
 import { storeOffersPublic } from '../offers/offer.service.js';
@@ -400,5 +400,88 @@ export async function shopAssistant(slug, customerId, { message }) {
     interpretation: search.interpretation,
     results: search.results,
     source: 'This shop’s live catalogue.',
+  };
+}
+
+/**
+ * Home discovery assistant: recommend public shops by a product in their live
+ * catalogue, or by the shop/category labels shown in the directory. This is a
+ * read-only lookup; it never changes a cart or order.
+ */
+export async function homeAssistant({ message, city }) {
+  const { stores } = await listStores({ page: 1, limit: 50 });
+  const visibleStores = stores.filter((store) => !city || String(store.location?.city ?? '').localeCompare(city, undefined, { sensitivity: 'accent' }) === 0);
+  const byId = new Map(visibleStores.map((store) => [store.id, store]));
+  const searchText = message.replace(/\b(where|can|could|looking|find|search|shop|shops|store|stores|category|categories|nearby)\b/gi, ' ').replace(/\bnear\s+me\b/gi, ' ');
+  const query = engines.parseShoppingQuery(searchText);
+  const categoryMatches = visibleStores
+    .map((store) => {
+      const labels = [store.shopCategory, ...(store.productCategories ?? []).map((category) => category.name)].filter(Boolean).join(' ');
+      return { store, score: engines.coverage(searchText, labels) };
+    })
+    .filter((item) => item.score >= 0.5)
+    .sort((a, b) => b.score - a.score || a.store.name.localeCompare(b.store.name));
+
+  if (query.words.length && byId.size) {
+    // Include short chunks so a joined query such as "toordal" can retrieve
+    // the spaced catalogue name "Toor Dal" before the normalized comparison.
+    const searchTerms = new Set(query.words);
+    for (const word of query.words) {
+      for (let i = 0; i <= word.length - 4; i += 1) searchTerms.add(word.slice(i, i + 4));
+    }
+    const nameFilters = [...searchTerms].map((word) => `name.ilike.%${word}%`).join(',');
+    const { data: rows, error } = await supabaseAdmin
+      .from('products')
+      .select('id, store_id, name')
+      .in('store_id', [...byId.keys()])
+      .eq('is_available', true)
+      .is('archived_at', null)
+      .or(nameFilters)
+      .limit(500);
+    fail(error, 'Could not search shop products.');
+
+    const matches = new Map();
+    for (const product of rows ?? []) {
+      const store = byId.get(product.store_id);
+      const compactQuery = query.words.join('');
+      const compactName = engines.tokens(product.name).join('');
+      const joinedWordMatch = compactQuery.length >= 4 && (compactName.includes(compactQuery) || compactQuery.includes(compactName));
+      const score = Math.max(engines.coverage(query.words.join(' '), product.name), joinedWordMatch ? 1 : 0);
+      if (!store || score < 0.5) continue;
+      if (!matches.has(store.id)) matches.set(store.id, { store, score, products: [] });
+      const result = matches.get(store.id);
+      result.score = Math.max(result.score, score);
+      if (!result.products.includes(product.name)) result.products.push(product.name);
+    }
+
+    const ranked = [...matches.values()]
+      .sort((a, b) => b.score - a.score || b.products.length - a.products.length || a.store.name.localeCompare(b.store.name))
+      .slice(0, 6);
+    if (ranked.length) {
+      return {
+        kind: 'shops',
+        answer: `I found ${query.words.join(' ')} at ${ranked.length} ${ranked.length === 1 ? 'shop' : 'shops'}${city ? ` in ${city}` : ''}.`,
+        shops: ranked.map(({ store, products }) => ({
+          store,
+          reason: `Has ${products.slice(0, 3).join(', ')}${products.length > 3 ? ` and ${products.length - 3} more matching ${products.length - 3 === 1 ? 'item' : 'items'}` : ''}.`,
+        })),
+      };
+    }
+  }
+
+  if (categoryMatches.length) {
+    return {
+      kind: 'shops',
+      answer: `These ${categoryMatches.length === 1 ? 'shop' : 'shops'} match ${message.trim()}${city ? ` in ${city}` : ''}.`,
+      shops: categoryMatches.slice(0, 6).map(({ store }) => ({ store, reason: `${store.shopCategory || 'Shop'}${store.location?.city ? ` · ${store.location.city}` : ''}.` })),
+    };
+  }
+
+  return {
+    kind: 'empty',
+    answer: visibleStores.length
+      ? `I couldn’t find a shop matching “${message.trim()}”${city ? ` in ${city}` : ''}. Try a product like rice or a category like pharmacy.`
+      : `There are no listed shops${city ? ` in ${city}` : ''} yet. Try another location.`,
+    shops: [],
   };
 }

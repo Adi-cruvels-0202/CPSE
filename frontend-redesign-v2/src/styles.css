@@ -4,6 +4,33 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Keep page and nested-panel scrollbars in step with the CPSE paper-and-ink theme. */
+* {
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 42%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--muted-foreground) 42%, transparent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--primary-strong) 68%, transparent);
+  background-clip: padding-box;
+}
+
 /*
  * CPSE "Bazaar Ledger" design system.
  *

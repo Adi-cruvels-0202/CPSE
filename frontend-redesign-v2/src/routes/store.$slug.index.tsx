@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type SetStateAction } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ShoppingBasket, ChevronRight, PackageOpen, Clock, Navigation, Share2, Bot, LayoutGrid } from "lucide-react";
+import { ArrowLeft, ShoppingBasket, ChevronRight, PackageOpen, Clock, Navigation, Share2, Bot, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { endpoints } from "@/lib/cpse/endpoints";
 import { formatPaise } from "@/lib/cpse/money";
@@ -14,9 +14,11 @@ import { visualForStore } from "@/customer/categories";
 import { ShopAvatar } from "@/customer/components/ShopCard";
 import { FavoriteButton } from "@/customer/components/FavoriteButton";
 import { ProductTile, ProductTileSkeleton } from "@/customer/components/ProductTile";
-import { HoursPanel, LocationPanel, ActionsPanel, AssistantPanel, OffersStrip } from "@/customer/components/StorePanels";
+import { HoursPanel, LocationPanel, ActionsPanel, AssistantPanel, OffersStrip, type AssistantTurn } from "@/customer/components/StorePanels";
 import { EmptyState, ErrorState, Skel } from "@/components/cpse/States";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type Search = { category?: string };
 
@@ -40,14 +42,23 @@ export const Route = createFileRoute("/store/$slug/")({
   component: StorePage,
 });
 
-type Tab = "products" | "hours" | "location" | "actions" | "assistant";
+type ShopInfoPanel = "hours" | "location" | "actions";
 
 function StorePage() {
   const { slug } = Route.useParams();
   const { category } = Route.useSearch();
   const navigate = useNavigate({ from: "/store/$slug/" });
   const { isSignedIn } = useAuth();
-  const [tab, setTab] = useState<Tab>("products");
+  const [openPanel, setOpenPanel] = useState<ShopInfoPanel | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantSessions, setAssistantSessions] = useState<Record<string, AssistantTurn[]>>({});
+  const assistantTurns = assistantSessions[slug] ?? [];
+  const updateAssistantTurns = (update: SetStateAction<AssistantTurn[]>) => {
+    setAssistantSessions((current) => ({
+      ...current,
+      [slug]: typeof update === "function" ? update(current[slug] ?? []) : update,
+    }));
+  };
 
   const storeQuery = useQuery({
     queryKey: ["store", slug, isSignedIn],
@@ -78,13 +89,12 @@ function StorePage() {
   const visual = visualForStore(store);
   const setCategory = (id?: string) => navigate({ search: id ? { category: id } : {}, replace: true });
 
-  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "products", label: "Products", icon: <LayoutGrid /> },
-    { id: "hours", label: "Hours", icon: <Clock /> },
-    { id: "location", label: "Location", icon: <Navigation /> },
-    { id: "actions", label: "Actions", icon: <Share2 /> },
-    { id: "assistant", label: "Assistant", icon: <Bot /> },
+  const infoActions: { id: ShopInfoPanel; label: string; icon: React.ReactNode }[] = [
+    { id: "hours", label: "Hours & ordering", icon: <Clock /> },
+    { id: "location", label: "Location & directions", icon: <Navigation /> },
+    { id: "actions", label: "Shop actions", icon: <Share2 /> },
   ];
+  const activePanelTitle = openPanel === "hours" ? "Hours & ordering" : openPanel === "location" ? "Location & directions" : "Shop actions";
 
   return (
     <div className="pb-20 md:pb-0">
@@ -113,52 +123,54 @@ function StorePage() {
         </div>
       </header>
 
-      {/* Mobile: shop info lives in tabs under the header. */}
-      <div role="tablist" aria-label="Shop sections" className="no-scrollbar -mx-4 mb-5 flex gap-2 overflow-x-auto px-4 lg:hidden">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            id={`tab-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls={`panel-${t.id}`}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors [&_svg]:h-4 [&_svg]:w-4",
-              tab === t.id ? "border-ink bg-ink text-ink-foreground" : "border-border bg-card",
-            )}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <div className="space-y-5">
+        <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Shop information and actions">
+          {infoActions.map((action) => (
+            <Button
+              key={action.id}
+              type="button"
+              variant="outline"
+              onClick={() => setOpenPanel(action.id)}
+              className="h-11 shrink-0 gap-2 rounded-xl bg-card px-3.5 text-xs sm:text-sm"
+            >
+              {action.icon}
+              {action.label}
+            </Button>
+          ))}
+        </div>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div id="panel-products" role="tabpanel" aria-labelledby="tab-products" className={cn(tab !== "products" && "hidden lg:block")}>
+        <div>
           <OffersStrip slug={slug} />
           <Catalogue store={store} categoryId={category} onCategory={setCategory} />
         </div>
-
-        <aside aria-label="About this shop" className={cn("lg:block", tab === "products" && "hidden")}>
-          <div className="space-y-4 lg:sticky lg:top-28">
-            {(["hours", "location", "actions", "assistant"] as Tab[]).map((id) => (
-              <div
-                key={id}
-                id={`panel-${id}`}
-                role="tabpanel"
-                aria-labelledby={`tab-${id}`}
-                className={cn("surface p-4", tab !== id && "hidden lg:block")}
-              >
-                {id === "hours" ? <HoursPanel store={store} /> : null}
-                {id === "location" ? <LocationPanel store={store} /> : null}
-                {id === "actions" ? <ActionsPanel store={store} /> : null}
-                {id === "assistant" ? <AssistantPanel store={store} isSignedIn={isSignedIn} /> : null}
-              </div>
-            ))}
-          </div>
-        </aside>
       </div>
+
+      <Dialog open={openPanel !== null} onOpenChange={(open) => { if (!open) setOpenPanel(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto rounded-2xl sm:max-w-xl">
+          <DialogTitle>{activePanelTitle}</DialogTitle>
+          <DialogDescription>Shop details for {store.name}.</DialogDescription>
+          {openPanel === "hours" ? <HoursPanel store={store} showTitle={false} /> : null}
+          {openPanel === "location" ? <LocationPanel store={store} showTitle={false} /> : null}
+          {openPanel === "actions" ? <ActionsPanel store={store} showTitle={false} /> : null}
+        </DialogContent>
+      </Dialog>
+
+      <Popover open={assistantOpen} onOpenChange={setAssistantOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ink"
+            size="icon"
+            className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 h-14 w-14 rounded-full shadow-pop md:bottom-24 md:right-6"
+            aria-label={assistantOpen ? "Close shop assistant" : "Open shop assistant"}
+          >
+            {assistantOpen ? <X className="h-5 w-5" /> : <Bot className="h-6 w-6" />}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent side="top" align="end" sideOffset={12} className="max-h-[min(70vh,36rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-border-strong/20 bg-background shadow-pop">
+          <AssistantPanel key={store.id} store={store} isSignedIn={isSignedIn} messages={assistantTurns} setMessages={updateAssistantTurns} />
+        </PopoverContent>
+      </Popover>
 
       <CartBar store={store} />
     </div>
@@ -287,15 +299,15 @@ function StoreSkeleton() {
   return (
     <div role="status" aria-label="Loading the shop" className="space-y-6">
       <Skel className="h-52 w-full rounded-3xl" />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }, (_, i) => <ProductTileSkeleton key={i} />)}
-        </div>
-        <div className="hidden space-y-4 lg:block">
-          <Skel className="h-64 rounded-2xl" />
-          <Skel className="h-36 rounded-2xl" />
-        </div>
+      <div aria-hidden="true" className="flex gap-2 overflow-hidden">
+        <Skel className="h-11 w-36 shrink-0 rounded-xl" />
+        <Skel className="h-11 w-40 shrink-0 rounded-xl" />
+        <Skel className="h-11 w-32 shrink-0 rounded-xl" />
       </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }, (_, i) => <ProductTileSkeleton key={i} />)}
+      </div>
+      <div aria-hidden="true"><Skel className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 h-14 w-14 rounded-full shadow-pop md:bottom-24 md:right-6" /></div>
     </div>
   );
 }

@@ -86,6 +86,13 @@ const slug = z.string().trim().min(1).max(60).regex(/^[a-z0-9]+(-[a-z0-9]+)*$/i,
 const slugParams = z.object({ slug }).strict();
 const slugProductParams = z.object({ slug, productId: uuid('product') }).strict();
 
+customerIntelligenceRouter.post(
+  '/assistant',
+  optionalAuth,
+  validate({ body: z.object({ message: text(200), city: z.string().trim().max(100).optional() }).strict() }),
+  respond(async (req) => ({ reply: await customer.homeAssistant(req.body) })),
+);
+
 customerIntelligenceRouter.get(
   '/:slug/smart-search',
   optionalAuth,

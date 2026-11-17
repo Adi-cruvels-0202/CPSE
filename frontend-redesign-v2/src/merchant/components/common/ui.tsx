@@ -7,9 +7,53 @@ import { IconStore } from '../icons/Icons';
 /** Small shared pieces, so every screen says "loading" and "empty" the same way. */
 
 export function Spinner({ large = false }: { large?: boolean }) {
+  if (large) return <PageLoadingSkeleton />;
   return (
     <div style={{ padding: 40, textAlign: 'center' }}>
-      <div className={`spinner ${large ? 'spinner-lg' : ''}`} role="status" aria-label="Loading" />
+      <div className="spinner" role="status" aria-label="Loading" />
+    </div>
+  );
+}
+
+function SkeletonBlock({ className = '' }: { className?: string }) {
+  return <div aria-hidden="true" className={`animate-pulse rounded-xl bg-sunk motion-reduce:animate-none ${className}`} />;
+}
+
+function PageSkeletonContent() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4" aria-hidden="true">
+        <div className="space-y-2"><SkeletonBlock className="h-8 w-44 rounded-lg" /><SkeletonBlock className="h-4 w-64 max-w-[60vw] rounded-md" /></div>
+        <SkeletonBlock className="h-10 w-32 rounded-xl" />
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-hidden="true">
+        {[0, 1, 2, 3].map((item) => <SkeletonBlock key={item} className="h-24 rounded-2xl" />)}
+      </div>
+      <div className="space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5" aria-hidden="true">
+        <SkeletonBlock className="h-5 w-40 rounded-md" />
+        <div className="flex gap-2"><SkeletonBlock className="h-9 w-24 rounded-full" /><SkeletonBlock className="h-9 w-28 rounded-full" /><SkeletonBlock className="h-9 w-20 rounded-full" /></div>
+        <SkeletonBlock className="h-52 w-full rounded-xl" />
+      </div>
+    </div>
+  );
+}
+
+/** Shared branded loading shape for merchant pages and initial app hydration. */
+export function PageLoadingSkeleton({ fullPage = false }: { fullPage?: boolean }) {
+  if (!fullPage) {
+    return <div role="status" aria-busy="true" aria-label="Loading page" className="py-2"><span className="sr-only">Loading page…</span><PageSkeletonContent /></div>;
+  }
+  return (
+    <div role="status" aria-busy="true" aria-label="Loading shop workspace" className="min-h-screen bg-background lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside aria-hidden="true" className="hidden flex-col gap-6 bg-ink p-5 lg:flex">
+        <SkeletonBlock className="h-10 w-36 rounded-lg bg-ink-line" />
+        <SkeletonBlock className="h-11 w-full rounded-xl bg-ink-line" />
+        <div className="space-y-2">{[0, 1, 2, 3, 4, 5, 6].map((item) => <SkeletonBlock key={item} className="h-10 w-full rounded-xl bg-ink-line" />)}</div>
+      </aside>
+      <main className="p-4 pt-6 sm:p-6 lg:p-10">
+        <span className="sr-only">Loading shop workspace…</span>
+        <div className="mx-auto max-w-6xl"><PageSkeletonContent /></div>
+      </main>
     </div>
   );
 }

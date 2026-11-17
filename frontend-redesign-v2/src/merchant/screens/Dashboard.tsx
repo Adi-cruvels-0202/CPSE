@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Plus, ExternalLink, AlertTriangle, ArrowRight, Calculator, Package, ClipboardList, ReceiptText, Loader2 } from "lucide-react";
+import { Plus, ExternalLink, AlertTriangle, ArrowRight, Calculator, Package, ClipboardList, ReceiptText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { OrderStamp } from "@/components/cpse/Stamp";
@@ -8,7 +8,7 @@ import { useActiveStore } from "@/merchant/hooks/useStore";
 import { dashboardApi } from "@/merchant/api/endpoints";
 import { errorMessage } from "@/merchant/api/client";
 import { formatPaise } from "@/merchant/lib/money";
-import { formatDateTime } from "@/merchant/components/common/ui";
+import { formatDateTime, PageLoadingSkeleton } from "@/merchant/components/common/ui";
 import { Link, Navigate } from "@/merchant/router";
 
 export function Dashboard() {
@@ -25,11 +25,7 @@ export function Dashboard() {
 
   if (status === "merchant" && stores.length === 0) return <Navigate to="/store/new" replace />;
   if (!activeStoreId || isLoading)
-    return (
-      <div className="grid place-items-center py-24" role="status" aria-label="Loading">
-        <Loader2 className="h-7 w-7 animate-spin text-primary-strong" />
-      </div>
-    );
+    return <PageLoadingSkeleton />;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";

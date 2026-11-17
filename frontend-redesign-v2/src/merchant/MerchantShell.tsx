@@ -30,6 +30,7 @@ import {
 import { useAuth } from "@/merchant/hooks/useAuth";
 import { useActiveStore } from "@/merchant/hooks/useStore";
 import { dashboardApi } from "@/merchant/api/endpoints";
+import { MerchantAssistant } from "@/merchant/components/common/MerchantAssistant";
 import { Link, useLocation, useNavigate } from "@/merchant/router";
 
 const MORE_PATHS = [
@@ -170,6 +171,7 @@ export function MerchantShell({ children }: { children: ReactNode }) {
           </ul>
         </nav>
       </div>
+      <MerchantAssistant />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Clock, X, Loader2, CreditCard } from "lucide-react";
@@ -9,6 +9,7 @@ import { RequireAuth } from "@/customer/RequireAuth";
 import { cpse } from "@/customer/hooks";
 import { ErrorState, InlineError, Skel } from "@/components/cpse/States";
 import { Button } from "@/components/ui/button";
+import { v2Path } from "@/lib/v2Path";
 
 type Search = { outcome?: string };
 
@@ -43,13 +44,16 @@ function outcomeOf(order: any) {
 }
 
 /** Starts a payment attempt. The mock gateway page lives inside this app. */
-async function startPayment(orderId: string, navigate: ReturnType<typeof useNavigate>) {
+async function startPayment(orderId: string) {
   const { data } = await endpoints.payments.initiate(orderId);
   const url: string | undefined = data?.clientPayload?.checkoutUrl;
   if (!url) throw new Error("The payment provider did not give us anywhere to go.");
   const parsed = new URL(url, window.location.origin);
-  if (parsed.origin === window.location.origin || parsed.hostname === "cpse.onrender.com") {
-    navigate({ href: `${parsed.pathname}${parsed.search}` });
+  const localMockGateway = parsed.pathname === "/mock-payment"
+    && ["localhost", "127.0.0.1"].includes(parsed.hostname)
+    && parsed.port === window.location.port;
+  if (parsed.origin === window.location.origin || parsed.hostname === "cpse.onrender.com" || localMockGateway) {
+    window.location.assign(v2Path(`${parsed.pathname}${parsed.search}${parsed.hash}`));
   } else {
     window.location.assign(url);
   }
@@ -58,7 +62,6 @@ async function startPayment(orderId: string, navigate: ReturnType<typeof useNavi
 function PaymentPage() {
   const { orderId } = Route.useParams();
   const { outcome: claimed } = Route.useSearch();
-  const navigate = useNavigate();
   const [verifying, setVerifying] = useState(false);
   const [starting, setStarting] = useState(false);
   const [actionError, setActionError] = useState<any>(null);
@@ -120,7 +123,7 @@ function PaymentPage() {
     setStarting(true);
     setActionError(null);
     try {
-      await startPayment(orderId, navigate);
+      await startPayment(orderId);
     } catch (e) {
       setActionError(e);
       setStarting(false);

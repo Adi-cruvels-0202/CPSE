@@ -6,13 +6,14 @@ import { useActiveStore } from '../../hooks/useStore';
 import { useToast } from '../../hooks/useToast';
 import { ErrorState, NoStore, PageHeader, Spinner } from '../../components/common/ui';
 import { IconCopy, IconExternalLink, IconShare } from '../../components/icons/Icons';
+import { v2Path } from '@/lib/v2Path';
 
 /**
  * Share the shop (roadmap §4 P1 discoverability): the public link, a QR code
  * for the counter (download or print), WhatsApp and the map location. The
- * customer app is served from the same origin as this one, at /store/<slug>.
+ * customer app is served from the same origin as this one, at /v2/store/<slug>.
  */
-export const storeLink = (slug: string, origin = window.location.origin) => `${origin}/store/${encodeURIComponent(slug)}`;
+export const storeLink = (slug: string, origin = typeof window === 'undefined' ? '' : window.location.origin) => `${origin}${v2Path(`/store/${encodeURIComponent(slug)}`)}`;
 
 export default function SharePage() {
   const { activeStoreId } = useActiveStore();

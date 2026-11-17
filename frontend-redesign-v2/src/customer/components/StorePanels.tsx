@@ -25,6 +25,7 @@ import { formatWhen } from "@/lib/cpse/orderStatus";
 import { cpse } from "../hooks";
 import { AddToCart } from "./AddToCart";
 import { Button } from "@/components/ui/button";
+import { v2Path } from "@/lib/v2Path";
 
 function PanelTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -150,7 +151,8 @@ export function LocationPanel({ store, showTitle = true }: { store: any; showTit
 
 export function ActionsPanel({ store, showTitle = true }: { store: any; showTitle?: boolean }) {
   const [status, setStatus] = useState("");
-  const url = typeof window === "undefined" ? `/store/${store.slug}` : `${window.location.origin}/store/${store.slug}`;
+  const storePath = v2Path(`/store/${store.slug}`);
+  const url = typeof window === "undefined" ? storePath : `${window.location.origin}${storePath}`;
 
   const share = async () => {
     try {

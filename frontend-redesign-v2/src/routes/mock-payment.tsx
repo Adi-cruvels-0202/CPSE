@@ -8,6 +8,7 @@ import { RequireAuth } from "@/customer/RequireAuth";
 import { cpse } from "@/customer/hooks";
 import { ErrorState, Skel } from "@/components/cpse/States";
 import { Button } from "@/components/ui/button";
+import { v2Path } from "@/lib/v2Path";
 
 type Search = { ref?: string };
 
@@ -49,7 +50,7 @@ function MockPayment() {
   const order = orders.data?.orders?.[0] ?? null;
 
   useEffect(() => {
-    if (returning && order) window.location.assign(`/payment/${order.id}?outcome=${returning}`);
+    if (returning && order) window.location.assign(v2Path(`/payment/${order.id}?outcome=${encodeURIComponent(returning)}`));
   }, [returning, order]);
 
   if (!ref) return <ErrorState title="Nothing to pay for" error={{ message: "This page is opened by the payment step; there is no payment to show." }} />;

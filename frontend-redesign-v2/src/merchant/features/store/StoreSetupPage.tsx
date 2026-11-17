@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from '@/merchant/router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { storeApi } from '../../api/endpoints';
+import { v2Path } from '@/lib/v2Path';
 import { ApiError, errorMessage } from '../../api/client';
 import type { Day, OpeningHours, OpeningWindow, Store } from '../../api/types';
 import { useActiveStore } from '../../hooks/useStore';
@@ -76,7 +77,7 @@ export default function StoreSetupPage({ isNewStore = false }: { isNewStore?: bo
         </div>
         <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
           {store.isPublished && (
-            <a href={store.publicPath} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
+            <a href={v2Path(store.publicPath)} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
               View store <IconExternalLink size={13} />
             </a>
           )}

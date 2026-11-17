@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type SetStateAction } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ShoppingBasket, ChevronRight, PackageOpen, Clock, Navigation, Share2, Bot } from "lucide-react";
+import { ArrowLeft, ShoppingBasket, ChevronRight, PackageOpen, Clock, Navigation, Share2, Bot, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { endpoints } from "@/lib/cpse/endpoints";
 import { formatPaise } from "@/lib/cpse/money";
@@ -50,6 +50,7 @@ function StorePage() {
   const navigate = useNavigate({ from: "/store/$slug/" });
   const { isSignedIn } = useAuth();
   const [openPanel, setOpenPanel] = useState<ShopInfoPanel | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantSessions, setAssistantSessions] = useState<Record<string, AssistantTurn[]>>({});
   const assistantTurns = assistantSessions[slug] ?? [];
   const updateAssistantTurns = (update: SetStateAction<AssistantTurn[]>) => {
@@ -154,16 +155,16 @@ function StorePage() {
         </DialogContent>
       </Dialog>
 
-      <Popover>
+      <Popover open={assistantOpen} onOpenChange={setAssistantOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"
             variant="ink"
             size="icon"
             className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 h-14 w-14 rounded-full shadow-pop md:bottom-24 md:right-6"
-            aria-label="Open shop assistant"
+            aria-label={assistantOpen ? "Close shop assistant" : "Open shop assistant"}
           >
-            <Bot className="h-6 w-6" />
+            {assistantOpen ? <X className="h-5 w-5" /> : <Bot className="h-6 w-6" />}
           </Button>
         </PopoverTrigger>
         <PopoverContent side="top" align="end" sideOffset={12} className="max-h-[min(70vh,36rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border-border-strong/20 bg-background shadow-pop">

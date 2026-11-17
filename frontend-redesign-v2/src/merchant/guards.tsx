@@ -1,15 +1,12 @@
 import { useState, type ReactNode } from "react";
 import { Loader2, Store, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageLoadingSkeleton } from "@/merchant/components/common/ui";
 import { useAuth } from "@/merchant/hooks/useAuth";
 import { Navigate } from "@/merchant/router";
 
 export function FullPageSpinner() {
-  return (
-    <div className="grid min-h-screen place-items-center bg-background" role="status" aria-label="Loading">
-      <Loader2 className="h-8 w-8 animate-spin text-primary-strong" />
-    </div>
-  );
+  return <PageLoadingSkeleton fullPage />;
 }
 
 /** The account could not be loaded — offer a retry, not an empty shop. */

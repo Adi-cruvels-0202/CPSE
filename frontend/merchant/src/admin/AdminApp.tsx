@@ -100,6 +100,7 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -116,29 +117,50 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
     }
   };
   return (
-    <div className="auth-page">
-      <div className="auth-form-panel" style={{ margin: '0 auto' }}>
-        <div className="auth-form-container">
-          <div className="auth-mobile-logo" style={{ display: 'block' }}><Logo size="lg" tagline="admin" /></div>
-          <div className="auth-form-header">
-            <h2 className="auth-form-title">CPSE admin</h2>
-            <p className="auth-form-subtitle">Admin sign-in.</p>
-          </div>
-          <form className="auth-form" onSubmit={submit}>
-            {error && <div className="auth-error" role="alert">{error}</div>}
-            <div className="input-wrapper">
-              <label className="input-label" htmlFor="admin-email">Email</label>
-              <input id="admin-email" type="email" className="input-field" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="input-wrapper">
-              <label className="input-label" htmlFor="admin-password">Password</label>
-              <input id="admin-password" type="password" className="input-field" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            <button type="submit" className="btn btn-primary btn-lg auth-submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-          </form>
+    <main className="admin-login">
+      <section className="admin-login__brand" aria-label="CPSE Shops">
+        <a className="admin-login__lockup" href="/" aria-label="CPSE Shops home">
+          <span className="admin-login__mark" aria-hidden="true"><IconStore size={20} /></span>
+          <span className="admin-login__wordmark">CPSE<span>SHOPS</span></span>
+        </a>
+        <div className="admin-login__story">
+          <h1>Your shop, online<span>and at the counter.</span></h1>
+          <p>Take orders from your neighbourhood, keep stock straight and ring up walk-ins.</p>
+          <ul>
+            <li><span aria-hidden="true"><IconClipboard size={15} /></span>Accept and hand over online orders</li>
+            <li><span aria-hidden="true"><IconStore size={15} /></span>Stock that stays right, batch by batch</li>
+            <li><span aria-hidden="true">₹</span>A fast counter bill for walk-ins</li>
+          </ul>
         </div>
-      </div>
-    </div>
+        <span className="admin-login__caption">CPSE · Neighbourhood commerce</span>
+      </section>
+      <section className="admin-login__panel" aria-label="Admin sign in">
+        <div className="admin-login__content">
+          <p className="admin-login__eyebrow">Platform administration</p>
+          <h2>Welcome back</h2>
+          <p className="admin-login__subtitle">Sign in to manage CPSE shops and support.</p>
+          <form className="admin-login__form" onSubmit={submit}>
+            {error && <div className="admin-login__error" role="alert">{error}</div>}
+            <div>
+              <label htmlFor="admin-email">Email</label>
+              <input id="admin-email" name="email" type="email" autoComplete="username" placeholder="you@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div>
+              <label htmlFor="admin-password">Password</label>
+              <div className="admin-login__password">
+                <input id="admin-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <button type="button" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}>{showPassword ? 'Hide' : 'Show'}</button>
+              </div>
+            </div>
+            <button className="admin-login__submit" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+          </form>
+          <div className="admin-login__footer">
+            <p>Shop with CPSE? <a href="/v2/">Customer home</a></p>
+            <p>Run a shop? <a href="/v2/merchant/login">Merchant sign in</a></p>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
 

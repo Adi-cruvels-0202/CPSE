@@ -50,6 +50,12 @@ export function Login() {
               Merchant sign in
             </a>
           </p>
+          <p className="auth__switch">
+            Managing CPSE?{' '}
+            <a href="/admin" className="auth__link">
+              Admin sign in
+            </a>
+          </p>
         </>
       }
     >

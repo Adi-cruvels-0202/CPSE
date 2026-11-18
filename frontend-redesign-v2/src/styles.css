@@ -317,6 +317,20 @@
   }
 }
 
+/* Keep the home subcategory rail swipeable without exposing a browser-style bar. */
+.category-subcategory-rail,
+.shop-category-rail {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.category-subcategory-rail::-webkit-scrollbar,
+.shop-category-rail::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
 @keyframes drop-in {
   from {
     opacity: 0;

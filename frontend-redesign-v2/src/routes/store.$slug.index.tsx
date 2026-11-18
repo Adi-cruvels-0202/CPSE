@@ -107,7 +107,7 @@ function StorePage() {
           <FavoriteButton storeId={store.id} storeName={store.name} isSaved={store.isSaved} size="lg" />
         </div>
         <div className="relative flex flex-col gap-4 bg-card/95 p-4 text-foreground sm:flex-row sm:items-end sm:p-6">
-          <ShopAvatar store={store} className="-mt-14 h-20 w-20 shrink-0 text-2xl shadow-lift sm:-mt-16 sm:h-24 sm:w-24" />
+          <ShopAvatar store={store} className="-mt-4 h-16 w-16 shrink-0 text-xl shadow-lift sm:-mt-16 sm:h-24 sm:w-24 sm:text-2xl" />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">{visual.label}</p>
             <h1 className="text-3xl font-extrabold sm:text-4xl">{store.name}</h1>
@@ -124,17 +124,17 @@ function StorePage() {
       </header>
 
       <div className="space-y-5">
-        <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Shop information and actions">
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Shop information and actions">
           {infoActions.map((action) => (
             <Button
               key={action.id}
               type="button"
               variant="outline"
               onClick={() => setOpenPanel(action.id)}
-              className="h-11 shrink-0 gap-2 rounded-xl bg-card px-3.5 text-xs sm:text-sm"
+              className="h-auto min-h-12 min-w-0 flex-row gap-1 rounded-xl bg-card px-1.5 py-2 text-[10px] leading-tight sm:h-11 sm:min-h-0 sm:gap-2 sm:px-3.5 sm:text-sm"
             >
-              {action.icon}
-              {action.label}
+              <span className="shrink-0 [&>svg]:h-4 [&>svg]:w-4 sm:[&>svg]:h-4 sm:[&>svg]:w-4">{action.icon}</span>
+              <span className="line-clamp-2 min-w-0 text-left">{action.label}</span>
             </Button>
           ))}
         </div>
@@ -200,12 +200,12 @@ function Catalogue({ store, categoryId, onCategory }: { store: any; categoryId?:
   return (
     <section aria-labelledby="catalogue-title">
       <div className="mb-4 flex items-end justify-between gap-4">
-        <h2 id="catalogue-title" className="text-2xl font-extrabold">{current?.name ?? "Everything in the shop"}</h2>
+        <h2 id="catalogue-title" className="text-xl font-extrabold sm:text-2xl">{current?.name ?? "Everything in the shop"}</h2>
         {total !== undefined ? <p className="numeric shrink-0 text-sm text-muted-foreground">{total} items</p> : null}
       </div>
 
       {cats.length > 1 ? (
-        <div role="group" aria-label="Filter by category" className="no-scrollbar -mx-1 mb-5 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div role="group" aria-label="Filter by category" className="shop-category-rail no-scrollbar -mx-1 mb-5 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2">
           {[{ id: undefined, name: "All" }, ...cats].map((c: any) => {
             const active = (categoryId ?? undefined) === c.id;
             return (

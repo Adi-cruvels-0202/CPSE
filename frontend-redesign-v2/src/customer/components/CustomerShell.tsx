@@ -82,7 +82,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-border-strong/15 bg-background/92 backdrop-blur-md">
         <div className="mx-auto grid max-w-7xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-4 py-3 md:grid-cols-[auto_auto_minmax(0,1fr)_auto] md:gap-x-5 lg:px-6">
           <Link to="/" className="col-start-1 row-start-1 flex shrink-0 items-center" aria-label="CPSE home">
-            <Logo />
+            <Logo markOnlyOnMobile />
           </Link>
           <div className="col-start-2 row-start-1 min-w-0">
             <LocationPicker compact={false} />
@@ -91,7 +91,9 @@ export function CustomerShell({ children }: { children: ReactNode }) {
             <HeaderSearch store={searchStore} className="col-span-3 col-start-1 row-start-2 md:col-span-1 md:col-start-3 md:row-start-1" />
           ) : null}
           <div className="col-start-3 row-start-1 flex shrink-0 items-center justify-end gap-1.5 md:col-start-4">
-            <AccountMenu />
+            <div className="hidden md:block">
+              <AccountMenu />
+            </div>
             {!focusFlow ? (
               <Link
                 to="/cart"

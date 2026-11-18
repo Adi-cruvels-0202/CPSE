@@ -169,7 +169,7 @@ function Directory() {
   return (
     <div className="space-y-10">
       {favourites.length > 0 ? (
-        <section aria-labelledby="fav-heading">
+        <section aria-labelledby="fav-heading" className="hidden md:block">
           <div className="mb-3 flex items-center justify-between">
             <h2 id="fav-heading" className="text-xl font-bold">Your favourites</h2>
             <Link to="/saved" className="text-sm font-semibold text-primary-strong hover:underline">Manage</Link>
@@ -226,7 +226,7 @@ function Directory() {
         </div>
 
         {subcategories.length > 1 ? (
-          <div role="group" aria-label="Narrow by what they sell" className="no-scrollbar mt-4 flex gap-2 overflow-x-auto pb-1">
+          <div role="group" aria-label="Narrow by what they sell" className="category-subcategory-rail no-scrollbar -mx-1 mt-4 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-2">
             <Chip active={!sub} onClick={() => setSub("")}>Everything</Chip>
             {subcategories.map((c: any) => (
               <Chip key={c.slug} active={sub === c.slug} onClick={() => setSub(c.slug)}>
@@ -238,7 +238,7 @@ function Directory() {
       </section>
 
       {directory.isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" role="status" aria-label="Loading shops">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" role="status" aria-label="Loading shops">
           {Array.from({ length: 8 }, (_, i) => <ShopCardSkeleton key={i} />)}
         </div>
       ) : cityStores.length === 0 ? (
@@ -264,7 +264,7 @@ function Directory() {
                   </button>
                 ) : null}
               </div>
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                 {shops.slice(0, 4).map((s: any) => (
                   <li key={s.id}>
                     <ShopCard store={s} saved={isSaved(s)} />
@@ -284,7 +284,7 @@ function Directory() {
             <span className="numeric font-semibold text-foreground">{shown.length}</span> {shown.length === 1 ? "shop" : "shops"}
             {city ? ` in ${city}` : ""}
           </p>
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             {shown.map((s: any) => (
               <li key={s.id} className="animate-rise-in">
                 <ShopCard store={s} saved={isSaved(s)} />

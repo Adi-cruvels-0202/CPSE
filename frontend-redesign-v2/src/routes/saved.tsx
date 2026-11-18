@@ -37,7 +37,7 @@ function SavedPage() {
     <div>
       <PageTitle eyebrow="Favourites" title="Shops you love" body="Tap the heart on any shop to keep it here." />
       {query.isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">{[0, 1, 2, 3].map((k) => <ShopCardSkeleton key={k} />)}</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">{[0, 1, 2, 3].map((k) => <ShopCardSkeleton key={k} />)}</div>
       ) : query.error ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       ) : list.length === 0 ? (
@@ -45,7 +45,7 @@ function SavedPage() {
           <Button asChild variant="ink"><Link to="/">Browse shops</Link></Button>
         </EmptyState>
       ) : (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
           {list.map((e: any) => (
             <li key={e.store.id}>
               <ShopCard store={e.store} saved />

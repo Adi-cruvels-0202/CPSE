@@ -56,8 +56,8 @@ function OrdersPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <PageTitle eyebrow="Orders" title="What you’ve ordered" />
-      <div role="group" aria-label="Filter orders" className="no-scrollbar -mx-1 mb-6 flex gap-2 overflow-x-auto px-1">
+      <PageTitle eyebrow="Orders" title="What you’ve ordered" className="mb-4 md:mb-6 [&_h1]:text-2xl sm:[&_h1]:text-4xl" />
+      <div role="group" aria-label="Filter orders" className="mb-4 flex flex-wrap gap-2 md:mb-6">
         {FILTERS.map((f) => {
           const active = status === f.value;
           return (
@@ -66,7 +66,7 @@ function OrdersPage() {
               to="/orders"
               search={f.value ? { status: f.value } : {}}
               aria-current={active ? "true" : undefined}
-              className={cn("h-10 shrink-0 rounded-full border px-4 text-sm font-semibold leading-10 transition-colors", active ? "border-ink bg-ink text-ink-foreground" : "border-border bg-card hover:border-border-strong")}
+              className={cn("h-9 shrink-0 rounded-full border px-3 text-xs font-semibold leading-9 transition-colors sm:h-10 sm:px-4 sm:text-sm sm:leading-10", active ? "border-ink bg-ink text-ink-foreground" : "border-border bg-card hover:border-border-strong")}
             >
               {f.label}
             </Link>
@@ -75,8 +75,8 @@ function OrdersPage() {
       </div>
 
       {query.isLoading ? (
-        <div role="status" aria-label="Loading orders" className="space-y-3">
-          {[0, 1, 2].map((k) => <Skel key={k} className="h-28 rounded-2xl" />)}
+        <div role="status" aria-label="Loading orders" className="space-y-2.5 sm:space-y-3">
+          {[0, 1, 2].map((k) => <Skel key={k} className="h-24 rounded-2xl sm:h-28" />)}
         </div>
       ) : query.error ? (
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
@@ -89,13 +89,13 @@ function OrdersPage() {
           {live.length ? (
             <section aria-labelledby="live-h">
               <h2 id="live-h" className="mb-3 text-lg font-bold">Happening now</h2>
-              <ul className="space-y-3">{live.map((o: any) => <OrderRow key={o.id} order={o} live />)}</ul>
+              <ul className="space-y-2.5 sm:space-y-3">{live.map((o: any) => <OrderRow key={o.id} order={o} live />)}</ul>
             </section>
           ) : null}
           {past.length ? (
             <section aria-labelledby="past-h">
               {live.length ? <h2 id="past-h" className="mb-3 text-lg font-bold">Past orders</h2> : null}
-              <ul className="space-y-3">{past.map((o: any) => <OrderRow key={o.id} order={o} />)}</ul>
+              <ul className="space-y-2.5 sm:space-y-3">{past.map((o: any) => <OrderRow key={o.id} order={o} />)}</ul>
             </section>
           ) : null}
           {query.hasNextPage ? (
@@ -115,20 +115,20 @@ function OrderRow({ order, live }: { order: any; live?: boolean }) {
   const progress = progressFor(order.status, order.fulfilmentMode);
   return (
     <li>
-      <Link to="/orders/$orderId" params={{ orderId: order.id }} className={cn("surface press grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 p-4", live && "border-border-strong/40")}>
-        <span className={cn("grid h-12 w-12 place-items-center rounded-xl", live ? "bg-primary text-primary-foreground" : "bg-sunk text-muted-foreground")}>
+      <Link to="/orders/$orderId" params={{ orderId: order.id }} className={cn("surface press grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-4 sm:p-4", live && "border-border-strong/40")}>
+        <span className={cn("grid h-10 w-10 place-items-center rounded-lg sm:h-12 sm:w-12 sm:rounded-xl", live ? "bg-primary text-primary-foreground" : "bg-sunk text-muted-foreground")}>
           {order.fulfilmentMode === "delivery" ? <Bike className="h-5 w-5" /> : <ShoppingBag className="h-5 w-5" />}
         </span>
         <span className="min-w-0">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="truncate font-bold">{order.storeName}</span>
-            <OrderStamp status={order.status} label={order.statusLabel} />
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="truncate text-sm font-bold sm:text-base">{order.storeName}</span>
+            <OrderStamp status={order.status} label={order.statusLabel} className="px-1.5 text-[10px] sm:px-2 sm:text-xs" />
           </span>
-          <span className="block truncate text-sm text-muted-foreground">
+          <span className="mt-1 block truncate text-xs text-muted-foreground sm:text-sm">
             {live ? meaningFor(order.status) : `${order.itemCount} ${order.itemCount === 1 ? "item" : "items"} · ${order.orderNumber}`}
           </span>
           {live && progress ? (
-            <span className="mt-2 flex max-w-xs gap-1" aria-label={`Step ${progress.step} of ${progress.total}`}>
+            <span className="mt-1.5 flex max-w-xs gap-1 sm:mt-2" aria-label={`Step ${progress.step} of ${progress.total}`}>
               {Array.from({ length: progress.total }, (_, i) => (
                 <span key={i} className={cn("h-1.5 flex-1 rounded-full", i < progress.step ? "bg-success" : "bg-sunk")} />
               ))}
@@ -136,9 +136,9 @@ function OrderRow({ order, live }: { order: any; live?: boolean }) {
           ) : null}
         </span>
         <span className="text-right">
-          <span className="numeric block font-bold">{formatPaise(order.totalPaise)}</span>
-          <span className="block text-xs text-muted-foreground">{formatSince(order.placedAt)}</span>
-          <ChevronRight className="ml-auto mt-1 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <span className="numeric block text-sm font-bold sm:text-base">{formatPaise(order.totalPaise)}</span>
+          <span className="block text-[10px] text-muted-foreground sm:text-xs">{formatSince(order.placedAt)}</span>
+          <ChevronRight className="ml-auto mt-0.5 h-3.5 w-3.5 text-muted-foreground sm:mt-1 sm:h-4 sm:w-4" aria-hidden="true" />
         </span>
       </Link>
     </li>

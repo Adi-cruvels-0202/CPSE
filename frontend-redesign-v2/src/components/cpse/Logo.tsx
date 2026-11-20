@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 /** CPSE wordmark: an awning-striped shop mark next to the name. */
 export function Logo({ size = "md", tone = "default", suffix, markOnly = false, markOnlyOnMobile = false }: { size?: "sm" | "md"; tone?: "default" | "ink"; suffix?: string; markOnly?: boolean; markOnlyOnMobile?: boolean }) {
   return (
-    <span className={cn("flex items-center gap-2", tone === "ink" ? "text-ink-foreground" : "text-foreground")}>
+    <span className={cn("flex items-center", markOnly ? "gap-0" : markOnlyOnMobile ? "gap-0 md:gap-2" : "gap-2", tone === "ink" ? "text-ink-foreground" : "text-foreground")}>
       <span
         aria-hidden="true"
         className={cn(
@@ -21,7 +21,7 @@ export function Logo({ size = "md", tone = "default", suffix, markOnly = false, 
       <span className={cn(
         "overflow-hidden whitespace-nowrap font-display font-extrabold tracking-tight transition-[max-width,opacity] duration-150",
         size === "sm" ? "text-lg" : "text-2xl",
-        markOnly ? "max-w-0 opacity-0" : markOnlyOnMobile ? "max-w-0 opacity-0 md:max-w-24 md:opacity-100" : "max-w-24 opacity-100",
+        markOnly ? "max-w-0 opacity-0" : markOnlyOnMobile ? "max-w-0 opacity-0 md:max-w-36 md:opacity-100" : "max-w-36 opacity-100",
       )}>
         CPSE
         {suffix ? <span className={cn("ml-1.5 font-sans text-xs font-bold uppercase tracking-[0.18em]", tone === "ink" ? "text-primary" : "text-primary-strong")}>{suffix}</span> : null}

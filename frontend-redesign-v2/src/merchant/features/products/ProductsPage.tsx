@@ -132,7 +132,7 @@ export default function ProductsPage() {
               <thead><tr><th style={{ width: 44 }}></th><th>Product</th><th>Category</th><th>Price</th><th>Can sell</th><th>Status</th><th style={{ width: 100 }}></th></tr></thead>
               <tbody>
                 {products.map((product) => (
-                  <tr key={product.id} style={{ cursor: 'pointer' }} onClick={() => setOpenId(product.id)}>
+                  <tr key={product.id} className={!product.isActive ? 'product-row--inactive' : undefined} style={{ cursor: 'pointer' }} onClick={() => setOpenId(product.id)}>
                     <td>
                       <div className="product-thumb">
                         {product.images[0] ? <img src={product.images[0].url} alt="" /> : <IconPackage size={16} />}

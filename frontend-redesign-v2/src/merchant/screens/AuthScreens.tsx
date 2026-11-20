@@ -12,7 +12,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <aside className="relative hidden overflow-hidden bg-ink p-12 text-ink-foreground lg:flex lg:flex-col">
         <div className="awning absolute inset-x-0 top-0 h-3 opacity-80" aria-hidden="true" />
-        <Logo tone="ink" suffix="Shops" />
+        <Logo tone="ink" suffix="Shop" />
         <div className="mt-auto max-w-md">
           <h1 className="font-display text-5xl font-extrabold leading-[1.02] tracking-tight">
             Your shop, online <span className="text-primary">and at the counter.</span>
@@ -34,11 +34,11 @@ function AuthFrame({ children }: { children: ReactNode }) {
           </ul>
         </div>
       </aside>
-      <main className="flex items-center justify-center px-5 py-10 sm:px-10">
+      <main className="relative flex items-center justify-center px-5 py-10 sm:px-10">
+        <div className="absolute left-5 top-8 sm:left-10 sm:top-10 lg:hidden">
+          <Logo suffix="Shop" />
+        </div>
         <div className="w-full max-w-md">
-          <div className="mb-8 lg:hidden">
-            <Logo suffix="Shops" />
-          </div>
           {children}
         </div>
       </main>

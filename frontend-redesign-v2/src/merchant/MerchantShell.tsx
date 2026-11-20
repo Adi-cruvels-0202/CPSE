@@ -80,7 +80,7 @@ export function MerchantShell({ children }: { children: ReactNode }) {
       <aside className="sticky top-0 hidden h-screen flex-col bg-sidebar text-sidebar-foreground lg:flex">
         <div className="px-5 pb-4 pt-5">
           <Link to="/dashboard" aria-label="CPSE for shops — home">
-            <Logo tone="ink" suffix="Shops" />
+            <Logo tone="ink" suffix="Shop" markOnlyOnMobile />
           </Link>
         </div>
         <div className="px-3">
@@ -123,7 +123,7 @@ export function MerchantShell({ children }: { children: ReactNode }) {
         {/* Mobile / tablet top bar */}
         <header className="sticky top-0 z-30 flex h-15 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur lg:hidden">
           <Link to="/dashboard" aria-label="CPSE for shops — home" className="shrink-0">
-            <Logo size="sm" />
+            <Logo size="sm" markOnly />
           </Link>
           <div className="min-w-0 flex-1">
             <StoreSwitcher tone="paper" />
@@ -200,27 +200,32 @@ function StoreSwitcher({ tone }: { tone: "ink" | "paper" }) {
         <span className="min-w-0 flex-1 truncate">{current?.name ?? "Choose a store"}</span>
         <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel>Your stores</DropdownMenuLabel>
-        {stores.map((s) => (
-          <DropdownMenuItem
-            key={s.id}
-            onSelect={() => {
-              if (s.id !== activeStoreId) setActiveStoreId(s.id);
-              navigate("/dashboard");
-            }}
-            className="gap-2.5"
-          >
-            <StoreDot live={s.isPublished} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">{s.name}</span>
-              <span className="text-xs text-muted-foreground">{s.isPublished ? "Live" : "Not published"}</span>
-            </span>
-            {s.id === activeStoreId ? <Check className="h-4 w-4" /> : null}
-          </DropdownMenuItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => navigate("/store/new")}>+ Add another store</DropdownMenuItem>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-none w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-2xl p-1 shadow-pop sm:w-72"
+      >
+        <div className="store-switcher-scroll max-h-[min(55dvh,24rem)] overflow-y-auto overscroll-contain rounded-xl pr-1 sm:max-h-[min(70vh,32rem)]">
+          <DropdownMenuLabel>Your stores</DropdownMenuLabel>
+          {stores.map((s) => (
+            <DropdownMenuItem
+              key={s.id}
+              onSelect={() => {
+                if (s.id !== activeStoreId) setActiveStoreId(s.id);
+                navigate("/dashboard");
+              }}
+              className="gap-2.5"
+            >
+              <StoreDot live={s.isPublished} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold">{s.name}</span>
+                <span className="text-xs text-muted-foreground">{s.isPublished ? "Live" : "Not published"}</span>
+              </span>
+              {s.id === activeStoreId ? <Check className="h-4 w-4" /> : null}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => navigate("/store/new")}>+ Add another store</DropdownMenuItem>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

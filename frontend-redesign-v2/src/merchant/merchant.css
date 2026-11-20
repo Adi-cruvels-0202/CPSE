@@ -1582,6 +1582,10 @@
     padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--color-border-subtle);
   }
+  .table.products-table tr.product-row--inactive {
+    grid-template-columns: 3rem auto minmax(0, 1fr) auto;
+    grid-template-areas: 'thumb name name price' 'thumb stock actions actions' 'thumb status status status';
+  }
   .products-table { min-width: 0; width: 100%; }
   .table.products-table td { display: block; padding: 0; border: 0; background: none; }
   .products-table td:nth-child(1) { grid-area: thumb; }
@@ -1591,6 +1595,11 @@
   .products-table td:nth-child(5) { grid-area: stock; }
   .products-table td:nth-child(6) { grid-area: status; }
   .products-table td:nth-child(7) { grid-area: actions; }
+  .products-table tr.product-row--inactive td:nth-child(7) {
+    align-self: start;
+    justify-self: end;
+    margin-top: var(--space-1);
+  }
 }
 .product-delete {
   display: flex;
@@ -2110,6 +2119,12 @@ input[type="file"]::file-selector-button:hover {
 .tools-card:hover, .tools-card:focus-visible { border-color: var(--green-600); }
 .tools-card__label { font-weight: var(--font-semibold); display: flex; align-items: center; }
 .tools-card__hint { font-size: var(--text-xs); color: var(--color-text-secondary); }
+@media (max-width: 47.99rem) {
+  .tools-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .tools-card { min-width: 0; padding: var(--space-3); }
+  .tools-card__label { display: block; overflow-wrap: anywhere; }
+  .tools-card__hint { line-height: 1.35; }
+}
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-1) var(--space-4); font-size: var(--text-sm); }
 .kv dt { color: var(--color-text-secondary); }
 .kv dd { margin: 0; }

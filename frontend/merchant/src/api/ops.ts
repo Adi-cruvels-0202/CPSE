@@ -523,3 +523,23 @@ export const intelligenceApi = {
     return proposal.apply.method === 'PATCH' ? api.patch(proposal.apply.path, proposal.apply.body) : api.post(proposal.apply.path, proposal.apply.body);
   },
 };
+
+// ── WhatsApp store manager (backend /merchant/whatsapp) ─────────────────────
+
+export interface WhatsappLink {
+  phone: string;
+  status: 'pending' | 'active';
+  notifyOrders: boolean;
+  activeStoreId: string | null;
+  linkedAt: string | null;
+  lastMessageAt: string | null;
+}
+export interface WhatsappStatus { configured: boolean; businessNumber: string | null; chatLink: string | null; link: WhatsappLink | null }
+export interface WhatsappLinking { phone: string; code: string; message: string; expiresAt: string; chatLink: string | null; status: WhatsappStatus }
+
+export const whatsappApi = {
+  status: () => api.get<{ whatsapp: WhatsappStatus }>('/merchant/whatsapp'),
+  link: (phone: string) => api.post<{ linking: WhatsappLinking }>('/merchant/whatsapp/link', { phone }),
+  update: (body: { notifyOrders?: boolean; activeStoreId?: string }) => api.patch<{ whatsapp: WhatsappStatus }>('/merchant/whatsapp', body),
+  unlink: () => api.delete<{ whatsapp: WhatsappStatus }>('/merchant/whatsapp/link'),
+};

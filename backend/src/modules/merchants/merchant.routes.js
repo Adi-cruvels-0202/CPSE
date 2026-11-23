@@ -18,6 +18,7 @@ import { relationshipRouter } from '../crm/relationship.routes.js';
 import { merchantMessagingRouter } from '../messaging/messaging.routes.js';
 import { automationRouter } from '../automation/automation.routes.js';
 import { merchantIntelligenceRouter } from '../intelligence/intelligence.routes.js';
+import { merchantWhatsappRouter } from '../whatsapp/whatsapp.routes.js';
 import * as controller from './merchant.controller.js';
 import { loginSchema } from '../auth/auth.schemas.js';
 import { registerMerchantSchema, updateMerchantSchema } from './merchant.schemas.js';
@@ -61,6 +62,7 @@ merchantRouter.patch(
 );
 
 // Store-scoped routes: /merchant/stores and /merchant/stores/:storeId/…
+merchantRouter.use('/whatsapp', merchantWhatsappRouter);
 merchantRouter.use('/stores', merchantStoreRouter);
 merchantRouter.use('/stores', catalogueRouter);
 merchantRouter.use('/stores', inventoryRouter);

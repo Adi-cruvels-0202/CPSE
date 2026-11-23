@@ -1,3 +1,4 @@
+import { alertNewOrder } from '../whatsapp/whatsapp.service.js';
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { internal, notFound } from '../../lib/errors.js';
@@ -56,6 +57,13 @@ export async function emitToStore(storeId, { type, title, body = null, payload =
     // A racing duplicate lost on the unique index — the alert exists already.
     if (error?.code === '23505') return null;
     if (error) throw error;
+    // A new order also goes to the owner's WhatsApp, when linked and wanted.
+    // Only for a first write, so a replayed event never alerts twice. Not
+    // awaited: the customer's order must not wait on Meta (alertNewOrder never
+    // throws and records its own outcome).
+    if (data && type === 'order_placed' && payload?.order_id) {
+      void alertNewOrder(storeId, merchantId, { orderId: payload.order_id, orderNumber: payload.order_number ?? null });
+    }
     return data ?? null;
   } catch (error) {
     logger.warn('Could not write a merchant notification', { storeId, type, reason: error?.message ?? String(error) });

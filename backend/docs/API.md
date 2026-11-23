@@ -119,6 +119,7 @@ anonymous and a boolean when signed in.
 | 409 | `SLUG_TAKEN` | A store link already used by another store. `details.slug` |
 | 409 | `CATEGORY_NAME_TAKEN` | The store already has a category with that name, ignoring case. `details.name` |
 | 409 | `SKU_TAKEN` | The store already uses that SKU, ignoring case. `details.sku` when known |
+| 409 | `PHONE_TAKEN` | That WhatsApp number is already linked to another CPSE account |
 | 413 | `PAYLOAD_TOO_LARGE` | Body over the configured cap (32kb by default) |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Unsupported charset or content encoding |
 | 422 | `VALIDATION_FAILED` | Schema failure. `details.issues[]` is `{ source, field, message }` |
@@ -822,6 +823,51 @@ when `gstApplicable` (**422 `VERIFICATION_INCOMPLETE`** with
 | `DELETE /merchant/stores/:storeId/verification/documents/:documentId` | Bearer, merchant. Withdraws a document before submission. |
 | `GET /merchant/stores/:storeId/verification/documents/:documentId/url` | Bearer, merchant. `{ document, url, expiresInSeconds }`. |
 | `POST /merchant/stores/:storeId/verification/submit` | Bearer, merchant. No body → `pending`. |
+
+### WhatsApp store manager
+
+A shop owner links one WhatsApp number and then runs the shop by messaging the
+CPSE business number: open orders, order actions, sales, stock, closing for the
+day, and new-order alerts. Built on Meta's WhatsApp Cloud API
+(`WHATSAPP_PROVIDER=meta`); with `none` everything works but nothing is sent —
+each outgoing message is recorded as skipped. Set-up: `docs/implementation/WHATSAPP.md`.
+
+**Linking proves the number.** `POST /merchant/whatsapp/link` returns a 6-digit
+code (15 minutes, 5 tries). The link becomes active only when `LINK <code>`
+arrives *from that number*. Until then nothing that number sends is acted on.
+
+| | |
+|---|---|
+| `GET /merchant/whatsapp` | Bearer, merchant. `{ whatsapp: { configured, businessNumber, chatLink, link: { phone, status: "pending"\|"active", notifyOrders, activeStoreId, linkedAt, lastMessageAt } \| null } }`. |
+| `POST /merchant/whatsapp/link` | Bearer, merchant. `{ phone }` (any format; a bare 10-digit Indian mobile gets 91) → **201** `{ linking: { phone, code, message: "LINK 123456", expiresAt, chatLink, status } }`. `chatLink` opens WhatsApp with the message ready. A number linked to another account: **409 `PHONE_TAKEN`**. Calling again issues a new code. |
+| `PATCH /merchant/whatsapp` | Bearer, merchant. Any of `{ notifyOrders, activeStoreId }` (the shop messages are about; must be yours, else **404**). No link: **404**. |
+| `DELETE /merchant/whatsapp/link` | Bearer, merchant. The number stops managing the shop at once. → `{ whatsapp }`. |
+| `GET /whatsapp/webhook` | **public.** Meta's registration check: answers `hub.challenge` as text when `hub.verify_token` equals `WHATSAPP_VERIFY_TOKEN`, else **403**. |
+| `POST /whatsapp/webhook` | **public.** Meta's message delivery. Refused (**403**) unless `X-Hub-Signature-256` is the HMAC-SHA256 of the exact body with `WHATSAPP_APP_SECRET`. Always **200** otherwise, so Meta does not retry; a message id seen before is ignored. |
+
+What a linked number can send (any case; order codes are the last part of the
+order number, e.g. `7UWQ4T` for `CPSE-261114-7UWQ4T`):
+
+| Message | Does |
+|---|---|
+| `hi`, `help`, `menu` | The commands, and a tap-to-choose menu |
+| `orders` | Open orders, oldest first, each tappable |
+| `order 7UWQ4T` | The order's lines, customer and total, with buttons for what it allows now |
+| `accept`, `preparing`, `ready`, `dispatch`, `done` + code | Moves the order on (`ready` steps through preparing when needed) |
+| `reject`, `cancel` + code [+ reason] | Asks first, with a Yes button; the customer gets the reason |
+| `sales`, `sales yesterday`, `sales week` | Online orders and counter sales, with totals |
+| `stock rice`, `low stock` | What can be sold; what is at or under its alert level |
+| `add 10 rice` | Stock received — confirms the product first (a list when several match) |
+| `close today`, `open today` | Adds or removes today as a holiday |
+| `shop` | Switch shop, for an owner with several |
+| `unlink` | Stops this number (asks first) |
+
+Order actions go through the same rules as the app (`allowedActions`), so the
+customer is told of each change. A suspended account gets no answers but a
+notice. New orders alert the owner (buttons: Accept, Reject, View) while
+`notifyOrders` is on; outside WhatsApp's 24-hour window this needs an approved
+template (`WHATSAPP_ORDER_TEMPLATE`), and without one the alert is recorded as
+skipped with that reason.
 
 ### Platform admin portal
 

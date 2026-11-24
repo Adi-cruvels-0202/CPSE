@@ -131,6 +131,9 @@ export const orderApi = {
     if (action === 'cancel') return api.post<{ order: Order }>(`${base}/cancel`, { reason });
     return api.post<{ order: Order }>(`${base}/${action}`);
   },
+  /** The shop could not pack this line, or only `quantityLeft` of it (0 = none). */
+  itemUnavailable: (storeId: string, orderId: string, itemId: string, quantityLeft: number) =>
+    api.post<{ order: Order }>(`${store(storeId)}/orders/${orderId}/items/${itemId}/unavailable`, { quantityLeft }),
 };
 
 export const saleApi = {

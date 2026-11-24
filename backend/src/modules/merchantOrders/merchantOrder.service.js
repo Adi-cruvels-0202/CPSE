@@ -1,8 +1,10 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
-import { conflict, internal, notFound } from '../../lib/errors.js';
+import { conflict, internal, notFound, unprocessable } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
+import * as customerNotifications from '../notifications/notification.service.js';
 import { STATUS_LABELS, ORDER_STATUSES } from '../orders/order.state.js';
 import { transitionOrder } from '../orders/order.service.js';
-import { refundViewForOrder, adjustmentRefundsForOrder } from '../refunds/refund.service.js';
+import { refundViewForOrder, adjustmentRefundsForOrder, refundsForOrder, settleRefund } from '../refunds/refund.service.js';
 import { substitutionsForOrder } from '../substitutions/substitution.service.js';
 
 /**
@@ -19,7 +21,7 @@ const ORDER_COLUMNS = `
   id, order_number, store_id, customer_id, fulfilment_mode, status, payment_status,
   payment_method, cancelled_by, substitution_preference, delivery_address, subtotal_paise, discount_paise, delivery_fee_paise, tax_paise,
   total_paise, customer_note, cancellation_reason, placed_at, accepted_at, rejected_at,
-  completed_at, cancelled_at, created_at, updated_at
+  completed_at, cancelled_at, created_at, updated_at, items_changed_at
 `;
 
 // ── What the merchant may do ─────────────────────────────────────────────────
@@ -85,6 +87,9 @@ const toItem = (row) => ({
   lineTotalPaise: row.line_total_paise,
   isActive: row.is_active ?? true,
   replacedBySubstitutionId: row.replaced_by_substitution_id ?? null,
+  // Set when the shop could not pack all of it: what the customer ordered.
+  orderedQuantity: row.ordered_quantity ?? row.quantity,
+  unavailableQuantity: row.ordered_quantity != null ? row.ordered_quantity - (row.is_active === false ? 0 : row.quantity) : 0,
 });
 
 function toSummary(row, { customer, itemCount }) {
@@ -168,7 +173,7 @@ export async function getOrder(store, orderId) {
   const [items, history, extra, refund, adjustments, substitutions] = await Promise.all([
     supabaseAdmin
       .from('order_items')
-      .select('id, product_id, variant_id, product_name, variant_name, sku, quantity, unit_price_paise, tax_percent, tax_paise, line_total_paise, created_at, is_active, replaced_by_substitution_id')
+      .select('id, product_id, variant_id, product_name, variant_name, sku, quantity, unit_price_paise, tax_percent, tax_paise, line_total_paise, created_at, is_active, replaced_by_substitution_id, ordered_quantity, unavailable_at')
       .eq('order_id', row.id)
       .order('created_at', { ascending: true }),
     supabaseAdmin
@@ -191,7 +196,11 @@ export async function getOrder(store, orderId) {
     substitutionPreference: row.substitution_preference ?? 'contact_me',
     deliveryAddress: row.delivery_address ?? null,
     items: (items.data ?? []).filter((item) => item.is_active !== false).map(toItem),
-    replacedItems: (items.data ?? []).filter((item) => item.is_active === false).map(toItem),
+    // Inactive lines: replaced by a substitution, or not available at all.
+    replacedItems: (items.data ?? []).filter((item) => item.is_active === false && item.replaced_by_substitution_id).map(toItem),
+    unavailableItems: (items.data ?? []).filter((item) => item.is_active === false && !item.replaced_by_substitution_id && item.unavailable_at).map(toItem),
+    itemsChangedAt: row.items_changed_at ?? null,
+    canChangeItems: ['placed', 'accepted', 'preparing'].includes(row.status),
     history: (history.data ?? []).map((entry) => ({
       status: entry.to_status,
       changedBy: entry.changed_by,
@@ -262,3 +271,70 @@ export const completeOrder = (store, orderId) => act(store, orderId, 'complete',
 /** `POST …/cancel` — after accepting; a placed order is rejected instead. */
 export const cancelOrder = (store, orderId, { reason }) =>
   act(store, orderId, 'cancel', 'cancelled', { note: reason, patch: { cancellation_reason: reason } });
+
+// ── Items the shop cannot pack ───────────────────────────────────────────────
+
+const rupees = (paise) => `₹${(paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+
+/**
+ * `POST …/orders/:orderId/items/:itemId/unavailable` — the shop has none of
+ * this line, or only `quantityLeft` of it. The order carries on with what
+ * there is (mark_item_unavailable, migration 0049: stock hold released, bill
+ * recomputed, a prepaid difference refunded at once) and the customer is told,
+ * with the option to cancel the rest. If that was the last thing in the
+ * order there is nothing to carry on with: it is rejected (not yet accepted)
+ * or cancelled, and the customer is refunded in full the usual way.
+ */
+export async function markItemUnavailable(store, orderId, itemId, { quantityLeft = 0 }) {
+  const row = await findStoreOrder(store, orderId);
+  const { data: item, error: itemError } = await supabaseAdmin
+    .from('order_items')
+    .select('id, product_name, variant_name, quantity, is_active')
+    .eq('id', itemId)
+    .eq('order_id', row.id)
+    .maybeSingle();
+  if (itemError) throw internal('Could not load the order.');
+  if (!item || item.is_active === false) throw notFound('Order item');
+
+  const { data, error } = await supabaseAdmin.rpc('mark_item_unavailable', {
+    p_store_id: store.id,
+    p_order_id: row.id,
+    p_item_id: item.id,
+    p_quantity_left: quantityLeft,
+  });
+  if (error) {
+    const message = error.message ?? '';
+    if (message.includes('NOTHING_LEFT')) {
+      const reason = 'None of the items in this order could be packed.';
+      return row.status === 'placed' ? rejectOrder(store, row.id, { reason }) : cancelOrder(store, row.id, { reason });
+    }
+    if (message.includes('ORDER_LOCKED')) {
+      throw conflict('Items can only be changed before the order is ready.', { status: row.status });
+    }
+    if (message.includes('BAD_QUANTITY')) {
+      throw unprocessable('BAD_QUANTITY', `Enter how many you can pack: from 0 to ${item.quantity - 1}.`);
+    }
+    if (message.includes('ITEM_NOT_FOUND')) throw notFound('Order item');
+    logger.error('mark_item_unavailable failed', { message });
+    throw internal('Could not update the order.');
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+
+  // An online payment's difference goes back through the provider now.
+  if (result?.refund_id) {
+    const refund = (await refundsForOrder(row.id)).find((r) => r.id === result.refund_id);
+    if (refund) await settleRefund(refund);
+  }
+
+  const name = `${item.product_name}${item.variant_name && item.variant_name !== 'Default' ? ` (${item.variant_name})` : ''}`;
+  const what = quantityLeft === 0 ? `${name} is not available` : `Only ${quantityLeft} of ${item.quantity} × ${name} are available`;
+  const refundNote = result?.refund_id ? ` ${rupees(result.previous_total_paise - result.total_paise)} is being refunded to you.` : '';
+  await customerNotifications.emit(row.customer_id, {
+    type: 'order_status_changed',
+    title: `Order ${row.order_number}: ${what}`,
+    body: `The shop is going ahead with the rest. New total ${rupees(result.total_paise)}.${refundNote} Don't want it without this? You can cancel the order.`,
+    payload: { order_id: row.id, order_number: row.order_number, event: 'items_changed', item_id: item.id, quantity_left: quantityLeft },
+  });
+
+  return getOrder(store, row.id);
+}

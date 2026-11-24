@@ -223,11 +223,24 @@ function OrderPage() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{item.name}{item.variantName ? <span className="font-normal text-muted-foreground"> · {item.variantName}</span> : null}</span>
                     <span className="numeric text-sm text-muted-foreground">{item.quantity} × {formatPaise(item.unitPricePaise)}</span>
+                    {item.orderedQuantity > item.quantity ? (
+                      <span className="block text-xs font-semibold text-warning">You ordered {item.orderedQuantity}; the shop only had {item.quantity}.</span>
+                    ) : null}
                   </span>
                   <span className="numeric font-semibold">{formatPaise(item.lineSubtotalPaise ?? item.lineTotalPaise)}</span>
                 </li>
               ))}
             </ul>
+            {order.unavailableItems?.length ? (
+              <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-sm" role="status">
+                <strong>Not available:</strong>{" "}
+                {order.unavailableItems.map((item: any) => `${item.name}${item.variantName ? ` · ${item.variantName}` : ""} × ${item.orderedQuantity ?? item.quantity}`).join(", ")}
+                . It has been taken off your bill.
+              </p>
+            ) : null}
+            {order.itemsChangedAt && order.isCancellable ? (
+              <p className="mt-2 text-sm text-muted-foreground">The shop couldn't pack everything and went ahead with the rest. Don't want it like this? You can cancel the order below.</p>
+            ) : null}
             <dl className="mt-3 space-y-1.5 border-t border-dashed pt-3 text-sm">
               <Row label="Subtotal" value={formatPaise(order.totals.subtotalPaise)} />
               {order.totals.discountPaise > 0 ? <Row label="Savings" value={`−${formatPaise(order.totals.discountPaise)}`} /> : null}

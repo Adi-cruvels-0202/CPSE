@@ -136,6 +136,7 @@ refused for a reason the customer can act on":
 | `ITEM_UNAVAILABLE` | An item sold out between the quote and the commit |
 | `VARIANT_REQUIRED` | Added a product that has several options without saying which |
 | `PAYMENT_METHOD_UNAVAILABLE` | The store does not take that payment method. `details.accepts` says what it does take |
+| `BAD_QUANTITY` | Marking an order line short with a quantity that is not below what was ordered |
 | `NOT_TRACKED` | A stock movement on a product whose stock is not counted (`trackInventory: false`) |
 | `BELOW_RESERVED` | A stock count lower than what open orders hold. `details.reservedQuantity` |
 | `IMAGE_REQUIRED` | An upload with no photo in a multipart field named `file` |
@@ -277,7 +278,7 @@ blocking would simply lose the order. It waits in `placed` until the store opens
 | `POST /orders` | `{ storeId, fulfilmentMode, addressId?, paymentMethod, customerNote?, expectedTotalPaise? }` → **201** `{ order, replayed }`. **Send `Idempotency-Key`.** |
 | `GET /orders` | `?status=&storeId=&page=&limit=`. Newest first. |
 | `GET /orders/:id` | Items, totals, payment, fulfilment, and a `timeline` of `{ steps, history }`. |
-| `POST /orders/:id/cancel` | `{ reason? }`. Only from `pending_payment`, `placed` or `accepted`; anything later is **409** — the goods may already be packed. |
+| `POST /orders/:id/cancel` | `{ reason? }`. Only from `pending_payment`, `placed` or `accepted`; anything later is **409** — the goods may already be packed. One exception: an order the shop could not pack in full (`itemsChangedAt` set) can still be cancelled while `preparing`; only what was not already refunded is refunded. |
 | `GET /orders/:id/receipt` | Derived from the order's own snapshot, never recalculated. |
 | `POST /orders/:id/reorder` | No body. Rebuilds the cart and reports what could not be added, per item. |
 
@@ -591,6 +592,7 @@ and stock is released or taken off the shelf with it (see *Stock*).
 | `POST /merchant/stores/:storeId/orders/:orderId/status` | Bearer, merchant. `{ status }`: `preparing` (from accepted), then `ready_for_pickup` for a pickup order or `out_for_delivery` for a delivery order — never the other one. |
 | `POST /merchant/stores/:storeId/orders/:orderId/complete` | Bearer, merchant. No body. `ready_for_pickup` or `out_for_delivery → completed`; the stock leaves the shelf. |
 | `POST /merchant/stores/:storeId/orders/:orderId/cancel` | Bearer, merchant. `{ reason }`, 3–300 characters. From `accepted` onwards — a `placed` order is rejected instead. The stock comes back. |
+| `POST /merchant/stores/:storeId/orders/:orderId/items/:itemId/unavailable` | Bearer, merchant. `{ quantityLeft? }` (default 0 = none of it). The shop could not pack this line, or only `quantityLeft` of it. Only while `placed`, `accepted` or `preparing` (else **409**); `quantityLeft` must be below what was ordered (**422 `BAD_QUANTITY`**). The order carries on: the missing quantity's stock hold is released, the bill is recomputed, a prepaid difference is refunded at once (an `adjustment` refund; khata is credited), and the customer is told and may cancel the rest. A line with nothing left moves to `unavailableItems`; a partly packed line keeps `orderedQuantity`. If nothing at all is left, the order is rejected (`placed`) or cancelled instead. → `{ order }` with `items[].orderedQuantity`, `items[].unavailableQuantity`, `unavailableItems`, `itemsChangedAt`, `canChangeItems`. |
 
 All actions answer `{ order }`. Anything not in the order's `allowedActions` is
 **409 `CONFLICT`** with `details: { status, action }`. An order in

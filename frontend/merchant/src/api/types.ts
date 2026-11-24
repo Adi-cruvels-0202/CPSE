@@ -183,6 +183,9 @@ export interface LineItem {
   taxPercent: number;
   taxPaise: number;
   lineTotalPaise: number;
+  /** Set when the shop could not pack all of it: what was ordered, and how many are missing. */
+  orderedQuantity?: number;
+  unavailableQuantity?: number;
 }
 
 export type OrderStatus =
@@ -209,6 +212,11 @@ export interface Order {
   cancelledAt: string | null;
   deliveryAddress?: Record<string, string | null> | null;
   items?: LineItem[];
+  /** Lines the shop had none of; the order went ahead without them. */
+  unavailableItems?: LineItem[];
+  itemsChangedAt?: string | null;
+  /** Items can be marked not available until the order is ready. */
+  canChangeItems?: boolean;
   history?: { status: OrderStatus; changedBy: string; note: string | null; at: string }[];
 }
 

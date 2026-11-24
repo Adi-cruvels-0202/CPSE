@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { orderApi } from '../../api/endpoints';
 import type { OrderDetail } from '../../api/ops';
@@ -40,6 +40,9 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
   });
   const order = data?.order as (Order & Partial<OrderDetail>) | undefined;
   const [substituting, setSubstituting] = useState<string | null>(null);
+  // The line being marked short, and how many of it the shop can still pack.
+  const [shorting, setShorting] = useState<{ itemId: string; left: number } | null>(null);
+  const canChangeItems = !!order?.canChangeItems;
   const canSubstitute = !!order && ['placed', 'accepted', 'preparing'].includes(order.status) && order.substitutionPreference !== 'no_substitutions';
   const reload = () => queryClient.invalidateQueries({ queryKey: ['order', storeId, orderId] });
 
@@ -51,6 +54,24 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
       queryClient.invalidateQueries({ queryKey: ['dashboard', storeId] });
       queryClient.invalidateQueries({ queryKey: ['products', storeId] });
       showToast(`Order ${updated.statusLabel.toLowerCase()} — the customer has been told.`, 'success');
+    },
+    onError: (err) => showToast(errorMessage(err), 'error'),
+  });
+
+  const short = useMutation({
+    mutationFn: ({ itemId, left }: { itemId: string; left: number }) => orderApi.itemUnavailable(storeId, orderId, itemId, left),
+    onSuccess: ({ order: updated }) => {
+      queryClient.setQueryData(['order', storeId, orderId], { order: updated });
+      queryClient.invalidateQueries({ queryKey: ['orders', storeId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard', storeId] });
+      queryClient.invalidateQueries({ queryKey: ['products', storeId] });
+      setShorting(null);
+      showToast(
+        ['cancelled', 'rejected'].includes(updated.status)
+          ? 'Nothing was left to pack, so the order was called off. The customer has been told.'
+          : `Updated. New total ${formatPaise(updated.totals.totalPaise)}. The customer has been told.`,
+        'success',
+      );
     },
     onError: (err) => showToast(errorMessage(err), 'error'),
   });
@@ -109,20 +130,60 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
 
               <div className="table-container">
                 <table className="table">
-                  <thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Price</th><th>GST</th><th>Line total</th>{canSubstitute && <th />}</tr></thead>
+                  <thead><tr><th>Item</th><th>SKU</th><th>Qty</th><th>Price</th><th>GST</th><th>Line total</th>{(canSubstitute || canChangeItems) && <th />}</tr></thead>
                   <tbody>
                     {(order.items ?? []).map((item) => (
-                      <tr key={item.id}>
+                      <Fragment key={item.id}>
+                      <tr>
                         <td>{item.productName}{item.variantName && <span style={{ color: 'var(--color-text-tertiary)', marginLeft: 4 }}>({item.variantName})</span>}</td>
                         <td><code className="mono">{item.sku ?? '—'}</code></td>
-                        <td>{item.quantity}</td>
+                        <td>
+                          {item.quantity}
+                          {(item.orderedQuantity ?? item.quantity) > item.quantity && (
+                            <span className="short-note"> of {item.orderedQuantity} ({item.unavailableQuantity} not available)</span>
+                          )}
+                        </td>
                         <td>{formatPaise(item.unitPricePaise)}</td>
                         <td>{item.taxPaise > 0 ? `${formatPaise(item.taxPaise)} (${item.taxPercent}%)` : '—'}</td>
                         <td style={{ fontWeight: 'var(--font-semibold)' }}>{formatPaise(item.lineTotalPaise)}</td>
-                        {canSubstitute && (
-                          <td><button type="button" className="btn btn-ghost btn-sm" onClick={() => setSubstituting(item.id)}>Substitute…</button></td>
+                        {(canSubstitute || canChangeItems) && (
+                          <td className="line-actions">
+                            {canChangeItems && (
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShorting({ itemId: item.id, left: 0 })} disabled={short.isPending}>Can't pack…</button>
+                            )}
+                            {canSubstitute && (
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSubstituting(item.id)}>Substitute…</button>
+                            )}
+                          </td>
                         )}
                       </tr>
+                      {shorting?.itemId === item.id && (
+                        <tr className="short-row">
+                          <td colSpan={7}>
+                            <div className="short-editor" role="group" aria-label={`Can't pack ${item.productName}`}>
+                              <label htmlFor={`short-${item.id}`}>How many can you pack?</label>
+                              <select id={`short-${item.id}`} className="input-field select-field" value={shorting.left}
+                                onChange={(e) => setShorting({ itemId: item.id, left: Number(e.target.value) })}>
+                                {Array.from({ length: item.quantity }, (_, n) => (
+                                  <option key={n} value={n}>{n === 0 ? 'None (remove it)' : `${n} of ${item.quantity}`}</option>
+                                ))}
+                              </select>
+                              <span className="tiny">
+                                The rest of the order goes ahead. The customer is told, can cancel if they don't want it now
+                                {order.paymentStatus === 'paid' ? ', and gets the difference back' : ''}.
+                              </span>
+                              <span className="short-editor__buttons">
+                                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShorting(null)} disabled={short.isPending}>Back</button>
+                                <button type="button" className="btn btn-primary btn-sm" disabled={short.isPending}
+                                  onClick={() => short.mutate({ itemId: item.id, left: shorting.left })}>
+                                  {short.isPending ? 'Saving…' : shorting.left === 0 ? 'Remove from order' : `Pack only ${shorting.left}`}
+                                </button>
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -135,6 +196,15 @@ export default function OrderDetailModal({ storeId, orderId, onClose }: { storeI
                 {(order.totals.deliveryFeePaise ?? 0) > 0 && <div className="cart-summary-row"><span>Delivery</span><span>{formatPaise(order.totals.deliveryFeePaise)}</span></div>}
                 <div className="cart-summary-row cart-total"><span>Total</span><span>{formatPaise(order.totals.totalPaise)}</span></div>
               </div>
+
+              {(order.unavailableItems?.length ?? 0) > 0 && (
+                <p className="short-summary">
+                  Not available, removed: {order.unavailableItems!.map((item) => `${item.productName}${item.variantName && item.variantName !== 'Default' ? ` (${item.variantName})` : ''} × ${item.orderedQuantity ?? item.quantity}`).join(', ')}
+                </p>
+              )}
+              {order.itemsChangedAt && order.canChangeItems && (
+                <p className="tiny">The customer has been told what changed and can cancel the order while it is being prepared.</p>
+              )}
 
               {(order.replacedItems?.length ?? 0) > 0 && (
                 <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginTop: 'var(--space-2)' }}>

@@ -10,6 +10,11 @@ const uuid = (what) => z.string().uuid(`Not a valid ${what}.`);
 
 export const orderParams = z.object({ storeId: uuid('store'), orderId: uuid('order') }).strict();
 
+export const orderItemParams = z.object({ storeId: uuid('store'), orderId: uuid('order'), itemId: uuid('order item') }).strict();
+
+/** How many of the line the shop can still pack; 0 (the default) means none. */
+export const unavailableSchema = z.object({ quantityLeft: z.number().int().min(0).max(9999).default(0) }).strict();
+
 const statusList = z
   .string()
   .trim()

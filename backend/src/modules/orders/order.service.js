@@ -42,13 +42,14 @@ const ORDER_COLUMNS = `
   payment_method, cancelled_by, coupon_code, loyalty_points_redeemed, substitution_preference, address_id, delivery_address, store_snapshot,
   subtotal_paise, discount_paise, delivery_fee_paise, tax_paise, total_paise,
   customer_note, cancellation_reason, idempotency_key,
-  placed_at, completed_at, cancelled_at, created_at, updated_at
+  placed_at, completed_at, cancelled_at, created_at, updated_at, items_changed_at
 `;
 
 const ORDER_ITEM_COLUMNS = `
   id, order_id, product_id, variant_id, product_name, variant_name, sku, image_url,
   unit_price_paise, quantity, tax_percent, tax_paise, line_total_paise, created_at,
-  offer_id, list_unit_price_paise, discount_paise, is_active, replaced_by_substitution_id
+  offer_id, list_unit_price_paise, discount_paise, is_active, replaced_by_substitution_id,
+  ordered_quantity, unavailable_at
 `;
 
 // ── Creation ────────────────────────────────────────────────────────────────
@@ -341,6 +342,9 @@ export const toPublicOrderItem = (row) => ({
   // false: replaced by an approved substitution; kept so the bill shows it.
   isActive: row.is_active ?? true,
   replacedBySubstitutionId: row.replaced_by_substitution_id ?? null,
+  // The shop could not pack all of it (migration 0049): what was ordered.
+  orderedQuantity: row.ordered_quantity ?? row.quantity,
+  notAvailable: Boolean(row.unavailable_at),
 });
 
 /** Never exposes the raw gateway payload or anything resembling a credential. */
@@ -375,7 +379,7 @@ export function toOrderSummary(row, itemCount = null) {
     placedAt: row.placed_at,
     completedAt: row.completed_at ?? null,
     cancelledAt: row.cancelled_at ?? null,
-    isCancellable: canCustomerCancel(row.status),
+    isCancellable: canCustomerCancel(row.status, { itemsChanged: Boolean(row.items_changed_at) }),
   };
 }
 
@@ -384,7 +388,7 @@ export function toOrderSummary(row, itemCount = null) {
  * customer acts, with what would happen to their money.
  */
 export function cancellationPolicy(row, payment) {
-  const cancellable = canCustomerCancel(row.status);
+  const cancellable = canCustomerCancel(row.status, { itemsChanged: Boolean(row.items_changed_at) });
   const paid = payment?.status === 'paid' || row.payment_status === 'paid';
   return {
     isCancellable: cancellable,
@@ -405,7 +409,10 @@ export function toOrderDetail(row, { items, history, payment, refund = null, adj
   return {
     ...toOrderSummary(row, items.filter((item) => item.is_active !== false).length),
     items: items.filter((item) => item.is_active !== false).map(toPublicOrderItem),
-    replacedItems: items.filter((item) => item.is_active === false).map(toPublicOrderItem),
+    replacedItems: items.filter((item) => item.is_active === false && item.replaced_by_substitution_id).map(toPublicOrderItem),
+    // Lines the shop had none of; partly packed lines stay in items with orderedQuantity.
+    unavailableItems: items.filter((item) => item.is_active === false && !item.replaced_by_substitution_id && item.unavailable_at).map(toPublicOrderItem),
+    itemsChangedAt: row.items_changed_at ?? null,
     substitutions,
     refundAdjustments: adjustments,
     totals: {
@@ -438,7 +445,7 @@ export function toOrderDetail(row, { items, history, payment, refund = null, adj
     cancellationReason: row.cancellation_reason ?? null,
     cancelledBy: row.cancelled_by ?? null,
     timeline: buildTimeline(row, history),
-    isCancellable: canCustomerCancel(row.status),
+    isCancellable: canCustomerCancel(row.status, { itemsChanged: Boolean(row.items_changed_at) }),
   };
 }
 
@@ -625,7 +632,7 @@ export async function cancelOrder(customerId, orderId, reason) {
   if (isTerminal(row.status)) {
     throw conflict(`This order is already ${STATUS_LABELS[row.status].toLowerCase()}.`);
   }
-  if (!canCustomerCancel(row.status)) {
+  if (!canCustomerCancel(row.status, { itemsChanged: Boolean(row.items_changed_at) })) {
     throw conflict(
       'This order is already being prepared. Please call the store to cancel it.',
       { status: row.status },

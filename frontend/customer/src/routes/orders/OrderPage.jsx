@@ -165,11 +165,33 @@ export function OrderPage() {
                 <span className="muted">
                   {item.quantity} × {formatPaise(item.unitPricePaise)}
                 </span>
+                {item.orderedQuantity > item.quantity ? (
+                  <span className="order__item-short">
+                    You ordered {item.orderedQuantity}; the shop only had {item.quantity}.
+                  </span>
+                ) : null}
               </span>
               <span className="numeric">{formatPaise(item.lineSubtotalPaise ?? item.lineTotalPaise)}</span>
             </li>
           ))}
         </ul>
+
+        {order.unavailableItems?.length ? (
+          <div className="notice order__unavailable" role="status">
+            <p>
+              <strong>Not available:</strong>{' '}
+              {order.unavailableItems
+                .map((item) => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''} × ${item.orderedQuantity ?? item.quantity}`)
+                .join(', ')}
+              . It has been taken off your bill.
+            </p>
+          </div>
+        ) : null}
+        {order.itemsChangedAt && order.isCancellable ? (
+          <p className="muted">
+            The shop couldn't pack everything and went ahead with the rest. Don't want it like this? You can cancel the order below.
+          </p>
+        ) : null}
 
         <dl className="order__totals">
           <Row label="Subtotal">{formatPaise(order.totals.subtotalPaise)}</Row>

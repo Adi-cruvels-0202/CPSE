@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { NavLink, Navigate, Route, Routes, useNavigate } from './router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { LayoutGrid, MessageSquareWarning, ShieldCheck, Store, UserRound, History, Loader2 } from 'lucide-react';
+import { useRouterState } from '@tanstack/react-router';
 import {
   adminApi, readAdminSession, writeAdminSession,
   type AdminAccount, type AdminAction, type AdminMe, type AdminStoreRow, type ReviewRow,
@@ -8,8 +10,11 @@ import {
 import { ApiError, errorMessage } from '@/merchant/api/client';
 import { useToast } from '@/merchant/hooks/useToast';
 import { Logo } from '@/components/cpse/Logo';
+import { Field } from '@/components/cpse/Field';
+import { Button } from '@/components/ui/button';
 import { EmptyState, ErrorState, Modal, PageHeader, Pagination, Spinner, SubTabs, formatDateTime } from '@/merchant/components/common/ui';
 import { IconCheck, IconClipboard, IconDashboard, IconHistory, IconLogOut, IconSearch, IconStore, IconUser } from '@/merchant/components/icons/Icons';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 /**
  * The CPSE admin portal in the V2 design, at /v2/admin — the same screens
@@ -32,9 +37,63 @@ const NAV: { to: string; label: string; icon: ReactNode }[] = [
   { to: '/admin/log', label: 'Activity log', icon: <IconHistory size={18} /> },
 ];
 
+const MOBILE_NAV = [
+  { to: '/admin/overview', label: 'Overview', icon: <IconDashboard size={20} /> },
+  { to: '/admin/verifications', label: 'Review', icon: <ShieldCheck size={20} /> },
+  { to: '/admin/stores', label: 'Stores', icon: <Store size={20} /> },
+];
+
+const MORE_NAV = [
+  { to: '/admin/accounts', label: 'Accounts', icon: <UserRound size={18} /> },
+  { to: '/admin/support', label: 'Escalated support', icon: <MessageSquareWarning size={18} /> },
+  { to: '/admin/log', label: 'Activity log', icon: <History size={18} /> },
+];
+
+function AdminLoadingSkeleton({ fullPage = false }: { fullPage?: boolean }) {
+  const block = 'admin-skeleton__block animate-pulse motion-reduce:animate-none';
+  const content = (
+    <div className="admin-skeleton__content" aria-hidden="true">
+      <div className="admin-skeleton__heading">
+        <div className={`${block} h-8 w-44`} />
+        <div className={`${block} h-4 w-64 max-w-[65vw]`} />
+      </div>
+      <div className="admin-skeleton__metrics">
+        {[0, 1, 2, 3].map((item) => <div key={item} className={`${block} h-24 rounded-2xl`} />)}
+      </div>
+      <div className="admin-skeleton__panel">
+        <div className={`${block} h-5 w-40`} />
+        {[0, 1, 2, 3].map((item) => <div key={item} className={`${block} h-10 w-full rounded-lg`} />)}
+      </div>
+    </div>
+  );
+
+  if (!fullPage) {
+    return <div className="admin-skeleton" role="status" aria-busy="true" aria-label="Loading admin page"><span className="sr-only">Loading admin page…</span>{content}</div>;
+  }
+
+  return (
+    <div className="admin-skeleton admin-skeleton--workspace" role="status" aria-busy="true" aria-label="Loading admin workspace">
+      <span className="sr-only">Loading admin workspace…</span>
+      <aside className="admin-skeleton__side" aria-hidden="true">
+        <div className={`${block} h-10 w-36 rounded-lg`} />
+        <div className="admin-skeleton__nav">
+          {[0, 1, 2, 3, 4, 5].map((item) => <div key={item} className={`${block} h-10 w-full rounded-xl`} />)}
+        </div>
+        <div className={`${block} h-8 w-28 rounded-lg`} />
+      </aside>
+      <div className="admin-skeleton__mobile-bar" aria-hidden="true"><div className={`${block} h-9 w-9 rounded-xl`} /><div className={`${block} h-4 w-20`} /><div className={`${block} ml-auto h-9 w-9 rounded-full`} /></div>
+      <main className="admin-skeleton__main">{content}</main>
+      <div className="admin-skeleton__mobile-nav" aria-hidden="true">{[0, 1, 2, 3].map((item) => <div key={item}><div className={`${block} mx-auto h-6 w-6 rounded-lg`} /><div className={`${block} mx-auto mt-1 h-2 w-12`} /></div>)}</div>
+    </div>
+  );
+}
+
 export default function AdminApp() {
   const [signedIn, setSignedIn] = useState(() => readAdminSession() !== null);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const me = useQuery({ queryKey: ['admin-me'], queryFn: () => adminApi.me(), enabled: signedIn, retry: false });
 
   useEffect(() => {
@@ -53,14 +112,14 @@ export default function AdminApp() {
   };
 
   if (!signedIn) return <AdminLogin onSignedIn={() => setSignedIn(true)} />;
-  if (me.isLoading) return <div className="admin-loading"><Spinner large /></div>;
+  if (me.isLoading) return <AdminLoadingSkeleton fullPage />;
   if (me.error || !me.data) return <div className="admin-loading"><ErrorState error={me.error} onRetry={() => me.refetch()} /></div>;
   const admin = me.data.admin;
 
   return (
     <AdminContext.Provider value={admin}>
       <div className="min-h-screen bg-background lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
-        {/* The same ink sidebar as the V2 shop app; a top bar on phones. */}
+        {/* Desktop keeps the full navigation; mobile uses a compact header and bottom tabs. */}
         <aside className="admin-v2__side bg-sidebar text-sidebar-foreground">
           <div className="admin-v2__brand">
             <Logo tone="ink" suffix="Admin" />
@@ -77,6 +136,11 @@ export default function AdminApp() {
             <button type="button" className="admin-v2__signout" onClick={signOut}><IconLogOut size={16} /> Sign out</button>
           </div>
         </aside>
+        <header className="admin-v2__mobile-header">
+          <div className="admin-v2__mobile-brand" aria-label="CPSE Admin"><Logo size="sm" markOnly /><span>Admin</span></div>
+          <span className="admin-v2__mobile-admin">Platform administration</span>
+          <button type="button" className="admin-v2__mobile-signout" onClick={signOut} aria-label="Sign out" title="Sign out"><IconLogOut size={18} /></button>
+        </header>
         <main className="admin__main" id="main">
           <div className="admin__content">
             <Routes>
@@ -90,6 +154,26 @@ export default function AdminApp() {
             </Routes>
           </div>
         </main>
+        <nav className="admin-v2__mobile-nav" aria-label="Admin navigation">
+          {MOBILE_NAV.map((item) => (
+            <NavLink key={item.to} to={item.to} className={({ isActive }) => `admin-v2__mobile-tab${isActive ? ' is-active' : ''}`}>
+              <span className="admin-v2__mobile-tab-icon">{item.icon}</span><span>{item.label}</span>
+            </NavLink>
+          ))}
+          <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+            <DropdownMenuTrigger className={`admin-v2__mobile-tab${MORE_NAV.some((item) => pathname === `/v2${item.to}` || pathname.startsWith(`/v2${item.to}/`)) ? ' is-active' : ''}`} aria-label="More admin pages" aria-haspopup="menu">
+              <span className="admin-v2__mobile-tab-icon"><LayoutGrid size={20} /></span><span>More</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" sideOffset={10} className="admin-v2__more-menu">
+              <DropdownMenuLabel>More admin pages</DropdownMenuLabel>
+              {MORE_NAV.map((item) => (
+                <DropdownMenuItem key={item.to} onSelect={() => { setMoreOpen(false); navigate(item.to); }}>
+                  {item.icon}<span>{item.label}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </nav>
       </div>
     </AdminContext.Provider>
   );
@@ -117,28 +201,57 @@ function AdminLogin({ onSignedIn }: { onSignedIn: () => void }) {
     }
   };
   return (
-    <div className="auth-page">
-      <div className="auth-form-panel" style={{ margin: '0 auto' }}>
-        <div className="auth-form-container">
-          <div className="admin-v2__login-logo"><Logo suffix="Admin" /></div>
-          <div className="auth-form-header">
-            <h2 className="auth-form-title">CPSE admin</h2>
-            <p className="auth-form-subtitle">Admin sign-in.</p>
-          </div>
-          <form className="auth-form" onSubmit={submit}>
-            {error && <div className="auth-error" role="alert">{error}</div>}
-            <div className="input-wrapper">
-              <label className="input-label" htmlFor="admin-email">Email</label>
-              <input id="admin-email" type="email" className="input-field" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="input-wrapper">
-              <label className="input-label" htmlFor="admin-password">Password</label>
-              <input id="admin-password" type="password" className="input-field" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            <button type="submit" className="btn btn-primary btn-lg auth-submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
-          </form>
+    <div className="grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <aside className="relative hidden overflow-hidden bg-ink p-12 text-ink-foreground lg:flex lg:flex-col">
+        <div className="awning absolute inset-x-0 top-0 h-3 opacity-80" aria-hidden="true" />
+        <Logo tone="ink" suffix="Admin" />
+        <div className="mt-auto max-w-md">
+          <h1 className="font-display text-5xl font-extrabold leading-[1.02] tracking-tight">
+            Looking after <span className="text-primary">every CPSE shop.</span>
+          </h1>
+          <p className="mt-5 text-lg text-ink-muted">Review stores, support customers and keep neighbourhood commerce running smoothly.</p>
+          <ul className="mt-10 space-y-3 text-sm">
+            {[
+              [IconCheck, 'Review shop applications'],
+              [IconClipboard, 'Help customers and shop owners'],
+              [IconHistory, 'Keep platform actions accountable'],
+            ].map(([Icon, text]: any) => (
+              <li key={text} className="flex items-center gap-3">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-sidebar-accent text-primary">
+                  <Icon size={18} />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
+      </aside>
+      <main className="relative flex min-h-screen items-center justify-center px-5 py-10 sm:px-10">
+        <div className="absolute left-5 top-8 sm:left-10 sm:top-10 lg:hidden">
+          <Logo suffix="Admin" />
+        </div>
+        <div className="w-full max-w-md">
+          <h2 className="text-3xl font-extrabold">Welcome back</h2>
+          <p className="mt-1 text-muted-foreground">Sign in to manage CPSE shops and platform support.</p>
+          <form className="mt-8 space-y-4" onSubmit={submit}>
+            {error ? <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive-soft px-4 py-3 text-sm text-destructive">{error}</p> : null}
+            <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required autoComplete="username" autoFocus />
+            <Field label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password" required autoComplete="current-password" />
+            <Button type="submit" variant="ink" size="lg" className="w-full" disabled={busy}>
+              {busy ? <Loader2 className="animate-spin" /> : null}
+              {busy ? 'Signing in…' : 'Sign in'}
+            </Button>
+          </form>
+          <div className="mt-8 space-y-2 border-t border-dashed pt-6 text-sm">
+            <p className="text-muted-foreground">
+              Here to shop? <a href="/v2/" className="font-bold text-foreground underline-offset-4 hover:underline">Customer home</a>
+            </p>
+            <p className="text-muted-foreground">
+              Run a shop? <a href="/v2/merchant/login" className="font-bold text-foreground underline-offset-4 hover:underline">Merchant sign in</a>
+            </p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
@@ -199,7 +312,7 @@ function OverviewPage() {
   return (
     <div>
       <PageHeader title="Overview" subtitle="What needs your attention, and the platform at a glance." />
-      {query.isLoading ? <Spinner large /> : query.error || !o ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
+      {query.isLoading ? <AdminLoadingSkeleton /> : query.error || !o ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
         <div className="stack">
           <section>
             <h2 className="admin-section-title">Needs attention</h2>
@@ -243,7 +356,7 @@ function VerificationQueue() {
       <SubTabs value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={[
         { value: 'pending', label: 'Waiting for review' }, { value: 'rejected', label: 'Sent back' }, { value: 'verified', label: 'Verified' }, { value: 'not_submitted', label: 'Not submitted' },
       ]} />
-      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
+      {query.isLoading ? <AdminLoadingSkeleton /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
         <EmptyState icon={<IconCheck size={32} />} title="Nothing here" description={status === 'pending' ? 'Shops appear here when their owner sends them for verification.' : 'No shops in this state.'} />
       ) : (
         <div className="table-container">
@@ -411,7 +524,7 @@ function StoresPage() {
           </select>
         </div>
       </div>
-      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
+      {query.isLoading ? <AdminLoadingSkeleton /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
         <EmptyState icon={<IconStore size={32} />} title="No stores match" />
       ) : (
         <div className="table-container table-scroll">
@@ -512,7 +625,7 @@ function AccountsPage() {
           </select>
         </div>
       </div>
-      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
+      {query.isLoading ? <AdminLoadingSkeleton /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
         <EmptyState icon={<IconUser size={32} />} title="No accounts match" />
       ) : (
         <div className="table-container table-scroll">
@@ -600,7 +713,7 @@ function LogPage() {
     <div>
       <PageHeader title="Activity log" subtitle="Every admin decision, who made it and why. Entries cannot be edited or deleted." />
       <SubTabs value={targetType} onChange={(v) => { setTargetType(v); setPage(1); }} options={[{ value: '', label: 'Everything' }, { value: 'store', label: 'Stores' }, { value: 'account', label: 'Accounts' }, { value: 'admin', label: 'Admin changes' }]} />
-      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
+      {query.isLoading ? <AdminLoadingSkeleton /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : (
         <ActionList actions={query.data?.data.actions ?? []} empty="No admin actions yet." />
       )}
       <Pagination meta={query.data?.meta} onPage={setPage} />
@@ -617,7 +730,7 @@ function SupportQueue() {
   return (
     <div>
       <PageHeader title="Escalated support" subtitle="Conversations a shop did not answer in time, or a customer asked us to step in." />
-      {query.isLoading ? <Spinner large /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
+      {query.isLoading ? <AdminLoadingSkeleton /> : query.error ? <ErrorState error={query.error} onRetry={() => query.refetch()} /> : rows.length === 0 ? (
         <EmptyState icon={<IconClipboard size={32} />} title="No escalations" description="Nothing needs platform support right now." />
       ) : (
         <ul className="stack" style={{ listStyle: 'none', padding: 0 }}>

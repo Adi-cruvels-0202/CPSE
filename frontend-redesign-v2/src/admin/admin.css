@@ -50,27 +50,71 @@
 .admin-v2__signout:hover { color: var(--sidebar-primary); }
 .admin-v2__login-logo { margin-bottom: 24px; }
 
+.admin-v2__mobile-header,
+.admin-v2__mobile-nav { display: none; }
+.admin-skeleton__mobile-bar,
+.admin-skeleton__mobile-nav { display: none; }
+
 .admin-loading { min-height: 100vh; display: grid; place-items: center; padding: var(--space-8); }
 .admin__main { min-width: 0; }
 .admin__content { max-width: 1180px; margin: 0 auto; padding: 32px 40px 72px; }
 
-/* Phones and small tablets: the sidebar becomes a top bar with scrolling tabs. */
-@media (max-width: 1023px) {
-  .admin-v2__side {
-    height: auto;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 10px 16px;
-    padding: 14px 16px 0;
-  }
-  .admin-v2__brand { padding: 0; align-self: center; }
-  .admin-v2__me { grid-column: 2; grid-row: 1; display: flex; align-items: center; padding: 0; border-top: 0; }
-  .admin-v2__email { display: none; }
-  .admin-v2__nav { grid-column: 1 / -1; flex-direction: row; gap: 4px; padding-bottom: 10px; scrollbar-width: none; }
-  .admin-v2__nav::-webkit-scrollbar { display: none; }
-  .admin-v2__link { white-space: nowrap; height: 38px; }
-  .admin__content { padding: 24px 16px 56px; }
+/* Admin-specific loading states: flat placeholders sized like the admin
+   overview, without the merchant workspace's card shadows. */
+.admin-skeleton { width: 100%; padding: 8px 0; }
+.admin-skeleton--workspace { min-height: 100vh; display: grid; grid-template-columns: 16rem minmax(0, 1fr); padding: 0; background: var(--background); }
+.admin-skeleton__side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 20px; padding: 20px 16px; background: var(--ink); }
+.admin-skeleton__nav { display: grid; gap: 8px; flex: 1; align-content: start; }
+.admin-skeleton__block { border: 1px solid var(--border); background: var(--sunk); box-shadow: none !important; }
+.admin-skeleton__side .admin-skeleton__block { border-color: var(--sidebar-border); background: var(--sidebar-accent); }
+.admin-skeleton__main { width: min(100%, 1260px); margin: 0 auto; padding: 32px 40px 72px; }
+.admin-skeleton__content { display: grid; gap: 24px; }
+.admin-skeleton__heading { display: grid; gap: 8px; }
+.admin-skeleton__metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.admin-skeleton__panel { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); box-shadow: none; }
+@media (min-width: 1024px) {
+  .admin-skeleton__metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* Phones and small tablets use the merchant app's compact header and bottom tabs. */
+@media (max-width: 1023px) {
+  .admin-skeleton--workspace { grid-template-columns: minmax(0, 1fr); }
+  .admin-skeleton__side { display: none; }
+  .admin-skeleton__mobile-bar { position: sticky; top: 0; z-index: 10; display: flex; height: 60px; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--background); }
+  .admin-skeleton__mobile-nav { position: fixed; inset: auto 0 0; z-index: 20; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; min-height: 68px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--card); }
+  .admin-skeleton__mobile-nav > div { display: grid; align-content: center; }
+  .admin-skeleton__main { padding: 24px 16px calc(104px + env(safe-area-inset-bottom)); }
+  .admin-v2__side {
+    display: none;
+  }
+  .admin-v2__mobile-header { position: sticky; top: 0; z-index: 30; display: flex; height: 60px; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--background) 96%, transparent); backdrop-filter: blur(12px); }
+  .admin-v2__mobile-brand { display: flex; align-items: center; gap: 8px; color: var(--foreground); font-size: 0.95rem; font-weight: 750; }
+  .admin-v2__mobile-admin { overflow: hidden; color: var(--muted-foreground); font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-v2__mobile-signout { display: grid; width: 38px; height: 38px; flex: 0 0 38px; place-items: center; margin-left: auto; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--foreground); cursor: pointer; touch-action: manipulation; }
+  .admin-v2__mobile-signout:focus-visible,
+  .admin-v2__mobile-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  .admin-v2__mobile-signout:active { transform: scale(0.96); }
+  .admin-v2__mobile-nav { position: fixed; inset: auto 0 0; z-index: 30; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; min-height: 68px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: color-mix(in srgb, var(--card) 97%, transparent); backdrop-filter: blur(14px); }
+  .admin-v2__mobile-tab { position: relative; display: flex; min-width: 0; min-height: 54px; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 12px; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 0.68rem; font-weight: 650; line-height: 1.1; text-decoration: none; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .admin-v2__mobile-tab.is-active { color: var(--foreground); }
+  .admin-v2__mobile-tab-icon { position: relative; display: grid; width: 34px; height: 28px; place-items: center; }
+  .admin-v2__mobile-tab.is-active .admin-v2__mobile-tab-icon { border-radius: 999px; background: var(--primary-soft); }
+  .admin-v2__more-menu { width: min(15rem, calc(100vw - 1.5rem)); border-radius: 16px; padding: 7px; box-shadow: var(--shadow-pop); }
+  .admin-v2__more-menu [role="menuitem"] { min-height: 44px; border-radius: 10px; }
+  .admin__content { padding: 24px 16px calc(104px + env(safe-area-inset-bottom)); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-v2__mobile-tab:hover { color: var(--foreground); text-decoration: none; }
+  .admin-v2__mobile-tab:hover .admin-v2__mobile-tab-icon { border-radius: 999px; background: color-mix(in srgb, var(--primary-soft) 56%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-v2__mobile-tab,
+  .admin-v2__mobile-signout { transition: none; }
+  .admin-v2__mobile-signout:active { transform: none; }
+}
+.admin-skeleton .admin-skeleton__block { box-shadow: none !important; }
 .admin__content .page-header { margin-bottom: var(--space-6, 24px); }
 .admin__content .tabs { margin-bottom: var(--space-5, 20px); }
 .admin__content .filters-bar { margin-bottom: var(--space-5, 20px); }

@@ -52,7 +52,7 @@ export function Login() {
           </p>
           <p className="auth__switch">
             Managing CPSE?{' '}
-            <a href="/admin" className="auth__link">
+            <a href="/v2/admin" className="auth__link">
               Admin sign in
             </a>
           </p>

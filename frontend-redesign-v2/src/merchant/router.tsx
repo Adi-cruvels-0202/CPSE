@@ -6,13 +6,15 @@ import { useParams as useTanParams, useRouter, useRouterState } from "@tanstack/
  * `basename="/merchant"`. This module gives them the same small surface
  * (Link, Navigate, useNavigate, useSearchParams, useParams, useLocation) on top
  * of the app's TanStack router, so their behaviour is preserved verbatim
- * while the URLs stay under /merchant.
+ * while the URLs stay under /v2/merchant.
  */
-export const BASE = "/merchant";
+export const BASE = "/v2/merchant";
+const ROUTER_BASE = "/merchant";
 
 export function toHref(to: string) {
   if (/^https?:\/\//.test(to)) return to;
   if (to === BASE || to.startsWith(`${BASE}/`) || to.startsWith(`${BASE}?`)) return to;
+  if (to === ROUTER_BASE || to.startsWith(`${ROUTER_BASE}/`) || to.startsWith(`${ROUTER_BASE}?`)) return `/v2${to}`;
   return `${BASE}${to.startsWith("/") ? to : `/${to}`}`;
 }
 
@@ -54,7 +56,8 @@ export function Navigate({ to, replace }: { to: string; replace?: boolean }) {
 
 export function useLocation() {
   const loc = useRouterState({ select: (s) => s.location });
-  const pathname = loc.pathname.startsWith(BASE) ? loc.pathname.slice(BASE.length) || "/" : loc.pathname;
+  const pathWithoutV2 = loc.pathname.startsWith("/v2/") ? loc.pathname.slice(3) : loc.pathname;
+  const pathname = pathWithoutV2.startsWith(ROUTER_BASE) ? pathWithoutV2.slice(ROUTER_BASE.length) || "/" : pathWithoutV2;
   return { pathname, search: loc.searchStr, hash: loc.hash, state: loc.state };
 }
 
@@ -72,7 +75,7 @@ export function useSearchParams(): [URLSearchParams, (next: ParamsInit | ((prev:
     (next: ParamsInit | ((prev: URLSearchParams) => ParamsInit), opts?: { replace?: boolean }) => {
       const value = typeof next === "function" ? next(new URLSearchParams(router.state.location.searchStr)) : next;
       const qs = new URLSearchParams(value as any).toString();
-      router.navigate({ href: `${pathname}${qs ? `?${qs}` : ""}`, replace: opts?.replace });
+      router.navigate({ href: `${toHref(pathname)}${qs ? `?${qs}` : ""}`, replace: opts?.replace });
     },
     [router, pathname],
   );

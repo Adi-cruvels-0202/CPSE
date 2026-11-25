@@ -26,13 +26,13 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
 type Suggestion =
   | { kind: "shop"; id: string; store: any }
-  | { kind: "product"; id: string; product: any }
+  | { kind: "product"; id: string; product: any; store?: any }
   | { kind: "all"; id: string };
 
 /**
  * Editable combobox (WAI-ARIA APG, list autocomplete with manual selection).
- * Outside a shop it suggests shops from the directory as you type; inside a
- * shop it suggests that shop's products from the store search endpoint.
+ * Outside a shop it suggests shops and products available at those shops;
+ * inside a shop it suggests products from that shop's search endpoint.
  */
 export function HeaderSearch({ store, className }: { store: { slug: string; name: string; id?: string } | null; className?: string }) {
   const navigate = useNavigate();
@@ -58,6 +58,13 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
     staleTime: 30_000,
   });
 
+  const homeProductSearch = useQuery({
+    queryKey: ["home-product-search", city, debounced],
+    queryFn: cpse<any>(() => endpoints.intelligence.homeAssistant(debounced, city)),
+    enabled: Boolean(!store && open && debounced.length >= 2),
+    staleTime: 15_000,
+  });
+
   const suggestions = useMemo<Suggestion[]>(() => {
     const q = query.trim().normalize("NFKC").toLocaleLowerCase();
     if (!q) return [];
@@ -77,8 +84,18 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
       })
       .sort((a: any, b: any) => Number(b.location?.city === city) - Number(a.location?.city === city))
       .slice(0, 8);
-    return shops.map((s: any) => ({ kind: "shop" as const, id: s.id, store: s }));
-  }, [query, store, productSearch.data, directory.data, city]);
+    const shopSuggestions = shops.map((s: any) => ({ kind: "shop" as const, id: s.id, store: s }));
+    const reply = debounced === q ? homeProductSearch.data?.reply : undefined;
+    const productSuggestions = reply?.kind === "shops"
+      ? (reply.shops ?? []).flatMap((match: any) => (match.matchingProducts ?? []).map((product: any) => ({
+        kind: "product" as const,
+        id: `${match.store.id}-${product.id}`,
+        product,
+        store: match.store,
+      })))
+      : [];
+    return [...productSuggestions, ...shopSuggestions].slice(0, 12);
+  }, [query, debounced, store, productSearch.data, homeProductSearch.data, directory.data, city]);
 
   useEffect(() => setActive(0), [query]);
 
@@ -102,6 +119,8 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
       navigate({ to: "/store/$slug", params: { slug: s.store.slug } });
     } else if (s.kind === "product" && store) {
       navigate({ to: "/store/$slug/product/$productId", params: { slug: store.slug, productId: s.product.id } });
+    } else if (s.kind === "product" && s.store) {
+      navigate({ to: "/store/$slug/product/$productId", params: { slug: s.store.slug, productId: s.product.id } });
     } else if (store) {
       navigate({ to: "/store/$slug/search", params: { slug: store.slug }, search: { q: query.trim() } });
     }
@@ -130,13 +149,15 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
 
   const trimmed = query.trim();
   const showPanel = open && trimmed.length > 0;
-  const loading = store ? productSearch.isFetching || debounced !== trimmed : directory.isLoading;
+  const loading = store
+    ? productSearch.isFetching || debounced !== trimmed
+    : directory.isLoading || (trimmed.length >= 2 && (homeProductSearch.isFetching || debounced !== trimmed));
   const activeId = showPanel && suggestions[active] ? `${listId}-${suggestions[active]!.id}` : undefined;
 
   return (
     <div ref={wrapRef} className={cn("relative", className)}>
       <label htmlFor={`${listId}-input`} className="sr-only">
-        {store ? `Search ${store.name}` : "Search shops"}
+        {store ? `Search ${store.name}` : "Search shops and products"}
       </label>
       <div
         className={cn(
@@ -161,7 +182,7 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
           }}
           onFocus={() => trimmed && setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder={store ? `Search in ${store.name}` : "Search shops near you"}
+          placeholder={store ? `Search in ${store.name}` : "Search shops or products near you"}
           className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
         />
         {query ? (
@@ -181,7 +202,7 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
 
       {showPanel ? (
         <div className="absolute inset-x-0 top-[calc(100%+6px)] z-[60] overflow-hidden rounded-2xl border border-border-strong/30 bg-popover shadow-pop animate-drop-in">
-          <ul id={listId} role="listbox" aria-label={store ? "Products" : "Shops"} className="max-h-[60vh] overflow-y-auto p-1.5">
+          <ul id={listId} role="listbox" aria-label={store ? "Products" : "Shops and products"} className="max-h-[60vh] overflow-y-auto p-1.5">
             {suggestions.map((s, index) => (
               <li
                 key={s.id}
@@ -213,10 +234,11 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-sunk text-xs font-bold text-muted-foreground">
                       {s.product.name.slice(0, 2).toUpperCase()}
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-semibold">
-                      <Highlight text={s.product.name} query={trimmed} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold"><Highlight text={s.product.name} query={trimmed} /></span>
+                      {!store && s.store ? <span className="block truncate text-xs text-muted-foreground">{s.store.name}{s.store.location?.city ? ` · ${s.store.location.city}` : ""}</span> : null}
                     </span>
-                    <span className="numeric text-sm font-bold">{formatPaiseShort(s.product.pricePaise)}</span>
+                    <span className="numeric shrink-0 text-right text-sm font-bold">{formatPaiseShort(s.product.pricePaise)}{s.product.unit ? <span className="block text-[10px] font-normal text-muted-foreground">/{s.product.unit}</span> : null}</span>
                   </>
                 ) : (
                   <>
@@ -242,7 +264,7 @@ export function HeaderSearch({ store, className }: { store: { slug: string; name
               ) : (
                 <>
                   <StoreIcon className="h-4 w-4" />
-                  {store ? `Nothing in ${store.name} matches “${trimmed}”.` : `No shop called “${trimmed}”. Try a shorter name.`}
+                  {store ? `Nothing in ${store.name} matches “${trimmed}”.` : `No matching shop or product for “${trimmed}”. Try another search.`}
                 </>
               )}
             </div>

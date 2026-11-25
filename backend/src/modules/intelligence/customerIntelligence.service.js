@@ -439,7 +439,7 @@ export async function homeAssistant({ message, city, compareList = false }) {
     const nameFilters = [...searchTerms].map((word) => `name.ilike.%${word}%`).join(',');
     const { data: rows, error } = await supabaseAdmin
       .from('products')
-      .select('id, store_id, name')
+      .select('id, store_id, name, price_paise, unit')
       .in('store_id', [...byId.keys()])
       .eq('is_available', true)
       .is('archived_at', null)
@@ -455,23 +455,34 @@ export async function homeAssistant({ message, city, compareList = false }) {
       const joinedWordMatch = compactQuery.length >= 4 && (compactName.includes(compactQuery) || compactQuery.includes(compactName));
       const score = Math.max(engines.coverage(query.words.join(' '), product.name), joinedWordMatch ? 1 : 0);
       if (!store || score < 0.5) continue;
-      if (!matches.has(store.id)) matches.set(store.id, { store, score, products: [] });
+      if (!matches.has(store.id)) matches.set(store.id, { store, score, products: new Map() });
       const result = matches.get(store.id);
       result.score = Math.max(result.score, score);
-      if (!result.products.includes(product.name)) result.products.push(product.name);
+      if (!result.products.has(product.id)) {
+        result.products.set(product.id, {
+          id: product.id,
+          name: product.name,
+          pricePaise: product.price_paise,
+          unit: product.unit ?? 'pcs',
+        });
+      }
     }
 
     const ranked = [...matches.values()]
-      .sort((a, b) => b.score - a.score || b.products.length - a.products.length || a.store.name.localeCompare(b.store.name))
+      .sort((a, b) => b.score - a.score || b.products.size - a.products.size || a.store.name.localeCompare(b.store.name))
       .slice(0, 6);
     if (ranked.length) {
       return {
         kind: 'shops',
         answer: `I found ${query.words.join(' ')} at ${ranked.length} ${ranked.length === 1 ? 'shop' : 'shops'}${city ? ` in ${city}` : ''}.`,
-        shops: ranked.map(({ store, products }) => ({
-          store,
-          reason: `Has ${products.slice(0, 3).join(', ')}${products.length > 3 ? ` and ${products.length - 3} more matching ${products.length - 3 === 1 ? 'item' : 'items'}` : ''}.`,
-        })),
+        shops: ranked.map(({ store, products }) => {
+          const matchingProducts = [...products.values()].slice(0, 4);
+          return {
+            store,
+            reason: `Has ${matchingProducts.slice(0, 3).map((product) => product.name).join(', ')}${products.size > 3 ? ` and ${products.size - 3} more matching ${products.size - 3 === 1 ? 'item' : 'items'}` : ''}.`,
+            matchingProducts,
+          };
+        }),
       };
     }
   }

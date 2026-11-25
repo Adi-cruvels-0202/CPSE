@@ -857,6 +857,7 @@ order number, e.g. `7UWQ4T` for `CPSE-261114-7UWQ4T`):
 | `order 7UWQ4T` | The order's lines, customer and total, with buttons for what it allows now |
 | `accept`, `preparing`, `ready`, `dispatch`, `done` + code | Moves the order on (`ready` steps through preparing when needed) |
 | `reject`, `cancel` + code [+ reason] | Asks first, with a Yes button; the customer gets the reason |
+| `missing` + code, or the **Item missing** button | Pick the item the shop cannot pack, then *None available* or *Only N−1*; the order goes ahead with the rest, exactly as `POST …/items/:itemId/unavailable`. Offered only until the order is ready |
 | `sales`, `sales yesterday`, `sales week` | Online orders and counter sales, with totals |
 | `stock rice`, `low stock` | What can be sold; what is at or under its alert level |
 | `add 10 rice` | Stock received — confirms the product first (a list when several match) |

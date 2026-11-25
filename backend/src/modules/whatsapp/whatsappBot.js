@@ -44,6 +44,7 @@ const HELP = [
   '• *order 7UWQ4T* – one order, with buttons to act',
   '• *accept 7UWQ4T* · *ready 7UWQ4T* · *done 7UWQ4T*',
   '• *reject 7UWQ4T* · *cancel 7UWQ4T out of stock*',
+  '• *missing 7UWQ4T* – an item you cannot pack',
   '• *sales* · *sales yesterday* · *sales week*',
   '• *stock rice* – what is left',
   '• *low stock* – what is running out',
@@ -141,6 +142,7 @@ async function onText(ctx, text) {
   if (/^(hi|hello|hey|help|menu|start|\?)$/.test(t)) return { text: `${ctx.store.name}\n\n${HELP}`, list: MENU };
   if (/^orders?$/.test(t) || t === 'new orders' || t === 'open orders') return listOpenOrders(ctx);
   if ((m = /^order #?([a-z0-9-]{4,})$/.exec(t))) return showOrder(ctx, await findOrder(ctx, m[1]));
+  if ((m = /^(?:item )?missing #?([a-z0-9-]{4,})$/.exec(t))) return pickMissing(ctx, await findOrder(ctx, m[1]));
   if ((m = /^(accept|preparing|prepare|ready|dispatch|out|done|complete|completed|delivered|picked up) #?([a-z0-9-]{4,})$/.exec(t))) {
     return act(ctx, verbToAction(m[1]), await findOrder(ctx, m[2]));
   }
@@ -182,6 +184,12 @@ async function onTap(ctx, id) {
       return confirmStop(ctx, a, await findOrderById(ctx, b), null);
     case 'stop':
       return stopOrder(ctx, a, await findOrderById(ctx, b), c ? decodeURIComponent(c) : null);
+    case 'miss':
+      return pickMissing(ctx, await findOrderById(ctx, a));
+    case 'missitem':
+      return askHowMany(ctx, await findOrderById(ctx, a), b);
+    case 'short':
+      return markMissing(ctx, await findOrderById(ctx, a), b, Number(c));
     case 'stockin':
       return addStock(ctx, a, Number(b));
     case 'shop':
@@ -254,8 +262,9 @@ async function showOrder(ctx, found, prefix = '') {
   if (!found) return NOT_FOUND;
   const order = await orders.getOrder(ctx.store, found.id);
   const items = (order.items ?? []).filter((i) => i.isActive !== false);
-  const lines = items.slice(0, 15).map((i) => `• ${i.quantity} × ${i.productName}${i.variantName && i.variantName !== 'Default' ? ` (${i.variantName})` : ''} – ${rupees(i.lineTotalPaise)}`);
+  const lines = items.slice(0, 15).map((i) => `• ${i.quantity} × ${itemName(i)} – ${rupees(i.lineTotalPaise)}${(i.orderedQuantity ?? i.quantity) > i.quantity ? ` _(${i.unavailableQuantity} of ${i.orderedQuantity} not available)_` : ''}`);
   if (items.length > 15) lines.push(`…and ${items.length - 15} more`);
+  for (const gone of order.unavailableItems ?? []) lines.push(`• ~${gone.orderedQuantity ?? gone.quantity} × ${itemName(gone)}~ _not available_`);
   const who = [order.customer?.name, order.customer?.phone].filter(Boolean).join(' · ');
   const text = [
     prefix,
@@ -267,8 +276,66 @@ async function showOrder(ctx, found, prefix = '') {
     `Total ${rupees(order.totals.totalPaise)} · ${order.paymentMethod === 'cash' ? 'Cash' : 'Online'} (${order.paymentStatus})`,
     order.customerNote ? `Note: ${order.customerNote}` : '',
   ].filter((line, i) => line !== '' || i > 0).join('\n').trim();
-  const buttons = order.allowedActions.map((a) => ACTION_BUTTON[a] && { id: ACTION_BUTTON[a].id(order), title: ACTION_BUTTON[a].title }).filter(Boolean).slice(0, 3);
+  // WhatsApp allows three buttons: the next step, "Item missing" while the
+  // order can still change, then reject or cancel. Everything else can be typed.
+  const all = order.allowedActions.map((a) => ACTION_BUTTON[a] && { action: a, id: ACTION_BUTTON[a].id(order), title: ACTION_BUTTON[a].title }).filter(Boolean);
+  const forward = all.filter((b) => b.action !== 'reject' && b.action !== 'cancel');
+  const stop = all.filter((b) => b.action === 'reject' || b.action === 'cancel');
+  const buttons = (order.canChangeItems
+    ? [forward[0], { id: `miss:${order.id}`, title: 'Item missing' }, stop[0]]
+    : [...forward, ...stop]
+  ).filter(Boolean).slice(0, 3).map(({ id, title }) => ({ id, title }));
   return buttons.length ? { text, buttons } : { text };
+}
+
+const itemName = (i) => `${i.productName}${i.variantName && i.variantName !== 'Default' ? ` (${i.variantName})` : ''}`;
+
+/** "Item missing": which line can the shop not pack? */
+async function pickMissing(ctx, found) {
+  if (!found) return NOT_FOUND;
+  const order = await orders.getOrder(ctx.store, found.id);
+  if (!order.canChangeItems) {
+    return { text: `Order ${shortCode(order.orderNumber)} is ${label(order.status).toLowerCase()}; its items can only be changed before it is ready.` };
+  }
+  const items = (order.items ?? []).filter((i) => i.isActive !== false);
+  return {
+    text: `Which item in order ${shortCode(order.orderNumber)} can you not pack? The rest of the order goes ahead, and the customer is told.`,
+    list: {
+      button: 'Choose item',
+      title: 'Items in this order',
+      rows: items.slice(0, 10).map((i) => ({ id: `missitem:${order.id}:${i.id}`, title: itemName(i), description: `${i.quantity} ordered · ${rupees(i.lineTotalPaise)}` })),
+    },
+  };
+}
+
+/** None of it, or one fewer — the common cases, as buttons. */
+async function askHowMany(ctx, found, itemId) {
+  if (!found) return NOT_FOUND;
+  const order = await orders.getOrder(ctx.store, found.id);
+  const item = (order.items ?? []).find((i) => i.id === itemId && i.isActive !== false);
+  if (!item) return { text: 'That item is no longer in this order.' };
+  const buttons = [{ id: `short:${order.id}:${item.id}:0`, title: item.quantity === 1 ? 'Remove it' : 'None available' }];
+  if (item.quantity > 1) buttons.push({ id: `short:${order.id}:${item.id}:${item.quantity - 1}`, title: `Only ${item.quantity - 1}` });
+  buttons.push({ id: `order:${order.id}`, title: 'Keep it' });
+  return {
+    text: `${item.quantity} × ${itemName(item)} in order ${shortCode(order.orderNumber)}. How many can you pack?${item.quantity > 2 ? '\nFor another number, change it in the CPSE app.' : ''}`,
+    buttons,
+  };
+}
+
+/** Applies it through the same rules as the app: bill, stock, refund, customer told. */
+async function markMissing(ctx, found, itemId, quantityLeft) {
+  if (!found) return NOT_FOUND;
+  if (!Number.isInteger(quantityLeft) || quantityLeft < 0) return { text: 'That quantity is not valid.' };
+  const before = await orders.getOrder(ctx.store, found.id);
+  const item = (before.items ?? []).find((i) => i.id === itemId && i.isActive !== false);
+  if (!item) return { text: 'That item is no longer in this order.' };
+  const after = await orders.markItemUnavailable(ctx.store, found.id, itemId, { quantityLeft });
+  if (['cancelled', 'rejected'].includes(after.status)) {
+    return { text: `Nothing was left to pack, so order ${shortCode(after.orderNumber)} is now *${label(after.status)}*. The customer has been told${after.paymentStatus === 'paid' ? ' and will be refunded' : ''}.` };
+  }
+  const what = quantityLeft === 0 ? `${itemName(item)} removed` : `${itemName(item)}: packing ${quantityLeft} of ${item.quantity}`;
+  return showOrder(ctx, { id: after.id }, `✅ ${what}. New total *${rupees(after.totals.totalPaise)}*. The customer has been told and can cancel if they don't want it now.\n`);
 }
 
 /** Moves an order on. Each step is checked against what the order allows now. */

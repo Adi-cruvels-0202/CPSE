@@ -23,6 +23,7 @@ const COMMANDS: [string, string][] = [
   ['order 7UWQ4T', 'One order, with Accept / Ready / Done buttons'],
   ['accept 7UWQ4T · ready 7UWQ4T · done 7UWQ4T', 'Move an order on'],
   ['reject 7UWQ4T · cancel 7UWQ4T out of stock', 'Asks first, then tells the customer'],
+  ['missing 7UWQ4T', "An item you can't pack: the rest of the order goes ahead"],
   ['sales · sales yesterday · sales week', 'Online orders and counter sales'],
   ['stock rice · low stock', "What's left, and what's running out"],
   ['add 10 rice', 'Stock received (asks which product first)'],

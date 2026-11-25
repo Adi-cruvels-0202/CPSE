@@ -56,7 +56,13 @@ export const isTerminal = (status) => TERMINAL_STATUSES.includes(status);
 
 export const canTransition = (from, to) => (TRANSITIONS[from] ?? []).includes(to);
 
-export const canCustomerCancel = (status) => CUSTOMER_CANCELLABLE.includes(status);
+/**
+ * Plus one case: when the shop could not pack everything and went ahead with
+ * the rest (migration 0049), the customer may still say no to the changed
+ * order while it is being prepared.
+ */
+export const canCustomerCancel = (status, { itemsChanged = false } = {}) =>
+  CUSTOMER_CANCELLABLE.includes(status) || (itemsChanged && status === 'preparing');
 
 /** Checklist 8.5. The states this order can actually pass through. */
 export function timelineFor(fulfilmentMode) {

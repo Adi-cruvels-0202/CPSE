@@ -6,7 +6,7 @@ import { requireMerchant, requireStoreOwner } from '../../middleware/requireMerc
 import { emptyBody } from '../../lib/schemas.js';
 import { storeParams } from '../merchantStores/merchantStore.schemas.js';
 import * as controller from './merchantOrder.controller.js';
-import { orderParams, orderListQuery, rejectSchema, cancelSchema, statusSchema } from './merchantOrder.schemas.js';
+import { orderParams, orderItemParams, orderListQuery, rejectSchema, cancelSchema, statusSchema, unavailableSchema } from './merchantOrder.schemas.js';
 
 /**
  * /merchant/stores/:storeId/orders — MERCHANT_API.md, Orders. Mounted at
@@ -32,3 +32,10 @@ merchantOrderRouter.post('/:storeId/orders/:orderId/reject', ...write(rejectSche
 merchantOrderRouter.post('/:storeId/orders/:orderId/status', ...write(statusSchema), controller.setOrderStatus);
 merchantOrderRouter.post('/:storeId/orders/:orderId/complete', ...write(emptyBody), controller.completeOrder);
 merchantOrderRouter.post('/:storeId/orders/:orderId/cancel', ...write(cancelSchema), controller.cancelOrder);
+merchantOrderRouter.post(
+  '/:storeId/orders/:orderId/items/:itemId/unavailable',
+  writeLimiter,
+  ...own(orderItemParams),
+  validate({ body: unavailableSchema }),
+  controller.markItemUnavailable,
+);

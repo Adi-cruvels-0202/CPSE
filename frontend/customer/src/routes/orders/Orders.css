@@ -347,3 +347,7 @@
   border-top: 1px solid var(--border-subtle);
   padding-top: var(--space-3, 0.75rem);
 }
+
+/* Lines the shop could not pack in full. */
+.order__item-short { display: block; font-size: var(--text-xs, 0.75rem); color: var(--warning-text, #8a5a00); }
+.order__unavailable p { margin: 0; }

@@ -654,3 +654,24 @@ describe('orderStatus helpers', () => {
     expect(formatWhen('not a date')).toBeNull();
   });
 });
+
+describe('when the shop could not pack everything', () => {
+  it('shows what was short, what was not available, and that the order can still be cancelled', async () => {
+    renderAt('/orders/order-1', {
+      routes: {
+        '/orders/order-1': ok({
+          order: orderDetailFixture({
+            status: 'preparing',
+            isCancellable: true,
+            itemsChangedAt: '2026-09-20T16:30:00Z',
+            items: [orderItemFixture({ quantity: 2, orderedQuantity: 3 })],
+            unavailableItems: [orderItemFixture({ id: 'oi-2', name: 'Toor Dal', variantName: null, quantity: 1, orderedQuantity: 1, notAvailable: true })],
+          }),
+        }),
+      },
+    });
+    expect(await screen.findByText('You ordered 3; the shop only had 2.')).toBeInTheDocument();
+    expect(screen.getByText(/Toor Dal × 1/)).toBeInTheDocument();
+    expect(screen.getByText(/went ahead with the rest/)).toBeInTheDocument();
+  });
+});

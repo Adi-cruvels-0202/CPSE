@@ -23,3 +23,7 @@ export const rejectOrder = action(orders.rejectOrder);
 export const setOrderStatus = action(orders.setOrderStatus);
 export const completeOrder = action(orders.completeOrder);
 export const cancelOrder = action(orders.cancelOrder);
+
+export const markItemUnavailable = asyncHandler(async (req, res) => {
+  sendSuccess(res, { order: await orders.markItemUnavailable(req.store, req.params.orderId, req.params.itemId, req.body ?? {}) });
+});

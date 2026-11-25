@@ -42,6 +42,7 @@ Shop owner's WhatsApp ◄── Meta ◄── graph.facebook.com/<version>/<pho
   checked again against the owner's own shop, and every order action against
   what the order allows right now.
 - **Refusing a customer asks first.** Reject and cancel need a Yes tap.
+- **An item the shop cannot pack** (Item missing button, or `missing <code>`) goes through the same step as the app's *Can't pack*: bill recalculated, stock hold released, a prepaid difference refunded, customer told. Only until the order is ready.
 - **Suspended accounts** get a notice and nothing else.
 - Every message in and out is logged in `whatsapp_messages`; a message Meta
   delivers twice is handled once.

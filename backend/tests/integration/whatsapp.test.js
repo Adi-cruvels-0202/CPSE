@@ -298,3 +298,50 @@ describe('new-order alerts', () => {
     expect(await alerts()).toEqual([]);
   });
 });
+
+describe('an item the shop cannot pack', () => {
+  it('Item missing → pick the item → pack fewer: the order goes ahead with the new total', async () => {
+    const { shop, rice } = await linkedShop();
+    const order = await orderFor(shop, rice, 3);
+    const c = code(order.orderNumber);
+
+    const detail = (await say(PHONE, `order ${c}`)).at(-1);
+    expect(detail).toContain('[Item missing]');
+
+    const pick = (await say(PHONE, { replyId: `miss:${order.id}`, title: 'Item missing' })).at(-1);
+    expect(pick).toContain('Which item');
+    const [item] = await sql('select id from order_items where order_id = $1', [order.id]);
+
+    const ask = (await say(PHONE, { replyId: `missitem:${order.id}:${item.id}`, title: 'Basmati Rice (1 kg)' })).at(-1);
+    expect(ask).toContain('[None available]');
+    expect(ask).toContain('[Only 2]');
+
+    const done = (await say(PHONE, { replyId: `short:${order.id}:${item.id}:2`, title: 'Only 2' })).at(-1);
+    expect(done).toContain('packing 2 of 3');
+    expect(done).toContain('1 of 3 not available');
+    const [line] = await sql('select quantity, ordered_quantity from order_items where id = $1', [item.id]);
+    expect(line).toEqual({ quantity: 2, ordered_quantity: 3 });
+  });
+
+  it('"missing <code>" works typed too, and nothing left calls the order off', async () => {
+    const { shop, rice } = await linkedShop();
+    const order = await orderFor(shop, rice, 1);
+    expect((await say(PHONE, `missing ${code(order.orderNumber)}`)).at(-1)).toContain('Which item');
+    const [item] = await sql('select id from order_items where order_id = $1', [order.id]);
+    expect((await say(PHONE, { replyId: `missitem:${order.id}:${item.id}`, title: 'Rice' })).at(-1)).toContain('[Remove it]');
+    expect((await say(PHONE, { replyId: `short:${order.id}:${item.id}:0`, title: 'Remove it' })).at(-1)).toContain('Nothing was left to pack');
+    expect(await orderStatus(order.id)).toBe('rejected');
+  });
+
+  it('is not offered once the order is ready, and refuses an item from another order', async () => {
+    const { shop, rice } = await linkedShop();
+    const order = await orderFor(shop, rice, 2);
+    await say(PHONE, `accept ${code(order.orderNumber)}`);
+    await say(PHONE, `ready ${code(order.orderNumber)}`);
+    expect(await orderStatus(order.id)).toBe('ready_for_pickup');
+    const detail = (await say(PHONE, `order ${code(order.orderNumber)}`)).at(-1);
+    expect(detail).not.toContain('[Item missing]');
+    expect((await say(PHONE, `missing ${code(order.orderNumber)}`)).at(-1)).toContain('only be changed before it is ready');
+    expect((await say(PHONE, { replyId: `short:${order.id}:00000000-0000-4000-8000-000000000000:0`, title: 'x' })).at(-1)).toContain('no longer in this order');
+  });
+});

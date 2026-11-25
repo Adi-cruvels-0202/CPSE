@@ -58,6 +58,7 @@ import { Route as MerchantShellRefundsRouteImport } from './routes/merchant._she
 import { Route as MerchantShellShareRouteImport } from './routes/merchant._shell.share'
 import { Route as MerchantShellSuggestionsRouteImport } from './routes/merchant._shell.suggestions'
 import { Route as MerchantShellVerificationRouteImport } from './routes/merchant._shell.verification'
+import { Route as MerchantShellWhatsappRouteImport } from './routes/merchant._shell.whatsapp'
 import { Route as StoreSlugIndexRouteImport } from './routes/store.$slug.index'
 import { Route as StoreSlugSearchRouteImport } from './routes/store.$slug.search'
 import { Route as MerchantShellInventoryIndexRouteImport } from './routes/merchant._shell.inventory.index'
@@ -316,6 +317,11 @@ const MerchantShellVerificationRoute =
     path: '/verification',
     getParentRoute: () => MerchantShellRoute,
   } as any)
+const MerchantShellWhatsappRoute = MerchantShellWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => MerchantShellRoute,
+} as any)
 const StoreSlugIndexRoute = StoreSlugIndexRouteImport.update({
   id: '/store/$slug/',
   path: '/store/$slug/',
@@ -413,6 +419,7 @@ export interface FileRoutesByFullPath {
   '/merchant/share': typeof MerchantShellShareRoute
   '/merchant/suggestions': typeof MerchantShellSuggestionsRoute
   '/merchant/verification': typeof MerchantShellVerificationRoute
+  '/merchant/whatsapp': typeof MerchantShellWhatsappRoute
   '/store/$slug/search': typeof StoreSlugSearchRoute
   '/merchant/': typeof MerchantShellIndexRoute
   '/store/$slug/': typeof StoreSlugIndexRoute
@@ -472,6 +479,7 @@ export interface FileRoutesByTo {
   '/merchant/share': typeof MerchantShellShareRoute
   '/merchant/suggestions': typeof MerchantShellSuggestionsRoute
   '/merchant/verification': typeof MerchantShellVerificationRoute
+  '/merchant/whatsapp': typeof MerchantShellWhatsappRoute
   '/store/$slug/search': typeof StoreSlugSearchRoute
   '/store/$slug': typeof StoreSlugIndexRoute
   '/merchant/inventory/history': typeof MerchantShellInventoryHistoryRoute
@@ -532,6 +540,7 @@ export interface FileRoutesById {
   '/merchant/_shell/share': typeof MerchantShellShareRoute
   '/merchant/_shell/suggestions': typeof MerchantShellSuggestionsRoute
   '/merchant/_shell/verification': typeof MerchantShellVerificationRoute
+  '/merchant/_shell/whatsapp': typeof MerchantShellWhatsappRoute
   '/store/$slug/search': typeof StoreSlugSearchRoute
   '/merchant/_shell/': typeof MerchantShellIndexRoute
   '/store/$slug/': typeof StoreSlugIndexRoute
@@ -593,6 +602,7 @@ export interface FileRouteTypes {
     | '/merchant/share'
     | '/merchant/suggestions'
     | '/merchant/verification'
+    | '/merchant/whatsapp'
     | '/store/$slug/search'
     | '/merchant/'
     | '/store/$slug/'
@@ -652,6 +662,7 @@ export interface FileRouteTypes {
     | '/merchant/share'
     | '/merchant/suggestions'
     | '/merchant/verification'
+    | '/merchant/whatsapp'
     | '/store/$slug/search'
     | '/store/$slug'
     | '/merchant/inventory/history'
@@ -711,6 +722,7 @@ export interface FileRouteTypes {
     | '/merchant/_shell/share'
     | '/merchant/_shell/suggestions'
     | '/merchant/_shell/verification'
+    | '/merchant/_shell/whatsapp'
     | '/store/$slug/search'
     | '/merchant/_shell/'
     | '/store/$slug/'
@@ -1095,6 +1107,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MerchantShellVerificationRouteImport
       parentRoute: typeof MerchantShellRoute
     }
+    '/merchant/_shell/whatsapp': {
+      id: '/merchant/_shell/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/merchant/whatsapp'
+      preLoaderRoute: typeof MerchantShellWhatsappRouteImport
+      parentRoute: typeof MerchantShellRoute
+    }
     '/store/$slug/': {
       id: '/store/$slug/'
       path: '/store/$slug'
@@ -1194,6 +1213,7 @@ interface MerchantShellRouteChildren {
   MerchantShellShareRoute: typeof MerchantShellShareRoute
   MerchantShellSuggestionsRoute: typeof MerchantShellSuggestionsRoute
   MerchantShellVerificationRoute: typeof MerchantShellVerificationRoute
+  MerchantShellWhatsappRoute: typeof MerchantShellWhatsappRoute
   MerchantShellIndexRoute: typeof MerchantShellIndexRoute
   MerchantShellInventoryHistoryRoute: typeof MerchantShellInventoryHistoryRoute
   MerchantShellSalesNewRoute: typeof MerchantShellSalesNewRoute
@@ -1226,6 +1246,7 @@ const MerchantShellRouteChildren: MerchantShellRouteChildren = {
   MerchantShellShareRoute: MerchantShellShareRoute,
   MerchantShellSuggestionsRoute: MerchantShellSuggestionsRoute,
   MerchantShellVerificationRoute: MerchantShellVerificationRoute,
+  MerchantShellWhatsappRoute: MerchantShellWhatsappRoute,
   MerchantShellIndexRoute: MerchantShellIndexRoute,
   MerchantShellInventoryHistoryRoute: MerchantShellInventoryHistoryRoute,
   MerchantShellSalesNewRoute: MerchantShellSalesNewRoute,

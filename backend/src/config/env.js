@@ -74,6 +74,26 @@ const envSchema = z.object({
   NOTIFY_WEBHOOK_URL: z.string().url().optional(),
   NOTIFY_WEBHOOK_SECRET: z.string().min(16).default('dev-only-notify-secret-change-me'),
 
+  // Run the shop from WhatsApp (src/modules/whatsapp, Meta's WhatsApp Cloud
+  // API). 'none' keeps the feature working end to end but sends nothing: every
+  // outgoing message is recorded as skipped. 'meta' needs the four values
+  // below from the Meta app (WhatsApp → API setup).
+  WHATSAPP_PROVIDER: z.enum(['none', 'meta']).default('none'),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().trim().min(1).optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().trim().min(1).optional(),
+  // Signs every webhook call (X-Hub-Signature-256); calls without it are refused.
+  WHATSAPP_APP_SECRET: z.string().trim().min(8).optional(),
+  // Any string you choose; Meta echoes it once when the webhook is registered.
+  WHATSAPP_VERIFY_TOKEN: z.string().trim().min(8).optional(),
+  // The CPSE business number shop owners message, digits with country code.
+  WHATSAPP_BUSINESS_NUMBER: z.string().trim().regex(/^[1-9][0-9]{7,14}$/, 'Digits with country code, e.g. 919876543210.').optional(),
+  WHATSAPP_API_VERSION: z.string().trim().regex(/^v[0-9]+\.[0-9]+$/).default('v23.0'),
+  // New-order alerts outside WhatsApp's 24-hour window must use a template
+  // approved in WhatsApp Manager (docs/implementation/WHATSAPP.md). Unset: such
+  // alerts are recorded as skipped with that reason.
+  WHATSAPP_ORDER_TEMPLATE: z.string().trim().min(1).optional(),
+  WHATSAPP_TEMPLATE_LANGUAGE: z.string().trim().min(2).default('en'),
+
   // Intelligence (src/modules/intelligence) is deterministic and needs no
   // provider. A vision model adds two things only: recognising a product from
   // a photo and reading an invoice photo/PDF (src/lib/ai.js). 'none' turns
@@ -129,6 +149,16 @@ export function loadEnv(source = process.env) {
   }
 
   const value = parsed.data;
+
+  // Meta needs all four to send and to trust the webhook; a half-configured
+  // WhatsApp would accept messages it can never answer.
+  if (value.WHATSAPP_PROVIDER === 'meta') {
+    const needed = ['WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN', 'WHATSAPP_BUSINESS_NUMBER'];
+    const absent = needed.filter((key) => !value[key]);
+    if (absent.length) {
+      throw new Error(`Invalid environment configuration:\n${absent.map((key) => `  - ${key}: required when WHATSAPP_PROVIDER=meta`).join('\n')}`);
+    }
+  }
 
   return {
     ...value,

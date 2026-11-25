@@ -36,6 +36,7 @@ const AnnouncementsPage = lazy(() => import('./features/tools/AnnouncementsPage'
 const AnalyticsPage = lazy(() => import('./features/tools/AnalyticsPage'));
 const AutomationPage = lazy(() => import('./features/tools/AutomationPage'));
 const SharePage = lazy(() => import('./features/tools/SharePage'));
+const WhatsAppPage = lazy(() => import('./features/tools/WhatsAppPage'));
 const VerificationPage = lazy(() => import('./features/tools/VerificationPage'));
 const InsightsPage = lazy(() => import('./features/tools/InsightsPage'));
 // The admin portal is its own app at /admin (src/admin/main.tsx); an old
@@ -151,6 +152,7 @@ export default function App() {
                   <Route path="analytics" element={<Lazy><AnalyticsPage /></Lazy>} />
                   <Route path="automation" element={<Lazy><AutomationPage /></Lazy>} />
                   <Route path="share" element={<Lazy><SharePage /></Lazy>} />
+                  <Route path="whatsapp" element={<Lazy><WhatsAppPage /></Lazy>} />
                   <Route path="verification" element={<Lazy><VerificationPage /></Lazy>} />
                   <Route path="insights" element={<Lazy><InsightsPage /></Lazy>} />
                 </Route>

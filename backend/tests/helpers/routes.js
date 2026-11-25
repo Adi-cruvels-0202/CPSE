@@ -49,6 +49,8 @@ export const PUBLIC_ROUTES = new Map([
   ['POST /merchant/auth/register', 'creating a merchant account'],
   ['POST /merchant/auth/login', 'signing in to the shop app'],
   ['POST /admin/auth/login', 'signing in as a platform reviewer'],
+  ['GET /whatsapp/webhook', "Meta's one-time webhook check; answers only with the verify token"],
+  ['POST /whatsapp/webhook', 'messages from Meta; refused without its signature over the body'],
   ['GET /stores', 'shop directory on the public home page'],
   ['GET /stores/:slug', 'public store page — must open from a shared link'],
   ['GET /stores/:slug/categories', 'public store page'],

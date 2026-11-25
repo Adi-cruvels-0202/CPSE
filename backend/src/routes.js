@@ -13,6 +13,7 @@ import { notificationRouter } from './modules/notifications/notification.routes.
 import { khataRouter } from './modules/khata/khata.routes.js';
 import { merchantRouter } from './modules/merchants/merchant.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
+import { whatsappWebhookRouter } from './modules/whatsapp/whatsapp.routes.js';
 import { meRouter, customerStoreRouter, publicOfferRouter, storeOffersHandler } from './modules/engagement/engagement.routes.js';
 import { conversationRouter, substitutionRouter } from './modules/messaging/messaging.routes.js';
 import { customerIntelligenceRouter, meIntelligenceRouter } from './modules/intelligence/intelligence.routes.js';
@@ -50,3 +51,4 @@ apiRouter.use('/khata', khataRouter);
 apiRouter.use('/merchant', merchantRouter);
 // Platform reviewers (store verification). Separate from both apps' roles.
 apiRouter.use('/admin', adminRouter);
+apiRouter.use('/whatsapp', whatsappWebhookRouter);

@@ -10,4 +10,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'test-service-role-key';
 // (dotenv does not override variables already set). Tests that need one
 // script it with setVisionProviderForTests().
 process.env.AI_PROVIDER = 'none';
+process.env.WHATSAPP_PROVIDER = 'none';
+process.env.WHATSAPP_APP_SECRET = 'test-whatsapp-app-secret';
+process.env.WHATSAPP_VERIFY_TOKEN = 'test-whatsapp-verify-token';
+process.env.WHATSAPP_BUSINESS_NUMBER = '919000000001';
 process.env.GEMINI_API_KEY = 'test-gemini-key-unused';

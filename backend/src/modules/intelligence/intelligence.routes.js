@@ -89,7 +89,7 @@ const slugProductParams = z.object({ slug, productId: uuid('product') }).strict(
 customerIntelligenceRouter.post(
   '/assistant',
   optionalAuth,
-  validate({ body: z.object({ message: text(200), city: z.string().trim().max(100).optional() }).strict() }),
+  validate({ body: z.object({ message: text(2000), city: z.string().trim().max(100).optional(), compareList: z.boolean().optional() }).strict() }),
   respond(async (req) => ({ reply: await customer.homeAssistant(req.body) })),
 );
 

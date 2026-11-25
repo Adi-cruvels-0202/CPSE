@@ -358,6 +358,12 @@ async function liveOffersOf(stores, now) {
   return result;
 }
 
+/** Live offer prices keyed by variant, shared by multi-store customer estimates. */
+export async function liveOfferPricesForStores(stores, { now = new Date() } = {}) {
+  const live = await liveOffersOf(stores, now);
+  return new Map(live.map(({ row }) => [row.variant_id, row.offer_price_paise]));
+}
+
 /** A store's live offers and public coupons — what the store page shows. */
 export async function storeOffersPublic(slug, customerId = null, { now = new Date() } = {}) {
   const store = await publishedStoreBySlug(slug);

@@ -1,10 +1,10 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
 import { internal, notFound } from '../../lib/errors.js';
-import { formatPaise } from '../../lib/pricing.js';
+import { deliveryFeeFor, formatPaise, meetsMinimumOrder, priceLine } from '../../lib/pricing.js';
 import { findActiveStoreBySlug, findActiveStoreById, toPublicVariant, toPublicStore, holidaysFor, listStores } from '../stores/store.service.js';
 import { productCards } from '../engagement/productCards.js';
 import { buyAgain } from '../engagement/engagement.service.js';
-import { storeOffersPublic } from '../offers/offer.service.js';
+import { liveOfferPricesForStores, storeOffersPublic } from '../offers/offer.service.js';
 import * as engines from './engines.js';
 
 /**
@@ -408,7 +408,14 @@ export async function shopAssistant(slug, customerId, { message }) {
  * catalogue, or by the shop/category labels shown in the directory. This is a
  * read-only lookup; it never changes a cart or order.
  */
-export async function homeAssistant({ message, city }) {
+export async function homeAssistant({ message, city, compareList = false }) {
+  const listLines = engines.parseShoppingList(message);
+  const explicitList = /[,;\n]/.test(message) || /\b\d+\s*(?:x|×|kg|kgs|g|gm|grams?|ml|l|litres?|liters?|pcs?|pieces?|dozen)\b/i.test(message);
+  const naturalList = /^\s*(?:i need|i want|buy|shopping list|my list)\b/i.test(message) && /\band\b/i.test(message);
+  if (listLines.length >= 1 && (compareList || (listLines.length >= 2 && (explicitList || naturalList)))) {
+    return compareShoppingList({ message, city, lines: listLines });
+  }
+
   const { stores } = await listStores({ page: 1, limit: 50 });
   const visibleStores = stores.filter((store) => !city || String(store.location?.city ?? '').localeCompare(city, undefined, { sensitivity: 'accent' }) === 0);
   const byId = new Map(visibleStores.map((store) => [store.id, store]));
@@ -483,5 +490,183 @@ export async function homeAssistant({ message, city }) {
       ? `I couldn’t find a shop matching “${message.trim()}”${city ? ` in ${city}` : ''}. Try a product like rice or a category like pharmacy.`
       : `There are no listed shops${city ? ` in ${city}` : ''} yet. Try another location.`,
     shops: [],
+  };
+}
+
+/** Compare one shopping list against live public catalogues in one city. */
+export async function compareShoppingList({ message, city, lines = engines.parseShoppingList(message), now = new Date() }) {
+  if (!lines.length) {
+    return { kind: 'list_comparison', answer: 'Add at least one product, such as “2 kg rice, 1 litre oil, 6 eggs”.', items: [], shops: [] };
+  }
+  const requested = lines.slice(0, 20);
+  const directory = await listStores({ page: 1, limit: 50 });
+  const stores = directory.stores.filter((store) => !city || String(store.location?.city ?? '').localeCompare(city, undefined, { sensitivity: 'accent' }) === 0);
+  if (!stores.length) {
+    return { kind: 'list_comparison', answer: `I couldn’t find listed shops${city ? ` in ${city}` : ''}. Choose another location and try again.`, items: requested.map((line) => ({ text: line.text, quantity: line.quantity })), shops: [] };
+  }
+
+  const storeIds = stores.map((store) => store.id);
+  const terms = new Set(requested.flatMap((line) => line.words));
+  for (const word of [...terms]) {
+    if (word.length >= 4) for (let i = 0; i <= word.length - 4; i += 1) terms.add(word.slice(i, i + 4));
+  }
+  const filters = [...terms].slice(0, 120).map((word) => `name.ilike.%${word}%`).join(',');
+  if (!filters) return { kind: 'list_comparison', answer: 'I couldn’t identify products in that list. Try product names like rice, oil, or eggs.', items: [], shops: [] };
+
+  const { data: products, error: productError } = await supabaseAdmin
+    .from('products')
+    .select('id,store_id,category_id,name,unit,tax_percent,track_inventory,is_available')
+    .in('store_id', storeIds)
+    .eq('is_available', true)
+    .is('archived_at', null)
+    .or(filters)
+    .limit(1000);
+  fail(productError, 'Could not compare shop prices.');
+  const productRows = products ?? [];
+  const productIds = productRows.map((product) => product.id);
+  const { data: variantRows, error: variantError } = productIds.length
+    ? await supabaseAdmin
+      .from('product_variants')
+      .select('id,product_id,name,price_paise,weight_grams,quantity_on_hand,reserved_quantity,is_available,sort_order')
+      .in('product_id', productIds)
+      .order('sort_order', { ascending: true })
+    : { data: [], error: null };
+  fail(variantError, 'Could not compare shop prices.');
+
+  const variantsByProduct = new Map();
+  for (const row of variantRows ?? []) {
+    if (!variantsByProduct.has(row.product_id)) variantsByProduct.set(row.product_id, []);
+    variantsByProduct.get(row.product_id).push(row);
+  }
+  const productsByStore = new Map(stores.map((store) => [store.id, []]));
+  const productById = new Map(productRows.map((product) => [product.id, product]));
+  for (const product of productRows) productsByStore.get(product.store_id)?.push(product);
+
+  const rawOfferStores = stores.map((store) => ({
+    id: store.id,
+    slug: store.slug,
+    name: store.name,
+    city: store.location?.city ?? null,
+    timezone: store.hours?.timezone ?? 'Asia/Kolkata',
+    latitude: store.location?.latitude ?? null,
+    longitude: store.location?.longitude ?? null,
+    is_active: true,
+    is_published: true,
+  }));
+  const offersByVariant = await liveOfferPricesForStores(rawOfferStores, { now });
+  const comparisons = [];
+
+  for (const store of stores) {
+    const matched = [];
+    const unmatched = [];
+    for (const line of requested) {
+      const lineWords = line.words.join(' ');
+      const compactQuery = line.words.join('');
+      const candidates = (productsByStore.get(store.id) ?? [])
+        .map((product) => {
+          const productWords = engines.tokens(product.name);
+          const compactName = productWords.join('');
+          const joinedMatch = compactQuery.length >= 4 && (compactName.includes(compactQuery) || compactQuery.includes(compactName));
+          return { product, score: Math.max(engines.coverage(lineWords, product.name), joinedMatch ? 1 : 0) };
+        })
+        .filter(({ product, score }) => score >= 0.5 && (variantsByProduct.get(product.id) ?? []).some((variant) => variant.is_available))
+        .sort((a, b) => b.score - a.score);
+
+      let best = null;
+      for (const { product, score } of candidates) {
+        const variantOptions = (variantsByProduct.get(product.id) ?? []).map((variant) => {
+          const availableQuantity = product.track_inventory
+            ? Math.max(0, variant.quantity_on_hand - variant.reserved_quantity)
+            : null;
+          const pricePaise = offersByVariant.get(variant.id) ?? variant.price_paise;
+          return {
+            id: variant.id,
+            name: variant.name,
+            weightGrams: variant.weight_grams,
+            pricePaise,
+            listPricePaise: variant.price_paise,
+            isPurchasable: variant.is_available && (availableQuantity === null || availableQuantity > 0),
+            availableQuantity,
+            sort_order: variant.sort_order,
+          };
+        }).filter((variant) => variant.isPurchasable);
+
+        let pick;
+        if (line.size) {
+          pick = engines.packFor(line.size, variantOptions);
+          if (pick) pick.quantity *= line.quantity;
+        } else {
+          const variant = variantOptions
+            .filter((option) => option.availableQuantity === null || option.availableQuantity >= line.quantity)
+            .sort((a, b) => a.pricePaise - b.pricePaise)[0];
+          if (variant) pick = { variant, quantity: line.quantity, exact: false };
+        }
+        if (!pick || (pick.variant.availableQuantity !== null && pick.variant.availableQuantity < pick.quantity)) continue;
+        const unit = priceLine(pick.variant.pricePaise, pick.quantity, product.tax_percent);
+        const result = { product, score, pick, unit };
+        if (!best || score > best.score || (score === best.score && unit.lineTotalPaise < best.unit.lineTotalPaise)) best = result;
+      }
+
+      if (!best) {
+        unmatched.push(line.text);
+        continue;
+      }
+      matched.push({
+        requestedText: line.text,
+        requestedText: line.text,
+        productName: best.product.name,
+        variantName: best.pick.variant.name === 'Default' ? null : best.pick.variant.name,
+        quantity: best.pick.quantity,
+        unitPricePaise: best.pick.variant.pricePaise,
+        listPricePaise: best.pick.variant.listPricePaise,
+        lineSubtotalPaise: best.unit.lineSubtotalPaise,
+        taxPaise: best.unit.taxPaise,
+        lineTotalPaise: best.unit.lineTotalPaise,
+        onOffer: best.pick.variant.pricePaise < best.pick.variant.listPricePaise,
+        productId: best.product.id,
+        variantId: best.pick.variant.id,
+        storeId: store.id,
+      });
+    }
+
+    if (!matched.length) continue;
+    const subtotalPaise = matched.reduce((sum, item) => sum + item.lineSubtotalPaise, 0);
+    const taxPaise = matched.reduce((sum, item) => sum + item.taxPaise, 0);
+    const fulfilmentMode = store.fulfilment?.deliveryEnabled ? 'delivery' : 'pickup';
+    const rawStore = {
+      delivery_fee_paise: store.fulfilment?.deliveryFeePaise ?? 0,
+      free_delivery_threshold_paise: store.fulfilment?.freeDeliveryThresholdPaise ?? null,
+    };
+    const deliveryFeePaise = deliveryFeeFor(rawStore, fulfilmentMode, subtotalPaise);
+    const minimumOrderPaise = store.fulfilment?.minOrderPaise ?? 0;
+    comparisons.push({
+      store,
+      itemCount: matched.length,
+      totalItems: requested.length,
+      complete: matched.length === requested.length,
+      items: matched,
+      unmatched,
+      subtotalPaise,
+      taxPaise,
+      deliveryFeePaise,
+      estimatedTotalPaise: subtotalPaise + taxPaise + deliveryFeePaise,
+      fulfilmentMode,
+      minimumOrderPaise,
+      meetsMinimumOrder: meetsMinimumOrder({ min_order_paise: minimumOrderPaise }, subtotalPaise),
+      minimumOrderShortfallPaise: Math.max(0, minimumOrderPaise - subtotalPaise),
+    });
+  }
+
+  comparisons.sort((a, b) => Number(b.complete) - Number(a.complete) || b.itemCount - a.itemCount || a.estimatedTotalPaise - b.estimatedTotalPaise || a.store.name.localeCompare(b.store.name));
+  const shops = comparisons.slice(0, 6);
+  const answer = shops.length
+    ? `${shops.filter((shop) => shop.complete).length ? 'I compared complete baskets first, then shops with the most items.' : 'I found partial matches; check which items each shop has.'}${city ? ` Prices are for ${city}.` : ''} Estimates include current offer prices, tax and the shop’s delivery fee when available.`
+    : `I couldn’t match those products in the listed shops${city ? ` in ${city}` : ''}. Try simpler product names or a nearby city.`;
+  return {
+    kind: 'list_comparison',
+    answer,
+    items: requested.map((line) => ({ text: line.text, quantity: line.quantity, size: line.size })),
+    shops,
+    note: `${lines.length > requested.length ? `The comparison is limited to the first ${requested.length} items. ` : ''}Estimates use current listed prices and live product offers. Coupons are not applied. Confirm the final price and stock in the cart before checkout.`,
   };
 }

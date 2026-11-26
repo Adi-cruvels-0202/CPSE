@@ -12,6 +12,10 @@ export const getCart = asyncHandler(async (req, res) => {
   sendSuccess(res, { cart: await cartService.getCart(req.customer.id, req.query.storeId) });
 });
 
+export const getAllCarts = asyncHandler(async (req, res) => {
+  sendSuccess(res, await cartService.getAllCarts(req.customer.id));
+});
+
 /** Checklist 5.2 */
 export const addItem = asyncHandler(async (req, res) => {
   sendCreated(res, { cart: await cartService.addItem(req.customer.id, req.body) });

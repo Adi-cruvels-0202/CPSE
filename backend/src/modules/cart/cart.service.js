@@ -318,6 +318,51 @@ export async function getCart(customerId, storeId) {
   return toPublicCart(await loadCart(customerId, storeId));
 }
 
+/** All of a customer's active, non-empty store carts, kept grouped by shop. */
+export async function getAllCarts(customerId) {
+  const { data: carts, error } = await supabaseAdmin
+    .from('carts')
+    .select('store_id')
+    .eq('customer_id', customerId)
+    .is('checked_out_at', null);
+  fail(error, 'Could not load your carts.');
+
+  const storeIds = [...new Set((carts ?? []).map((cart) => cart.store_id))];
+  if (!storeIds.length) return { carts: [], itemCount: 0, totalPaise: 0 };
+
+  const results = await Promise.all(storeIds.map((storeId) => loadCart(customerId, storeId)));
+  const grouped = results
+    .filter(({ lines }) => lines.length > 0)
+    .map((loaded) => ({
+      cart: toPublicCart(loaded),
+      store: {
+        id: loaded.store.id,
+        slug: loaded.store.slug,
+        name: loaded.store.name,
+        location: { city: loaded.store.city ?? null },
+        fulfilment: {
+          pickupEnabled: loaded.store.pickup_enabled,
+          deliveryEnabled: loaded.store.delivery_enabled,
+          minOrderPaise: loaded.store.min_order_paise,
+          deliveryFeePaise: loaded.store.delivery_fee_paise,
+          freeDeliveryThresholdPaise: loaded.store.free_delivery_threshold_paise ?? null,
+        },
+        payment: {
+          online: loaded.store.accepts_online,
+          cash: loaded.store.accepts_cash,
+          khata: Boolean(loaded.store.khata_enabled),
+        },
+      },
+    }))
+    .sort((a, b) => a.cart.storeName.localeCompare(b.cart.storeName));
+
+  return {
+    carts: grouped,
+    itemCount: grouped.reduce((sum, entry) => sum + entry.cart.totals.totalQuantity, 0),
+    totalPaise: grouped.reduce((sum, entry) => sum + entry.cart.totals.totalPaise, 0),
+  };
+}
+
 /**
  * Checklist 5.2, 5.7 and 5.8. The same product with a different variant is a
  * separate line (5.7) — enforced by cart_items_unique_line, which treats a

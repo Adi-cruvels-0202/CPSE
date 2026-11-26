@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ORDER_STATUSES } from './order.state.js';
 import { fulfilmentMode, benefitFields } from '../checkout/checkout.schemas.js';
+import { createCheckoutGroupSchema } from '../checkout/checkout.schemas.js';
 
 /** Checklist 7.4. The order body is the quote's inputs plus a payment choice. */
 export const createOrderSchema = z
@@ -18,6 +19,8 @@ export const createOrderSchema = z
     ...benefitFields,
   })
   .strict();
+
+export const createGroupOrderSchema = createCheckoutGroupSchema;
 
 /** Checklist 8.1 */
 export const orderListQuery = z

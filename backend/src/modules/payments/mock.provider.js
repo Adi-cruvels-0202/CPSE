@@ -60,7 +60,7 @@ export function initiate({ order, payment }) {
       currency: payment.currency,
       orderNumber: order.order_number,
       // Clearly marked: a real gateway would redirect the customer here.
-      checkoutUrl: `${env.PAYMENT_MOCK_CHECKOUT_URL}?ref=${providerRef}`,
+      checkoutUrl: `${env.PAYMENT_MOCK_CHECKOUT_URL}?ref=${providerRef}&orderId=${order.id}`,
       isMockProvider: true,
     },
   };

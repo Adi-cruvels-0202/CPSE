@@ -6,6 +6,7 @@ import * as controller from './order.controller.js';
 import { emptyBody } from '../../lib/schemas.js';
 import {
   createOrderSchema,
+  createGroupOrderSchema,
   orderListQuery,
   orderParams,
   cancelOrderSchema,
@@ -19,6 +20,7 @@ orderRouter.use(requireCustomer);
 // Checklist 10.7: order creation runs a transaction, reserves stock and can
 // open a payment intent. It is metered more tightly than a read.
 orderRouter.post('/', writeLimiter, validate({ body: createOrderSchema }), controller.createOrder);
+orderRouter.post('/group', writeLimiter, validate({ body: createGroupOrderSchema }), controller.createGroupOrder);
 orderRouter.get('/', validate({ query: orderListQuery }), controller.listOrders);
 
 orderRouter.get('/:id', validate({ params: orderParams }), controller.getOrder);

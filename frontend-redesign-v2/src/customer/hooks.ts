@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { endpoints } from "@/lib/cpse/endpoints";
 import { readActiveStore } from "@/lib/cpse/activeStore";
 import { readSelectedCity } from "@/lib/cpse/cityPreference";
@@ -34,7 +34,7 @@ export function useSelectedCity() {
   return city;
 }
 
-/** The last shop the customer was in — which cart "Cart" means. */
+/** The last shop the customer was in, used for shop-scoped cart controls. */
 export function useActiveStore() {
   const [store, setStore] = useState<{ id: string; slug: string | null; name: string | null } | null>(null);
   useEffect(() => {
@@ -65,8 +65,32 @@ export function useCart(storeId: string | null | undefined) {
   });
 }
 
+/** Every non-empty shop cart, for the customer's unified cart page. */
+export function useAllCarts() {
+  const { isSignedIn } = useAuth();
+  return useQuery({
+    queryKey: ["cart", "all"],
+    queryFn: cpse<{ carts: any[]; itemCount: number; totalPaise: number }>(() => endpoints.cart.getAll()),
+    enabled: isSignedIn,
+  });
+}
+
 export function useCartCount(storeId: string | null | undefined) {
-  const cart = useCart(storeId);
+  const { isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
+  const cart = useQuery({
+    queryKey: storeId ? ["cart", storeId] : ["cart", "all"],
+    queryFn: storeId
+      ? cpse<{ cart: any }>(() => endpoints.cart.get(storeId))
+      : cpse<{ itemCount: number }>(() => endpoints.cart.getAll()),
+    enabled: isSignedIn,
+  });
+  useEffect(() => {
+    const refresh = () => { void queryClient.invalidateQueries({ queryKey: ["cart"] }); };
+    window.addEventListener("cpse:cart-updated", refresh);
+    return () => window.removeEventListener("cpse:cart-updated", refresh);
+  }, [queryClient]);
+  if (!storeId) return (cart.data as any)?.itemCount ?? 0;
   const c = cart.data?.cart;
   return c?.totals?.totalQuantity ?? (c?.lines ?? []).reduce((sum: number, line: any) => sum + line.quantity, 0) ?? 0;
 }

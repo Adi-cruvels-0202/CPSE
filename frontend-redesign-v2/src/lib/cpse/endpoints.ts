@@ -61,6 +61,7 @@ export const endpoints = {
 
   cart: {
     get: (storeId) => api.get('/cart', { query: { storeId } }),
+    getAll: () => api.get('/cart/all'),
     addItem: (body) => afterCartMutation(api.post('/cart/items', body)),
     updateItem: (itemId, body) => afterCartMutation(api.patch(`/cart/items/${itemId}`, body)),
     removeItem: (itemId) => afterCartMutation(api.delete(`/cart/items/${itemId}`)),
@@ -79,6 +80,7 @@ export const endpoints = {
 
   checkout: {
     quote: (body) => api.post('/checkout/quote', body),
+    groupQuote: (body) => api.post('/checkout/group/quote', body),
     // Saved preferences applied to the current cart: one tap to the review.
     quick: (storeId) => api.post('/checkout/quick', { storeId }),
   },
@@ -88,6 +90,7 @@ export const endpoints = {
     // so it is generated when the customer opens the review screen, not here.
     // Placing an order empties that shop's cart, so the header count refreshes too.
     create: (body, idempotencyKey) => afterCartMutation(api.post('/orders', body, { idempotencyKey })),
+    createGroup: (body, idempotencyKey) => afterCartMutation(api.post('/orders/group', body, { idempotencyKey })),
     list: (query) => api.get('/orders', { query }),
     get: (id) => api.get(`/orders/${id}`),
     cancel: (id, body) => api.post(`/orders/${id}/cancel`, body ?? {}),

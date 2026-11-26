@@ -6,3 +6,7 @@ import * as checkoutService from './checkout.service.js';
 export const quote = asyncHandler(async (req, res) => {
   sendSuccess(res, { quote: await checkoutService.quoteCheckout(req.customer.id, req.body) });
 });
+
+export const quoteGroup = asyncHandler(async (req, res) => {
+  sendSuccess(res, { quote: await checkoutService.quoteCheckoutGroup(req.customer.id, req.body) });
+});

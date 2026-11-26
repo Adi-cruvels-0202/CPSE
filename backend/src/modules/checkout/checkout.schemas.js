@@ -27,3 +27,37 @@ export const checkoutQuoteSchema = z
     ...benefitFields,
   })
   .strict();
+
+const groupShopSelection = z.object({
+  storeId: z.string().uuid('Not a valid store.'),
+  fulfilmentMode,
+  couponCode: benefitFields.couponCode,
+  redeemPoints: benefitFields.redeemPoints,
+}).strict();
+
+/** One shared address, with a fulfilment choice for each shop in the basket. */
+export const checkoutGroupQuoteSchema = z.object({
+  shops: z.array(groupShopSelection).min(2).max(30),
+  addressId: z.string().uuid('Not a valid address.').nullish(),
+}).strict().superRefine((value, ctx) => {
+  const ids = value.shops.map((shop) => shop.storeId);
+  if (new Set(ids).size !== ids.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['shops'], message: 'A shop can only appear once.' });
+  if (value.shops.some((shop) => shop.fulfilmentMode === 'delivery') && !value.addressId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['addressId'], message: 'Choose a delivery address.' });
+  }
+});
+
+export const createCheckoutGroupSchema = z.object({
+  shops: z.array(groupShopSelection.extend({ expectedTotalPaise: z.number().int().nonnegative() }).strict()).min(2).max(30),
+  addressId: z.string().uuid('Not a valid address.').nullish(),
+  paymentMethod: z.literal('online'),
+  customerNote: z.string().trim().max(500).nullish(),
+  substitutionPreference: z.enum(['contact_me', 'allow_similar', 'no_substitutions']).nullish(),
+  expectedTotalPaise: z.number().int().nonnegative(),
+}).strict().superRefine((value, ctx) => {
+  const ids = value.shops.map((shop) => shop.storeId);
+  if (new Set(ids).size !== ids.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['shops'], message: 'A shop can only appear once.' });
+  if (value.shops.some((shop) => shop.fulfilmentMode === 'delivery') && !value.addressId) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['addressId'], message: 'Choose a delivery address.' });
+  }
+});

@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { endpoints } from "@/lib/cpse/endpoints";
 import { useAuth } from "../auth";
-import { cpse, useActiveStore, useCartCount, useUnreadCount } from "../hooks";
+import { cpse, useCartCount, useUnreadCount } from "../hooks";
 import { HeaderSearch } from "./HeaderSearch";
 import { LocationPicker } from "./LocationPicker";
 import { Logo } from "@/components/cpse/Logo";
@@ -50,10 +50,8 @@ export function CustomerShell({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const { isSignedIn } = useAuth();
   const online = useOnline();
-  const activeStore = useActiveStore();
 
   const routeSlug = pathname.match(/^\/store\/([^/]+)/)?.[1] ?? null;
-  const routeStoreId = pathname.match(/^\/(?:cart|checkout)\/([^/]+)/)?.[1] ?? null;
   const storeQuery = useQuery({
     queryKey: ["store", routeSlug],
     queryFn: cpse<{ store: any }>(() => endpoints.stores.get(routeSlug)),
@@ -63,8 +61,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
     ? { slug: routeSlug, name: storeQuery.data?.store?.name ?? "this shop", id: storeQuery.data?.store?.id }
     : null;
 
-  const cartStoreId = routeStoreId ?? (routeSlug ? storeQuery.data?.store?.id : null) ?? activeStore?.id ?? null;
-  const cartCount = useCartCount(cartStoreId);
+  const cartCount = useCartCount(null);
   const focusFlow = /^\/(checkout|payment|mock-payment)/.test(pathname);
   const authFlow = /^\/(login|register|forgot-password|reset-password)/.test(pathname);
 

@@ -24,6 +24,15 @@ export const createOrder = asyncHandler(async (req, res) => {
   return sendCreated(res, { order, replayed: false });
 });
 
+export const createGroupOrder = asyncHandler(async (req, res) => {
+  const idempotencyKey = req.get('idempotency-key')?.trim() || null;
+  if (!idempotencyKey) throw badRequest('A checkout key is required. Please try again.');
+  if (idempotencyKey.length > 200) throw badRequest('The Idempotency-Key header is too long.');
+  const { group, replayed } = await orderService.createCheckoutGroup(req.customer.id, req.body, { idempotencyKey });
+  if (replayed) return sendSuccess(res, { group, replayed: true });
+  return sendCreated(res, { group, replayed: false });
+});
+
 /** Checklist 8.1 */
 export const listOrders = asyncHandler(async (req, res) => {
   const { page, limit } = req.query;

@@ -10,10 +10,10 @@ import { ErrorState, Skel } from "@/components/cpse/States";
 import { Button } from "@/components/ui/button";
 import { v2Path } from "@/lib/v2Path";
 
-type Search = { ref?: string };
+type Search = { ref?: string; orderId?: string };
 
 export const Route = createFileRoute("/mock-payment")({
-  validateSearch: (s: Record<string, unknown>): Search => ({ ref: typeof s["ref"] === "string" ? (s["ref"] as string) : undefined }),
+  validateSearch: (s: Record<string, unknown>): Search => ({ ref: typeof s["ref"] === "string" ? (s["ref"] as string) : undefined, orderId: typeof s["orderId"] === "string" ? (s["orderId"] as string) : undefined }),
   head: () => ({
     meta: [
       { title: "Test payment — CPSE" },
@@ -41,13 +41,15 @@ const OUTCOMES = [
 
 /** Same behaviour as the original mock gateway: pick an outcome, return to the payment page with it. */
 function MockPayment() {
-  const { ref } = Route.useSearch();
+  const { ref, orderId } = Route.useSearch();
   const [returning, setReturning] = useState<string | null>(null);
   const orders = useQuery({
-    queryKey: ["orders", "pending_payment"],
-    queryFn: cpse<{ orders: any[] }>(() => endpoints.orders.list({ status: "pending_payment", limit: 20 })),
+    queryKey: orderId ? ["order", orderId] : ["orders", "pending_payment"],
+    queryFn: orderId
+      ? cpse<{ order: any }>(() => endpoints.orders.get(orderId))
+      : cpse<{ orders: any[] }>(() => endpoints.orders.list({ status: "pending_payment", limit: 20 })),
   });
-  const order = orders.data?.orders?.[0] ?? null;
+  const order = orderId ? orders.data?.order : orders.data?.orders?.[0];
 
   useEffect(() => {
     if (returning && order) window.location.assign(v2Path(`/payment/${order.id}?outcome=${encodeURIComponent(returning)}`));
@@ -68,7 +70,7 @@ function MockPayment() {
           {order ? (
             <>
               <div className="flex justify-between"><dt className="text-muted-foreground">Order</dt><dd className="numeric">{order.orderNumber}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Amount</dt><dd className="numeric font-bold">{formatPaise(order.totalPaise)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-foreground">Amount</dt><dd className="numeric font-bold">{formatPaise(order.checkoutGroup?.totalPaise ?? order.totalPaise)}</dd></div>
             </>
           ) : null}
         </dl>

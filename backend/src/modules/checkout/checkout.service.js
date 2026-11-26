@@ -204,6 +204,36 @@ export async function quoteCheckout(customerId, input) {
   return toPublicQuote(await buildQuote(customerId, input));
 }
 
+/** Prices every shop cart in a shared checkout while retaining shop-level fees and rules. */
+export async function quoteCheckoutGroup(customerId, input) {
+  const quotes = await Promise.all(input.shops.map((shop) => buildQuote(customerId, {
+    storeId: shop.storeId,
+    fulfilmentMode: shop.fulfilmentMode,
+    ...(shop.fulfilmentMode === 'delivery' && input.addressId ? { addressId: input.addressId } : {}),
+    ...(shop.couponCode ? { couponCode: shop.couponCode } : {}),
+    ...(shop.redeemPoints ? { redeemPoints: shop.redeemPoints } : {}),
+  })));
+  const publicQuotes = quotes.map(toPublicQuote);
+  const stores = quotes.map((quote) => quote._internal.store);
+  const paymentMethods = [];
+  if (stores.every((store) => store.accepts_online)) paymentMethods.push({ code: 'online', label: 'Pay once online', description: 'One payment for all shop orders.' });
+  const totals = publicQuotes.reduce((sum, quote) => ({
+    subtotalPaise: sum.subtotalPaise + quote.totals.subtotalPaise,
+    discountPaise: sum.discountPaise + quote.totals.discountPaise,
+    deliveryFeePaise: sum.deliveryFeePaise + quote.totals.deliveryFeePaise,
+    taxPaise: sum.taxPaise + quote.totals.taxPaise,
+    totalPaise: sum.totalPaise + quote.totals.totalPaise,
+  }), { subtotalPaise: 0, discountPaise: 0, deliveryFeePaise: 0, taxPaise: 0, totalPaise: 0 });
+  return {
+    shops: publicQuotes,
+    totals,
+    paymentMethods,
+    canPlaceOrder: publicQuotes.every((quote) => quote.canPlaceOrder) && paymentMethods.length > 0,
+    blockers: publicQuotes.flatMap((quote) => quote.blockers.map((blocker) => ({ storeId: quote.storeId, storeName: quote.store.name, ...blocker }))),
+    warnings: publicQuotes.flatMap((quote) => quote.warnings.map((warning) => ({ storeId: quote.storeId, storeName: quote.store.name, ...warning }))),
+  };
+}
+
 /**
  * Used by order creation (7.4): the same blockers that grey out the checkout
  * button must also refuse the write, in case a client calls POST /orders

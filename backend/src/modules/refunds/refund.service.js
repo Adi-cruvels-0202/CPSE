@@ -225,12 +225,23 @@ export async function settleRefund(refundRow) {
 
   const { data: payment, error } = await supabaseAdmin
     .from('payments')
-    .select('id, order_id, provider, provider_ref, amount_paise, currency, status')
+    .select('id, order_id, parent_payment_id, provider, provider_ref, amount_paise, currency, status')
     .eq('id', refundRow.payment_id)
     .maybeSingle();
   if (error || !payment) {
     logger.error('Refund has no readable payment', { refundId: refundRow.id });
     return refundRow;
+  }
+  let providerPayment = payment;
+  if (payment.parent_payment_id) {
+    const { data: parent, error: parentError } = await supabaseAdmin.from('payments')
+      .select('id, order_id, provider, provider_ref, amount_paise, currency, status')
+      .eq('id', payment.parent_payment_id).maybeSingle();
+    if (parentError || !parent) {
+      logger.error('Combined refund has no readable parent payment', { refundId: refundRow.id });
+      return refundRow;
+    }
+    providerPayment = parent;
   }
 
   // Count the attempt before making it, so a crash mid-call still counts.
@@ -243,7 +254,7 @@ export async function settleRefund(refundRow) {
 
   let result;
   try {
-    result = await paymentProvider(refundRow.provider).refund({ payment, refund: refundRow });
+    result = await paymentProvider(refundRow.provider).refund({ payment: providerPayment, refund: refundRow });
   } catch (providerError) {
     logger.warn('Refund request did not reach the provider', {
       refundId: refundRow.id,

@@ -25,6 +25,7 @@ import { Route as AdminSplatRouteImport } from './routes/admin.$'
 import { Route as CartIndexRouteImport } from './routes/cart.index'
 import { Route as CartStoreIdRouteImport } from './routes/cart.$storeId'
 import { Route as CheckoutStoreIdRouteImport } from './routes/checkout.$storeId'
+import { Route as CheckoutGroupRouteImport } from './routes/checkout.group'
 import { Route as KhataIndexRouteImport } from './routes/khata.index'
 import { Route as KhataAccountIdRouteImport } from './routes/khata.$accountId'
 import { Route as MerchantSplatRouteImport } from './routes/merchant.$'
@@ -146,6 +147,11 @@ const CartStoreIdRoute = CartStoreIdRouteImport.update({
 const CheckoutStoreIdRoute = CheckoutStoreIdRouteImport.update({
   id: '/checkout/$storeId',
   path: '/checkout/$storeId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutGroupRoute = CheckoutGroupRouteImport.update({
+  id: '/checkout/group',
+  path: '/checkout/group',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KhataIndexRoute = KhataIndexRouteImport.update({
@@ -380,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/admin/$': typeof AdminSplatRoute
   '/cart/$storeId': typeof CartStoreIdRoute
   '/checkout/$storeId': typeof CheckoutStoreIdRoute
+  '/checkout/group': typeof CheckoutGroupRoute
   '/khata/$accountId': typeof KhataAccountIdRoute
   '/merchant/$': typeof MerchantSplatRoute
   '/merchant/login': typeof MerchantLoginRoute
@@ -439,6 +446,7 @@ export interface FileRoutesByTo {
   '/admin/$': typeof AdminSplatRoute
   '/cart/$storeId': typeof CartStoreIdRoute
   '/checkout/$storeId': typeof CheckoutStoreIdRoute
+  '/checkout/group': typeof CheckoutGroupRoute
   '/khata/$accountId': typeof KhataAccountIdRoute
   '/merchant/$': typeof MerchantSplatRoute
   '/merchant/login': typeof MerchantLoginRoute
@@ -498,6 +506,7 @@ export interface FileRoutesById {
   '/admin/$': typeof AdminSplatRoute
   '/cart/$storeId': typeof CartStoreIdRoute
   '/checkout/$storeId': typeof CheckoutStoreIdRoute
+  '/checkout/group': typeof CheckoutGroupRoute
   '/khata/$accountId': typeof KhataAccountIdRoute
   '/merchant/$': typeof MerchantSplatRoute
   '/merchant/_shell': typeof MerchantShellRouteWithChildren
@@ -560,6 +569,7 @@ export interface FileRouteTypes {
     | '/admin/$'
     | '/cart/$storeId'
     | '/checkout/$storeId'
+    | '/checkout/group'
     | '/khata/$accountId'
     | '/merchant/$'
     | '/merchant/login'
@@ -619,6 +629,7 @@ export interface FileRouteTypes {
     | '/admin/$'
     | '/cart/$storeId'
     | '/checkout/$storeId'
+    | '/checkout/group'
     | '/khata/$accountId'
     | '/merchant/$'
     | '/merchant/login'
@@ -677,6 +688,7 @@ export interface FileRouteTypes {
     | '/admin/$'
     | '/cart/$storeId'
     | '/checkout/$storeId'
+    | '/checkout/group'
     | '/khata/$accountId'
     | '/merchant/$'
     | '/merchant/_shell'
@@ -737,6 +749,7 @@ export interface RootRouteChildren {
   AccountAddressesRoute: typeof AccountAddressesRoute
   CartStoreIdRoute: typeof CartStoreIdRoute
   CheckoutStoreIdRoute: typeof CheckoutStoreIdRoute
+  CheckoutGroupRoute: typeof CheckoutGroupRoute
   KhataAccountIdRoute: typeof KhataAccountIdRoute
   OrdersOrderIdRoute: typeof OrdersOrderIdRoute
   PaymentOrderIdRoute: typeof PaymentOrderIdRoute
@@ -862,6 +875,13 @@ declare module '@tanstack/react-router' {
       path: '/checkout/$storeId'
       fullPath: '/checkout/$storeId'
       preLoaderRoute: typeof CheckoutStoreIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout/group': {
+      id: '/checkout/group'
+      path: '/checkout/group'
+      fullPath: '/checkout/group'
+      preLoaderRoute: typeof CheckoutGroupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/khata/': {
@@ -1271,6 +1291,7 @@ const rootRouteChildren: RootRouteChildren = {
   AccountAddressesRoute: AccountAddressesRoute,
   CartStoreIdRoute: CartStoreIdRoute,
   CheckoutStoreIdRoute: CheckoutStoreIdRoute,
+  CheckoutGroupRoute: CheckoutGroupRoute,
   KhataAccountIdRoute: KhataAccountIdRoute,
   OrdersOrderIdRoute: OrdersOrderIdRoute,
   PaymentOrderIdRoute: PaymentOrderIdRoute,

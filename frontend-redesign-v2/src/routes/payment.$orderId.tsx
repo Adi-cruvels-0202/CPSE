@@ -37,7 +37,7 @@ const POLL_LIMIT = 20;
 
 /** The verdict comes from the ORDER, never from the URL the customer returned on. */
 function outcomeOf(order: any) {
-  if (order.paymentStatus === "paid") return { tone: "done", title: "Payment received", body: `Your order is confirmed and ${order.storeName} has it now.`, canRetry: false };
+  if (order.paymentStatus === "paid") return { tone: "done", title: "Payment received", body: order.checkoutGroup ? `Your payment is confirmed. The ${order.checkoutGroup.orderCount} shop orders are now with their stores.` : `Your order is confirmed and ${order.storeName} has it now.`, canRetry: false };
   if (order.status === "cancelled" || order.paymentStatus === "cancelled") return { tone: "stopped", title: "Payment cancelled", body: "Nothing has been charged, and the order was not placed.", canRetry: false };
   if (order.paymentStatus === "failed") return { tone: "stopped", title: "Payment didn’t go through", body: "Nothing has been charged. Your order is still here, so you can try again.", canRetry: true };
   return { tone: "waiting", title: "Waiting on your payment", body: "Pay with our payment partner, then come back here. We confirm with them directly.", canRetry: true };
@@ -70,6 +70,7 @@ function PaymentPage() {
 
   const order = useQuery({ queryKey: ["order", orderId], queryFn: cpse<{ order: any }>(() => endpoints.orders.get(orderId)) });
   const current = order.data?.order;
+  const payablePaise = current?.checkoutGroup?.totalPaise ?? current?.totalPaise ?? 0;
 
   const verify = useCallback(async () => {
     setVerifying(true);
@@ -145,9 +146,9 @@ function PaymentPage() {
       <p className="mt-2 text-muted-foreground">{o.body}</p>
 
       <dl className="surface mt-6 divide-y divide-dashed text-left text-sm">
-        <div className="flex justify-between px-4 py-3"><dt className="text-muted-foreground">Order</dt><dd className="numeric font-semibold">{current.orderNumber}</dd></div>
-        <div className="flex justify-between px-4 py-3"><dt className="text-muted-foreground">Shop</dt><dd className="font-semibold">{current.storeName}</dd></div>
-        <div className="flex justify-between px-4 py-3"><dt className="text-muted-foreground">Amount</dt><dd className="numeric font-display text-lg font-extrabold">{formatPaise(current.totalPaise)}</dd></div>
+        <div className="flex justify-between px-4 py-3"><dt className="text-muted-foreground">Order</dt><dd className="numeric font-semibold">{current.checkoutGroup ? `${current.checkoutGroup.orderCount} shop orders` : current.orderNumber}</dd></div>
+        <div className="flex justify-between px-4 py-3"><dt className="text-muted-foreground">{current.checkoutGroup ? "Shops" : "Shop"}</dt><dd className="max-w-[65%] text-right font-semibold">{current.checkoutGroup ? current.checkoutGroup.orders.map((item: any) => item.storeName).join(", ") : current.storeName}</dd></div>
+        <div className="flex justify-between px-4 py-3"><dt className="text-muted-foreground">{current.checkoutGroup ? "One combined payment" : "Amount"}</dt><dd className="numeric font-display text-lg font-extrabold">{formatPaise(payablePaise)}</dd></div>
       </dl>
 
       {o.tone === "waiting" && claimed ? (
@@ -162,7 +163,7 @@ function PaymentPage() {
       <div className="mt-6 grid gap-2">
         {o.canRetry ? (
           <Button size="lg" onClick={pay} disabled={starting || verifying}>
-            {starting ? <Loader2 className="animate-spin" /> : <CreditCard />} {firstAttempt ? `Pay ${formatPaise(current.totalPaise)}` : "Try paying again"}
+            {starting ? <Loader2 className="animate-spin" /> : <CreditCard />} {firstAttempt ? `Pay ${formatPaise(payablePaise)}` : "Try paying again"}
           </Button>
         ) : null}
         {o.tone === "waiting" && claimed ? (

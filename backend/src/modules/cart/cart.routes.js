@@ -16,6 +16,7 @@ export const cartRouter = Router();
 cartRouter.use(requireCustomer);
 
 cartRouter.get('/', validate({ query: cartQuery }), controller.getCart);
+cartRouter.get('/all', controller.getAllCarts);
 cartRouter.delete('/', validate({ query: cartQuery }), controller.clearCart);
 
 cartRouter.post('/items', validate({ body: addCartItemSchema }), controller.addItem);

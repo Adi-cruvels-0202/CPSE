@@ -146,6 +146,25 @@ function OrderPage() {
         <OrderStamp status={order.status} label={order.statusLabel} className={cn("text-sm", changed && "animate-highlight")} />
       </header>
 
+      {order.checkoutGroup?.orders?.length > 1 ? (
+        <section aria-label="Other shop orders in this checkout" className="surface mb-5 p-4 sm:p-5">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-bold">Your other shop orders</h2>
+            <span className="numeric text-sm text-muted-foreground">One checkout · {formatPaise(order.checkoutGroup.totalPaise)}</span>
+          </div>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {order.checkoutGroup.orders.map((shopOrder: any) => (
+              <li key={shopOrder.id}>
+                <Link to="/orders/$orderId" params={{ orderId: shopOrder.id }} className={cn("flex min-h-12 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm transition-colors hover:border-border-strong", shopOrder.id === order.id ? "border-primary bg-primary-soft/40" : "border-border bg-card")} aria-current={shopOrder.id === order.id ? "page" : undefined}>
+                  <span className="min-w-0"><span className="block truncate font-semibold">{shopOrder.storeName}</span><span className="numeric text-xs text-muted-foreground">{shopOrder.orderNumber}</span></span>
+                  <span className="shrink-0 text-right"><span className="block font-semibold">{shopOrder.statusLabel}</span><span className="numeric text-xs text-muted-foreground">{formatPaise(shopOrder.totalPaise)}</span></span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {order.status === "pending_payment" ? (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-warning/40 bg-warning-soft px-5 py-4">
           <p className="font-semibold">Not confirmed until the payment goes through.</p>

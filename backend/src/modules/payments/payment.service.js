@@ -28,7 +28,7 @@ const fail = (error, message) => {
 };
 
 const PAYMENT_COLUMNS = `
-  id, order_id, provider, provider_ref, amount_paise, currency, status,
+  id, order_id, checkout_group_id, parent_payment_id, provider, provider_ref, amount_paise, currency, status,
   failure_reason, paid_at, created_at, updated_at
 `;
 
@@ -44,7 +44,14 @@ async function findPaymentForOrder(orderId) {
     .limit(1);
 
   fail(error, 'Could not load the payment.');
-  return (data ?? [])[0] ?? null;
+  const allocation = (data ?? [])[0] ?? null;
+  if (allocation?.parent_payment_id) {
+    const { data: parent, error: parentError } = await supabaseAdmin.from('payments')
+      .select(PAYMENT_COLUMNS).eq('id', allocation.parent_payment_id).maybeSingle();
+    fail(parentError, 'Could not load the combined payment.');
+    return parent ?? allocation;
+  }
+  return allocation;
 }
 
 async function findPaymentByRef(provider, providerRef) {
@@ -99,6 +106,12 @@ export async function initiatePayment(customerId, orderId) {
     provider_ref: result.providerRef,
     status: result.status ?? 'processing',
   });
+  if (payment.checkout_group_id) {
+    const { error: allocationError } = await supabaseAdmin.from('payments')
+      .update({ provider_ref: result.providerRef, status: result.status ?? 'processing' })
+      .eq('parent_payment_id', payment.id);
+    fail(allocationError, 'Could not update shop payment allocations.');
+  }
 
   return { payment: toPublicPaymentRow(updated), clientPayload: result.clientPayload };
 }
@@ -162,6 +175,16 @@ export async function handleWebhook({ rawBody, signature, body, providerName }) 
     return { applied: false, reason: 'AMOUNT_MISMATCH' };
   }
 
+  if (payment.checkout_group_id) {
+    const { data: orderRows, error } = await supabaseAdmin.from('orders')
+      .select('id, order_number, status, payment_status, customer_id, store_id, fulfilment_mode')
+      .eq('checkout_group_id', payment.checkout_group_id);
+    fail(error, 'Could not load shop orders.');
+    if (!orderRows?.length) return { applied: false, reason: 'UNKNOWN_ORDER' };
+    await applyGroupOutcome(orderRows, payment, event, 'payment_webhook');
+    return { applied: true, status: event.status };
+  }
+
   const { data: orderRow, error } = await supabaseAdmin
     .from('orders')
     .select('id, order_number, status, payment_status, customer_id, store_id, fulfilment_mode')
@@ -184,6 +207,14 @@ export async function handleWebhook({ rawBody, signature, body, providerName }) 
  *   failed    → the order stays where it is, so the customer can try again
  */
 async function applyOutcome(orderRow, payment, outcome, changedBy) {
+  if (payment.checkout_group_id) {
+    const { data: orderRows, error } = await supabaseAdmin.from('orders')
+      .select('id, order_number, status, payment_status, customer_id, store_id, fulfilment_mode')
+      .eq('checkout_group_id', payment.checkout_group_id);
+    fail(error, 'Could not load shop orders.');
+    if (!orderRows?.length) throw notFound('Checkout orders');
+    return applyGroupOutcome(orderRows, payment, outcome, changedBy);
+  }
   const updated = await updatePayment(payment.id, {
     status: outcome.status,
     provider_ref: outcome.providerRef ?? payment.provider_ref,
@@ -231,6 +262,49 @@ async function applyOutcome(orderRow, payment, outcome, changedBy) {
     }
   }
 
+  return updated;
+}
+
+async function applyGroupOutcome(orderRows, payment, outcome, changedBy) {
+  const updated = await updatePayment(payment.id, {
+    status: outcome.status,
+    provider_ref: outcome.providerRef ?? payment.provider_ref,
+    failure_reason: outcome.failureReason ?? null,
+    paid_at: outcome.status === 'paid' ? new Date().toISOString() : null,
+    raw_payload: outcome.raw ?? {},
+  });
+  const { error: allocationError } = await supabaseAdmin.from('payments')
+    .update({ status: outcome.status, failure_reason: outcome.failureReason ?? null, paid_at: outcome.status === 'paid' ? new Date().toISOString() : null })
+    .eq('parent_payment_id', payment.id);
+  fail(allocationError, 'Could not update shop payment allocations.');
+
+  // A single provider result advances every shop order, but each merchant still
+  // receives and manages only their own order.
+  for (const orderRow of orderRows) {
+    const nextStatus = orderStatusForPayment(orderRow.status, outcome.status);
+    await notifications.notifyPaymentOutcome(orderRow, outcome.status, { failureReason: outcome.failureReason ?? null });
+    if (nextStatus) {
+      await transitionOrder(orderRow, nextStatus, {
+        changedBy,
+        note: outcome.status === 'paid' ? 'Combined payment confirmed' : 'Combined payment cancelled',
+        patch: { payment_status: outcome.status },
+      });
+      if (nextStatus === 'placed') {
+        await emitToStore(orderRow.store_id, {
+          type: 'order_placed',
+          title: `New order ${orderRow.order_number} (paid online)`,
+          payload: { order_id: orderRow.id, order_number: orderRow.order_number },
+          dedupeKey: `order_placed:${orderRow.id}`,
+        });
+      }
+    } else {
+      const { error } = await supabaseAdmin.from('orders').update({ payment_status: outcome.status }).eq('id', orderRow.id);
+      fail(error, 'Could not update a shop order payment status.');
+      if (outcome.status === 'paid' && isTerminal(orderRow.status) && orderRow.status !== 'completed') {
+        await refunds.refundLateCapture(orderRow.id);
+      }
+    }
+  }
   return updated;
 }
 

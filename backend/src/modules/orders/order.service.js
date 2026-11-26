@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '../../lib/supabase.js';
+import { env } from '../../config/env.js';
 import { internal, notFound, conflict, unprocessable } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { buildQuote, assertQuotePlaceable, addressSnapshot, storeSnapshot } from '../checkout/checkout.service.js';
@@ -38,7 +39,7 @@ const fail = (error, message) => {
 };
 
 const ORDER_COLUMNS = `
-  id, order_number, store_id, customer_id, fulfilment_mode, status, payment_status,
+  id, order_number, store_id, customer_id, checkout_group_id, fulfilment_mode, status, payment_status,
   payment_method, cancelled_by, coupon_code, loyalty_points_redeemed, substitution_preference, address_id, delivery_address, store_snapshot,
   subtotal_paise, discount_paise, delivery_fee_paise, tax_paise, total_paise,
   customer_note, cancellation_reason, idempotency_key,
@@ -191,6 +192,121 @@ export async function createOrder(customerId, input, { idempotencyKey = null } =
   return { order, replayed };
 }
 
+/** Creates one merchant-owned order per shop, grouped under a single customer checkout. */
+export async function createCheckoutGroup(customerId, input, { idempotencyKey }) {
+  const { data: existing, error: lookupError } = await supabaseAdmin
+    .from('checkout_groups').select('id').eq('customer_id', customerId)
+    .eq('idempotency_key', idempotencyKey).maybeSingle();
+  fail(lookupError, 'Could not check for a duplicate checkout.');
+  if (existing) return { group: await getCheckoutGroup(customerId, existing.id), replayed: true };
+
+  const quotes = await Promise.all(input.shops.map((shop) => buildQuote(customerId, {
+    storeId: shop.storeId,
+    fulfilmentMode: shop.fulfilmentMode,
+    ...(shop.fulfilmentMode === 'delivery' && input.addressId ? { addressId: input.addressId } : {}),
+    ...(shop.couponCode ? { couponCode: shop.couponCode } : {}),
+    ...(shop.redeemPoints ? { redeemPoints: shop.redeemPoints } : {}),
+  })));
+  for (let index = 0; index < quotes.length; index += 1) {
+    assertQuotePlaceable(quotes[index]);
+    if (quotes[index]._internal.totals.totalPaise !== input.shops[index].expectedTotalPaise) {
+      throw unprocessable('TOTAL_CHANGED', `${quotes[index]._internal.store.name}’s total changed. Review the checkout again.`);
+    }
+  }
+  const totalPaise = quotes.reduce((sum, quote) => sum + quote._internal.totals.totalPaise, 0);
+  if (totalPaise !== input.expectedTotalPaise) {
+    throw unprocessable('TOTAL_CHANGED', 'The combined total changed. Review the checkout again.', { totalPaise });
+  }
+
+  const orders = [];
+  for (let index = 0; index < quotes.length; index += 1) {
+    const quote = quotes[index];
+    const { store, address, lines, totals } = quote._internal;
+    const accepted = input.paymentMethod === 'online' ? store.accepts_online : store.accepts_cash;
+    if (!accepted) throw unprocessable('PAYMENT_METHOD_UNAVAILABLE', `${store.name} does not accept ${input.paymentMethod} for this checkout.`);
+    const shortKey = `${idempotencyKey.slice(0, 120)}:${store.id}`;
+    const benefits = quote._internal.benefits;
+    orders.push({ order: {
+      customer_id: customerId,
+      store_id: store.id,
+      cart_id: quote.cartId,
+      fulfilment_mode: input.shops[index].fulfilmentMode,
+      status: input.paymentMethod === 'online' ? 'pending_payment' : 'placed',
+      payment_status: 'pending',
+      payment_method: input.paymentMethod,
+      address_id: address?.id ?? null,
+      delivery_address: address ? addressSnapshot(address) : null,
+      store_snapshot: storeSnapshot(store),
+      subtotal_paise: totals.subtotalPaise,
+      discount_paise: totals.discountPaise,
+      delivery_fee_paise: totals.deliveryFeePaise,
+      tax_paise: totals.taxPaise,
+      total_paise: totals.totalPaise,
+      customer_note: input.customerNote ?? null,
+      idempotency_key: shortKey,
+      substitution_preference: input.substitutionPreference ?? (await preferredSubstitution(customerId)),
+      coupon: benefits?.couponRow ? {
+        coupon_id: benefits.couponRow.id,
+        code: benefits.couponRow.code,
+        discount_paise: benefits.coupon.discountPaise,
+        waived_delivery_paise: benefits.coupon.waivedDeliveryPaise,
+      } : null,
+      loyalty: benefits?.loyalty?.pointsUsed ? {
+        points: benefits.loyalty.pointsUsed,
+        discount_paise: benefits.loyalty.discountPaise,
+      } : null,
+      history_note: input.paymentMethod === 'online' ? 'Awaiting combined checkout payment' : 'Order placed',
+      items: lines.map((line) => ({
+        product_id: line.productId, variant_id: line.variantId, product_name: line.name,
+        variant_name: line.variantName, sku: line.sku, image_url: line.imageUrl,
+        unit_price_paise: line.unitPricePaise, quantity: line.quantity,
+        tax_percent: line.taxPercent, tax_paise: line.taxPaise, line_total_paise: line.lineTotalPaise,
+        offer_id: line.offer?.id ?? null, list_unit_price_paise: line.listUnitPricePaise ?? null,
+        discount_paise: line.discountPaise ?? 0,
+      })),
+      // Group RPC adds the one parent payment after every child order commits.
+      payment: null,
+    } });
+  }
+
+  const { data, error } = await supabaseAdmin.rpc('create_checkout_group', {
+    payload: {
+      customer_id: customerId, idempotency_key: idempotencyKey,
+      payment_method: input.paymentMethod, total_paise: totalPaise,
+      provider: env.PAYMENT_PROVIDER ?? 'mock', orders,
+    },
+  });
+  if (error) throw translateCreateError(error);
+  const result = Array.isArray(data) ? data[0] : data;
+  const group = await getCheckoutGroup(customerId, result.checkout_group_id);
+  if (!result.replayed && input.paymentMethod === 'cash') {
+    for (const order of group.orders) {
+      await notifications.notifyOrderPlaced({ id: order.id, order_number: order.orderNumber, store_id: order.storeId, customer_id: customerId });
+      await notifyStoreOfNewOrder(order);
+    }
+  }
+  return { group, replayed: Boolean(result.replayed) };
+}
+
+export async function getCheckoutGroup(customerId, groupId) {
+  const { data: group, error: groupError } = await supabaseAdmin.from('checkout_groups')
+    .select('id, customer_id, payment_method, total_paise, created_at')
+    .eq('id', groupId).eq('customer_id', customerId).maybeSingle();
+  fail(groupError, 'Could not load the checkout.');
+  if (!group) throw notFound('Checkout');
+  const { data: rows, error } = await supabaseAdmin.from('orders').select(ORDER_COLUMNS)
+    .eq('checkout_group_id', groupId).eq('customer_id', customerId).order('created_at');
+  fail(error, 'Could not load shop orders.');
+  const counts = await itemCounts((rows ?? []).map((row) => row.id));
+  return {
+    id: group.id,
+    totalPaise: group.total_paise,
+    paymentMethod: group.payment_method,
+    createdAt: group.created_at,
+    orders: (rows ?? []).map((row) => ({ ...toOrderSummary(row, counts.get(row.id) ?? 0), storeId: row.store_id })),
+  };
+}
+
 async function preferredSubstitution(customerId) {
   const { data } = await supabaseAdmin.from('customers').select('preferred_substitution').eq('id', customerId).maybeSingle();
   return data?.preferred_substitution ?? 'contact_me';
@@ -309,7 +425,7 @@ async function listStatusHistory(orderId) {
 async function latestPayment(orderId) {
   const { data, error } = await supabaseAdmin
     .from('payments')
-    .select('id, order_id, provider, provider_ref, amount_paise, currency, status, failure_reason, paid_at, created_at')
+    .select('id, order_id, checkout_group_id, parent_payment_id, provider, provider_ref, amount_paise, currency, status, failure_reason, paid_at, created_at')
     .eq('order_id', orderId)
     .order('created_at', { ascending: false })
     .limit(1);
@@ -374,6 +490,7 @@ export function toOrderSummary(row, itemCount = null) {
     statusLabel: STATUS_LABELS[row.status] ?? row.status,
     paymentStatus: row.payment_status,
     paymentMethod: row.payment_method ?? 'cash',
+    checkoutGroupId: row.checkout_group_id ?? null,
     totalPaise: row.total_paise,
     itemCount,
     placedAt: row.placed_at,
@@ -434,6 +551,7 @@ export function toOrderDetail(row, { items, history, payment, refund = null, adj
         : { mode: 'pickup', pickupFrom: row.store_snapshot ?? null },
     store: row.store_snapshot ?? null,
     payment: toPublicPayment(payment),
+    checkoutGroup: row.checkoutGroup ?? null,
     refund,
     benefits: {
       couponCode: row.coupon_code ?? null,
@@ -542,6 +660,11 @@ export async function getOrder(customerId, orderId) {
     substitutionsForOrder(row.id),
   ]);
 
+  if (row.checkout_group_id) {
+    const group = await getCheckoutGroup(customerId, row.checkout_group_id);
+    row.checkoutGroup = { ...group, orderCount: group.orders.length };
+  }
+
   return toOrderDetail(row, { items, history, payment, refund, adjustments, substitutions });
 }
 
@@ -639,11 +762,26 @@ export async function cancelOrder(customerId, orderId, reason) {
     );
   }
 
-  await transitionOrder(row, 'cancelled', {
-    changedBy: 'customer',
-    note: reason ?? null,
-    patch: { cancellation_reason: reason ?? null },
-  });
+  if (row.checkout_group_id && row.status === 'pending_payment') {
+    const { data: groupRows, error } = await supabaseAdmin.from('orders').select(ORDER_COLUMNS)
+      .eq('checkout_group_id', row.checkout_group_id);
+    fail(error, 'Could not cancel the combined checkout.');
+    for (const child of groupRows ?? []) {
+      if (child.status === 'pending_payment') await transitionOrder(child, 'cancelled', {
+        changedBy: 'customer', note: reason ?? 'Combined checkout cancelled',
+        patch: { cancellation_reason: reason ?? null, payment_status: 'cancelled' },
+      });
+    }
+    // Keep an online parent intent open for a possible late provider callback.
+    // If money arrives after this cancellation, the payment handler can refund
+    // every cancelled child order instead of silently discarding the capture.
+  } else {
+    await transitionOrder(row, 'cancelled', {
+      changedBy: 'customer',
+      note: reason ?? null,
+      patch: { cancellation_reason: reason ?? null },
+    });
+  }
 
   return getOrder(customerId, orderId);
 }

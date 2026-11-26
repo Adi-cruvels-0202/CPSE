@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
+import { Bot, ClipboardList, Loader2, MessageCircle, Send, Sparkles, X } from "lucide-react";
 import { endpoints } from "@/lib/cpse/endpoints";
+import { formatPaise } from "@/lib/cpse/money";
 import { useSelectedCity } from "@/customer/hooks";
 import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
@@ -10,6 +11,26 @@ type Turn = {
   question: string;
   answer?: string;
   shops?: { store: any; reason: string }[];
+  comparison?: {
+    items: { text: string; quantity: number }[];
+    shops: {
+      store: any;
+      itemCount: number;
+      totalItems: number;
+      complete: boolean;
+      items: { requestedText: string; productName: string; variantName: string | null; quantity: number; lineTotalPaise: number; onOffer: boolean }[];
+      unmatched: string[];
+      subtotalPaise: number;
+      taxPaise: number;
+      deliveryFeePaise: number;
+      estimatedTotalPaise: number;
+      fulfilmentMode: "delivery" | "pickup";
+      minimumOrderPaise: number;
+      meetsMinimumOrder: boolean;
+      minimumOrderShortfallPaise: number;
+    }[];
+    note: string;
+  };
   pending?: boolean;
   error?: string;
 };
@@ -20,9 +41,11 @@ export function HomeAssistant() {
   const city = useSelectedCity();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [compareMode, setCompareMode] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -32,17 +55,20 @@ export function HomeAssistant() {
   async function ask(question: string) {
     const text = question.trim();
     if (!text || pending) return;
+    const shouldCompare = compareMode;
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setPending(true);
     setDraft("");
+    setCompareMode(false);
     setTurns((current) => [...current, { id, question: text, pending: true }]);
     try {
-      const { data } = await endpoints.intelligence.homeAssistant(text, city);
+      const { data } = await endpoints.intelligence.homeAssistant(text, city, shouldCompare);
       setTurns((current) => current.map((turn) => turn.id === id ? {
         ...turn,
         pending: false,
         answer: data.reply.answer,
         shops: data.reply.shops ?? [],
+        comparison: data.reply.kind === "list_comparison" ? data.reply : undefined,
       } : turn));
     } catch (error) {
       const message = error instanceof Error ? error.message : "I couldn’t find shops just now. Please try again.";
@@ -87,6 +113,7 @@ export function HomeAssistant() {
                     </button>
                   ))}
                 </div>
+                <p className="border-t border-border pt-3 text-xs text-muted-foreground">Comparing several products? Choose <strong className="text-foreground">List</strong> below to see estimated totals across local shops.</p>
               </div>
             ) : turns.map((turn) => (
               <article key={turn.id} className="space-y-2">
@@ -99,7 +126,7 @@ export function HomeAssistant() {
                   ) : (
                     <>
                       <div className="flex items-start gap-2"><Bot className="mt-0.5 h-4 w-4 shrink-0 text-primary-strong" /><p>{turn.answer}</p></div>
-                      {turn.shops?.length ? (
+                      {turn.comparison ? <ComparisonResults comparison={turn.comparison} /> : turn.shops?.length ? (
                         <ul className="mt-2 space-y-2">
                           {turn.shops.map(({ store, reason }) => (
                             <li key={store.id}>
@@ -120,16 +147,29 @@ export function HomeAssistant() {
             <div ref={endRef} aria-hidden="true" />
           </div>
 
-          <form onSubmit={(event) => { event.preventDefault(); void ask(draft); }} className="flex gap-2 border-t border-border p-3">
-            <input
+          <form onSubmit={(event) => { event.preventDefault(); void ask(draft); }} className="flex items-end gap-2 border-t border-border p-3">
+            <button
+              type="button"
+              aria-pressed={compareMode}
+              aria-label={compareMode ? "Turn off shopping list comparison" : "Compare a shopping list"}
+              title={compareMode ? "Turn off list comparison" : "Compare a shopping list"}
+              onClick={() => { setCompareMode((value) => !value); composerRef.current?.focus(); }}
+              className={`grid h-10 shrink-0 place-items-center rounded-xl border px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${compareMode ? "border-primary-strong bg-primary-soft text-foreground" : "bg-card text-muted-foreground hover:bg-accent"}`}
+            >
+              <span className="flex items-center gap-1.5"><ClipboardList className="h-4 w-4" /><span>List</span></span>
+            </button>
+            <textarea
+              ref={composerRef}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="Try “rice” or “pharmacy”"
+              onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}
+              rows={compareMode ? 2 : 1}
+              placeholder={compareMode ? "e.g. 2 kg rice, 1 litre oil, 6 eggs" : "Try “rice” or “pharmacy”"}
               aria-label="Ask CPSE to find a shop"
-              maxLength={200}
-              className="min-w-0 flex-1 rounded-xl border bg-background px-3 text-sm outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus:border-primary-strong focus:ring-2 focus:ring-ring/25"
+              maxLength={2000}
+              className="min-h-10 min-w-0 flex-1 resize-none rounded-xl border bg-background px-3 py-2 text-sm leading-5 outline-none transition-[border-color,box-shadow] placeholder:text-muted-foreground focus:border-primary-strong focus:ring-2 focus:ring-ring/25"
             />
-            <Button type="submit" size="icon" variant="ink" aria-label="Find shops" disabled={!draft.trim() || pending}>
+            <Button type="submit" size="icon" variant="ink" className="h-10 w-10 shrink-0" aria-label={compareMode ? "Compare shops" : "Find shops"} disabled={!draft.trim() || pending}>
               {pending ? <Loader2 className="animate-spin" /> : <Send />}
             </Button>
           </form>
@@ -146,5 +186,52 @@ export function HomeAssistant() {
         {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
       </button>
     </>
+  );
+}
+
+function ComparisonResults({ comparison }: { comparison: NonNullable<Turn["comparison"]> }) {
+  if (!comparison.shops.length) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {comparison.shops.map((shop, index) => (
+        <article key={shop.store.id} className="rounded-xl border bg-card p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-1.5 font-semibold">
+                <span className="truncate">{shop.store.name}</span>
+                {index === 0 && shop.complete ? <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-bold">Best complete total</span> : null}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{shop.itemCount} of {shop.totalItems} items · {shop.fulfilmentMode === "delivery" ? "Delivery" : "Pickup"}</p>
+            </div>
+            <div className="shrink-0 text-right">
+              <strong className="block text-sm">{formatPaise(shop.estimatedTotalPaise)}</strong>
+              <span className="text-[10px] text-muted-foreground">estimated total</span>
+            </div>
+          </div>
+          <details className="mt-2 border-t border-border pt-2 text-xs">
+            <summary className="cursor-pointer font-semibold text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">See item prices and availability</summary>
+            <ul className="mt-2 space-y-1.5">
+              {shop.items.map((item, itemIndex) => (
+                <li key={`${item.productName}-${itemIndex}`} className="flex justify-between gap-3">
+                  <span className="min-w-0">{item.requestedText} → {item.quantity} × {item.productName}{item.variantName ? ` · ${item.variantName}` : ""}{item.onOffer ? <span className="ml-1 text-success">Offer</span> : null}</span>
+                  <span className="shrink-0 font-semibold">{formatPaise(item.lineTotalPaise)}</span>
+                </li>
+              ))}
+              {shop.unmatched.map((item) => <li key={item} className="text-muted-foreground">Not found: {item}</li>)}
+            </ul>
+            <div className="mt-2 space-y-1 border-t border-border pt-2 text-muted-foreground">
+              <p className="flex justify-between gap-3"><span>Items, before tax</span><span>{formatPaise(shop.subtotalPaise)}</span></p>
+              <p className="flex justify-between gap-3"><span>Tax</span><span>{formatPaise(shop.taxPaise)}</span></p>
+              <p className="flex justify-between gap-3"><span>{shop.fulfilmentMode === "delivery" ? "Delivery" : "Pickup"}</span><span>{shop.deliveryFeePaise ? formatPaise(shop.deliveryFeePaise) : "Free"}</span></p>
+              {!shop.meetsMinimumOrder ? <p className="pt-1 text-destructive">₹{(shop.minimumOrderShortfallPaise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })} below the shop’s minimum order.</p> : null}
+            </div>
+          </details>
+          <Link to="/store/$slug" params={{ slug: shop.store.slug }} className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-ink-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            Review at this shop
+          </Link>
+        </article>
+      ))}
+      <p className="text-[11px] leading-relaxed text-muted-foreground">{comparison.note}</p>
+    </div>
   );
 }

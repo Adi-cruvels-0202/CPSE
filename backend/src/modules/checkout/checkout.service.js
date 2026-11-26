@@ -228,6 +228,7 @@ export async function quoteCheckoutGroup(customerId, input) {
     shops: publicQuotes,
     totals,
     paymentMethods,
+    paymentBlockers: stores.filter((store) => !store.accepts_online).map((store) => ({ storeId: store.id, storeName: store.name, code: 'ONLINE_PAYMENT_UNAVAILABLE' })),
     canPlaceOrder: publicQuotes.every((quote) => quote.canPlaceOrder) && paymentMethods.length > 0,
     blockers: publicQuotes.flatMap((quote) => quote.blockers.map((blocker) => ({ storeId: quote.storeId, storeName: quote.store.name, ...blocker }))),
     warnings: publicQuotes.flatMap((quote) => quote.warnings.map((warning) => ({ storeId: quote.storeId, storeName: quote.store.name, ...warning }))),

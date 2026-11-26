@@ -108,7 +108,9 @@ export async function initiatePayment(customerId, orderId) {
   });
   if (payment.checkout_group_id) {
     const { error: allocationError } = await supabaseAdmin.from('payments')
-      .update({ provider_ref: result.providerRef, status: result.status ?? 'processing' })
+      // provider_ref is unique per provider. Store the one shared reference on
+      // the parent charge only; child rows are amount/status allocations.
+      .update({ status: result.status ?? 'processing' })
       .eq('parent_payment_id', payment.id);
     fail(allocationError, 'Could not update shop payment allocations.');
   }

@@ -431,7 +431,14 @@ async function latestPayment(orderId) {
     .limit(1);
 
   fail(error, 'Could not load the payment.');
-  return (data ?? [])[0] ?? null;
+  const payment = (data ?? [])[0] ?? null;
+  if (payment?.parent_payment_id) {
+    const { data: parent, error: parentError } = await supabaseAdmin.from('payments')
+      .select('provider_ref').eq('id', payment.parent_payment_id).maybeSingle();
+    fail(parentError, 'Could not load the combined payment reference.');
+    return { ...payment, provider_ref: parent?.provider_ref ?? payment.provider_ref };
+  }
+  return payment;
 }
 
 export const toPublicOrderItem = (row) => ({
